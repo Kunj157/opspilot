@@ -1,6 +1,7 @@
 import "server-only";
 
 import { cookies } from "next/headers";
+import { cache } from "react";
 import { redirect } from "next/navigation";
 
 import { createApiClient, type Me } from "@opspilot/api-client";
@@ -13,9 +14,10 @@ export type CurrentUser = Pick<Me, "display_name" | "email" | "organization" | "
 
 /**
  * Data access layer for "who is signed in". Redirects to the login page when
- * there is no valid session. Returns only what the UI needs.
+ * there is no valid session. Returns only what the UI needs. Memoized per
+ * request, so the header, navigation, and page share one /me call.
  */
-export async function getCurrentUser(): Promise<CurrentUser> {
+export const getCurrentUser = cache(async (): Promise<CurrentUser> => {
   const sessionId = (await cookies()).get(SESSION_COOKIE)?.value;
   const token = await accessTokenFor(sessionId);
   if (!token) redirect("/login");
@@ -29,4 +31,4 @@ export async function getCurrentUser(): Promise<CurrentUser> {
   if (!data) throw new Error(`could not load the current user (HTTP ${response.status})`);
   const { display_name, email, organization, roles, permissions } = data;
   return { display_name, email, organization, roles, permissions };
-}
+});
