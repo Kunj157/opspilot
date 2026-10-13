@@ -38,6 +38,8 @@ services:
       # Fixed public URL so the token issuer is the same for browser and API.
       KC_HOSTNAME: http://localhost:${KEYCLOAK_PORT:-8080}
       KC_HOSTNAME_BACKCHANNEL_DYNAMIC: "true"
+      # Substituted into the realm import (${WEB_PORT:3000}) for exact redirect URIs.
+      WEB_PORT: ${WEB_PORT:-3000}
     ports:
       - "${KEYCLOAK_PORT:-8080}:8080"
     volumes:
