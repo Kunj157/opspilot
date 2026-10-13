@@ -9,6 +9,7 @@ export
 
 COMPOSE := docker compose
 API := cd apps/api && uv run
+DEMO := cd demo/services && uv run
 
 .PHONY: db-upgrade db-downgrade db-revision keycloak-smoke token api-client web-dev dev build test-e2e test-lighthouse help infra-up infra-down stop secrets-scan install api-dev format lint typecheck test test-unit test-integration
 
@@ -29,6 +30,7 @@ secrets-scan: ## Scan the working tree and history for secrets
 
 install: ## Install all dependencies
 	cd apps/api && uv sync --frozen
+	cd demo/services && uv sync --frozen
 	pnpm install --frozen-lockfile
 
 api-dev: ## Run the API with auto-reload against local infra
@@ -38,15 +40,20 @@ api-dev: ## Run the API with auto-reload against local infra
 format: ## Format all code
 	$(API) ruff format .
 	$(API) ruff check --fix .
+	$(DEMO) ruff format .
+	$(DEMO) ruff check --fix .
 	pnpm --filter @opspilot/web exec eslint --fix
 
 lint: ## Lint all code (no changes)
 	$(API) ruff format --check .
 	$(API) ruff check .
+	$(DEMO) ruff format --check .
+	$(DEMO) ruff check .
 	pnpm --filter @opspilot/web lint
 
 typecheck: ## Static type checks
 	$(API) mypy
+	$(DEMO) mypy
 	pnpm --filter @opspilot/api-client typecheck
 	pnpm --filter @opspilot/web typecheck
 
@@ -54,6 +61,7 @@ test: test-unit ## Fast tests (unit)
 
 test-unit: ## Unit tests
 	$(API) pytest tests/unit
+	$(DEMO) pytest
 	pnpm --filter @opspilot/web test
 
 test-integration: ## Integration tests against real containers (needs Docker)
