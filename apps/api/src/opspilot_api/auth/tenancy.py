@@ -15,7 +15,7 @@ from opspilot_api.auth.principal import Principal
 from opspilot_api.db.base import OrganizationScoped
 
 
-def scoped[S: Select[Any]](
+def scoped[S: Select[*tuple[Any, ...]]](
     statement: S, model: type[OrganizationScoped], principal: Principal
 ) -> S:
     """Restrict a SELECT to the caller's organization."""

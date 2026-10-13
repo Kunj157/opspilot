@@ -1239,6 +1239,56 @@
           }
         }
       }
+    },
+    "/api/v1/incident-metrics": {
+      "get": {
+        "tags": [
+          "incidents"
+        ],
+        "summary": "Incident Metrics",
+        "operationId": "incident_metrics_api_v1_incident_metrics_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "days",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 90,
+              "minimum": 1,
+              "default": 30,
+              "title": "Days"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IncidentMetrics"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -1388,6 +1438,40 @@
           "status"
         ],
         "title": "CheckResult"
+      },
+      "DailySeverity": {
+        "properties": {
+          "critical": {
+            "type": "integer",
+            "title": "Critical",
+            "default": 0
+          },
+          "high": {
+            "type": "integer",
+            "title": "High",
+            "default": 0
+          },
+          "medium": {
+            "type": "integer",
+            "title": "Medium",
+            "default": 0
+          },
+          "low": {
+            "type": "integer",
+            "title": "Low",
+            "default": 0
+          },
+          "date": {
+            "type": "string",
+            "format": "date",
+            "title": "Date"
+          }
+        },
+        "type": "object",
+        "required": [
+          "date"
+        ],
+        "title": "DailySeverity"
       },
       "DependenciesUpdate": {
         "properties": {
@@ -1576,6 +1660,65 @@
           "severity"
         ],
         "title": "IncidentCreate"
+      },
+      "IncidentMetrics": {
+        "properties": {
+          "window_days": {
+            "type": "integer",
+            "title": "Window Days"
+          },
+          "mtta_seconds": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mtta Seconds"
+          },
+          "mttr_seconds": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mttr Seconds"
+          },
+          "acknowledged": {
+            "type": "integer",
+            "title": "Acknowledged"
+          },
+          "resolved": {
+            "type": "integer",
+            "title": "Resolved"
+          },
+          "active_by_severity": {
+            "$ref": "#/components/schemas/SeverityCounts"
+          },
+          "daily": {
+            "items": {
+              "$ref": "#/components/schemas/DailySeverity"
+            },
+            "type": "array",
+            "title": "Daily"
+          }
+        },
+        "type": "object",
+        "required": [
+          "window_days",
+          "mtta_seconds",
+          "mttr_seconds",
+          "acknowledged",
+          "resolved",
+          "active_by_severity",
+          "daily"
+        ],
+        "title": "IncidentMetrics"
       },
       "IncidentOut": {
         "properties": {
@@ -2272,6 +2415,32 @@
           "low"
         ],
         "title": "Severity"
+      },
+      "SeverityCounts": {
+        "properties": {
+          "critical": {
+            "type": "integer",
+            "title": "Critical",
+            "default": 0
+          },
+          "high": {
+            "type": "integer",
+            "title": "High",
+            "default": 0
+          },
+          "medium": {
+            "type": "integer",
+            "title": "Medium",
+            "default": 0
+          },
+          "low": {
+            "type": "integer",
+            "title": "Low",
+            "default": 0
+          }
+        },
+        "type": "object",
+        "title": "SeverityCounts"
       },
       "Topology": {
         "properties": {

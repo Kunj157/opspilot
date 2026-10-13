@@ -2,7 +2,8 @@ import { expect, type APIRequestContext, type Page, test } from "@playwright/tes
 
 /** Two services where `checkout` calls `payment`, with unique names per run. */
 async function seed(request: APIRequestContext, origin: string) {
-  const run = Date.now();
+  // Parallel tests seed at the same moment, so the suffix must be random.
+  const run = `${Date.now()}${Math.floor(Math.random() * 1e6)}`;
   const headers = { Origin: origin };
   const make = async (name: string) => {
     const response = await request.post("/api/v1/services", {
@@ -77,11 +78,25 @@ test.describe("on a phone", () => {
 });
 
 test.describe("3D view", () => {
+  test("pauses while scrolled out of view", async ({ page, baseURL }) => {
+    await seed(page.request, baseURL!);
+    await page.setViewportSize({ width: 1280, height: 600 });
+    await page.goto("/");
+    const view = page.getByTestId("topology-3d");
+    await view.scrollIntoViewIfNeeded();
+    await expect(view).toHaveAttribute("data-frameloop", "always");
+
+    await page.evaluate(() => window.scrollTo(0, 0));
+
+    await expect(view).toHaveAttribute("data-frameloop", "never");
+  });
+
   test("is the default where WebGL works and keeps the 2D map one click away", async ({ page, baseURL }) => {
     await seed(page.request, baseURL!);
     await page.goto("/");
 
     const view = page.getByTestId("topology-3d");
+    await view.scrollIntoViewIfNeeded();
     await expect(view.locator("canvas")).toBeVisible();
     await expect(view).toHaveAttribute("data-frameloop", "always");
     await page.getByRole("group", { name: "Topology view" }).getByRole("button", { name: "2D" }).click();
@@ -125,13 +140,16 @@ test.describe("3D view", () => {
     await seed(page.request, baseURL!);
     await page.goto("/");
 
-    await expect(page.getByTestId("topology-3d")).toHaveAttribute("data-frameloop", "demand");
+    const view = page.getByTestId("topology-3d");
+    await view.scrollIntoViewIfNeeded();
+    await expect(view).toHaveAttribute("data-frameloop", "demand");
   });
 
   test("stops rendering while the tab is hidden", async ({ page, baseURL }) => {
     await seed(page.request, baseURL!);
     await page.goto("/");
     const view = page.getByTestId("topology-3d");
+    await view.scrollIntoViewIfNeeded();
     await expect(view).toHaveAttribute("data-frameloop", "always");
 
     await page.evaluate(() => {

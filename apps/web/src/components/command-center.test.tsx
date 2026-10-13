@@ -1,10 +1,25 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, within } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { CommandCenter } from "./command-center";
 
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn() }) }));
+
+const METRICS = {
+  window_days: 30,
+  mtta_seconds: 6 * 60,
+  mttr_seconds: null,
+  acknowledged: 2,
+  resolved: 0,
+  active_by_severity: { critical: 1, high: 1, medium: 0, low: 1 },
+  daily: [{ date: "2026-10-13", critical: 1, high: 1, medium: 0, low: 1 }],
+};
+
+class SilentEventSource {
+  addEventListener() {}
+  close() {}
+}
 
 function incident(n: number, severity: string, status = "DETECTED") {
   return {
@@ -34,7 +49,11 @@ function service(n: number, health: string) {
 function respond(routes: Record<string, unknown>, status = 200) {
   return vi.fn(async (input: Request | string) => {
     const url = new URL(typeof input === "string" ? input : input.url);
-    const body = url.pathname === "/api/v1/topology" ? { nodes: [], edges: [] } : routes[url.pathname];
+    const defaults: Record<string, unknown> = {
+      "/api/v1/topology": { nodes: [], edges: [] },
+      "/api/v1/incident-metrics": METRICS,
+    };
+    const body = routes[url.pathname] ?? defaults[url.pathname];
     return new Response(JSON.stringify(body ?? {}), {
       status: body === undefined ? 404 : status,
       headers: { "Content-Type": "application/json" },
@@ -51,6 +70,7 @@ function renderIt() {
   );
 }
 
+beforeEach(() => vi.stubGlobal("EventSource", SilentEventSource));
 afterEach(() => vi.unstubAllGlobals());
 
 describe("CommandCenter", () => {
@@ -74,6 +94,9 @@ describe("CommandCenter", () => {
     expect(within(active).getByText("3")).toBeInTheDocument();
     expect(within(screen.getByRole("group", { name: "Critical incidents" })).getByText("1")).toBeInTheDocument();
     expect(within(screen.getByRole("group", { name: "Healthy services" })).getByText("2 of 3")).toBeInTheDocument();
+    expect(within(screen.getByRole("group", { name: "Mean time to acknowledge" })).getByText("6m")).toBeInTheDocument();
+    expect(within(screen.getByRole("group", { name: "Mean time to resolve" })).getByText("—")).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: /incidents started per day/i })).toBeInTheDocument();
     const recent = screen.getByRole("list", { name: "Recent incidents" });
     expect(within(recent).getAllByRole("listitem")).toHaveLength(3);
     expect(within(recent).getAllByRole("listitem")[0]).toHaveTextContent("Incident 3");

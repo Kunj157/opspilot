@@ -2,10 +2,14 @@
 
 import { createApiClient } from "@opspilot/api-client";
 import Link from "next/link";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { TopologyPanel } from "@/components/topology/topology-panel";
+import { TOPOLOGY_KEY, TopologyPanel } from "@/components/topology/topology-panel";
 import { Card } from "@/components/ui/card";
+import { formatSeconds } from "@/lib/durations";
+
+import { AlertStream } from "./command-center/alert-stream";
+import { SeverityChart } from "./command-center/severity-chart";
 
 import { type IncidentStatus, SeverityBadge, StatusBadge } from "./incidents/badges";
 
@@ -19,14 +23,18 @@ const ACTIVE: IncidentStatus[] = [
   "REJECTED",
 ];
 
+const METRICS_WINDOW_DAYS = 30;
+const CHART_DAYS = 14;
+
 async function loadSummary(signal: AbortSignal) {
   const api = createApiClient(window.location.origin);
-  const [incidents, services] = await Promise.all([
+  const [incidents, services, metrics] = await Promise.all([
     api.GET("/api/v1/incidents", { params: { query: { status: ACTIVE, limit: 200 } }, signal }),
     api.GET("/api/v1/services", { signal }),
+    api.GET("/api/v1/incident-metrics", { params: { query: { days: METRICS_WINDOW_DAYS } }, signal }),
   ]);
-  if (!incidents.data || !services.data) throw new Error("summary unavailable");
-  return { incidents: incidents.data.items, services: services.data.items };
+  if (!incidents.data || !services.data || !metrics.data) throw new Error("summary unavailable");
+  return { incidents: incidents.data.items, services: services.data.items, metrics: metrics.data };
 }
 
 function Stat({ label, value, tone }: { label: string; value: string; tone?: string }) {
@@ -43,6 +51,7 @@ function Stat({ label, value, tone }: { label: string; value: string; tone?: str
 const time = new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" });
 
 export function CommandCenter() {
+  const queryClient = useQueryClient();
   const summary = useQuery({
     queryKey: ["command-center"],
     queryFn: ({ signal }) => loadSummary(signal),
@@ -51,8 +60,8 @@ export function CommandCenter() {
 
   if (summary.isPending) {
     return (
-      <div aria-hidden className="grid gap-4 sm:grid-cols-3">
-        {[0, 1, 2].map((i) => (
+      <div aria-hidden className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {[0, 1, 2, 3, 4, 5].map((i) => (
           <div key={i} className="h-28 animate-pulse rounded-card bg-surface-2" />
         ))}
       </div>
@@ -66,13 +75,13 @@ export function CommandCenter() {
     );
   }
 
-  const { incidents, services } = summary.data;
+  const { incidents, services, metrics } = summary.data;
   const critical = incidents.filter((i) => i.severity === "critical").length;
   const healthy = services.filter((s) => s.health_status === "healthy").length;
 
   return (
     <div className="flex flex-col gap-8">
-      <div className="grid gap-4 sm:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <Stat label="Active incidents" value={String(incidents.length)} />
         <Stat
           label="Critical incidents"
@@ -84,6 +93,26 @@ export function CommandCenter() {
           value={services.length ? `${healthy} of ${services.length}` : "—"}
           tone={services.length && healthy === services.length ? "text-healthy" : undefined}
         />
+        <Stat label="Mean time to acknowledge" value={formatSeconds(metrics.mtta_seconds)} />
+        <Stat label="Mean time to resolve" value={formatSeconds(metrics.mttr_seconds)} />
+        <Stat label={`Resolved in ${metrics.window_days} days`} value={String(metrics.resolved)} />
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-[3fr_2fr]">
+        <Card as="section" aria-labelledby="severity-heading" className="p-5">
+          <h2 id="severity-heading" className="mb-4 text-sm font-medium text-fg-secondary">
+            Incidents by severity, last {CHART_DAYS} days
+          </h2>
+          <SeverityChart daily={metrics.daily.slice(-CHART_DAYS)} />
+        </Card>
+        <Card as="section" aria-label="Live alerts" className="overflow-hidden">
+          <AlertStream
+            onEvent={() => {
+              void queryClient.invalidateQueries({ queryKey: ["command-center"] });
+              void queryClient.invalidateQueries({ queryKey: TOPOLOGY_KEY });
+            }}
+          />
+        </Card>
       </div>
 
       <TopologyPanel />
