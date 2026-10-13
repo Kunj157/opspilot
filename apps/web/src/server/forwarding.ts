@@ -1,4 +1,10 @@
-const FORWARDED_REQUEST_HEADERS = ["accept", "content-type", "idempotency-key", "x-request-id"];
+const FORWARDED_REQUEST_HEADERS = [
+  "accept",
+  "content-type",
+  "idempotency-key",
+  "last-event-id",
+  "x-request-id",
+];
 
 /**
  * The browser's address, if it can be trusted.
