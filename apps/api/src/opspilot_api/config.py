@@ -18,6 +18,9 @@ class Settings(BaseSettings):
     jwt_issuer: str | None = None
     jwt_audience: str | None = None
 
+    # Comma-separated addresses allowed to set X-Forwarded-For (the web app's proxy).
+    trusted_proxies: str = "127.0.0.1"
+
     readiness_timeout_seconds: float = 2.0
 
     def missing_required(self) -> list[str]:

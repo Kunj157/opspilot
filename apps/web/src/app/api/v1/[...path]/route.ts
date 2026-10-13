@@ -8,11 +8,11 @@
 import { type NextRequest, NextResponse } from "next/server";
 
 import { serverConfig } from "@/server/config";
+import { upstreamHeaders } from "@/server/forwarding";
 import { accessTokenFor } from "@/server/oidc";
 import { isSameOrigin } from "@/server/request";
 import { SESSION_COOKIE } from "@/server/sessions";
 
-const FORWARDED_REQUEST_HEADERS = ["accept", "content-type", "idempotency-key", "x-request-id"];
 const DROPPED_RESPONSE_HEADERS = ["connection", "transfer-encoding", "content-encoding", "content-length"];
 
 async function proxy(request: NextRequest, context: { params: Promise<{ path: string[] }> }) {
@@ -24,13 +24,8 @@ async function proxy(request: NextRequest, context: { params: Promise<{ path: st
   const target = new URL(`/api/v1/${path.map(encodeURIComponent).join("/")}`, serverConfig().apiUrl);
   target.search = request.nextUrl.search;
 
-  const headers = new Headers();
-  for (const name of FORWARDED_REQUEST_HEADERS) {
-    const value = request.headers.get(name);
-    if (value) headers.set(name, value);
-  }
   const token = await accessTokenFor(request.cookies.get(SESSION_COOKIE)?.value);
-  if (token) headers.set("authorization", `Bearer ${token}`);
+  const headers = upstreamHeaders(request.headers, token, serverConfig().trustedProxyHops);
 
   let upstream: Response;
   try {

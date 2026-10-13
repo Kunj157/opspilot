@@ -14,5 +14,7 @@ export function serverConfig() {
     oidcClientId: required("OIDC_CLIENT_ID"),
     oidcClientSecret: required("OIDC_CLIENT_SECRET"),
     production: process.env.APP_ENV === "production",
+    /** Reverse proxies in front of this server that append X-Forwarded-For (0 locally). */
+    trustedProxyHops: Number.parseInt(process.env.TRUSTED_PROXY_HOPS ?? "0", 10) || 0,
   };
 }
