@@ -1,4 +1,4 @@
-import { expect, type APIRequestContext, test } from "@playwright/test";
+import { expect, type APIRequestContext, type Page, test } from "@playwright/test";
 
 /** Two services where `checkout` calls `payment`, with unique names per run. */
 async function seed(request: APIRequestContext, origin: string) {
@@ -22,9 +22,17 @@ async function seed(request: APIRequestContext, origin: string) {
   return { checkout, payment };
 }
 
+/** Switches to the 2D map, which is where keyboard and screen-reader users work. */
+async function show2D(page: Page) {
+  const toggle = page.getByRole("group", { name: "Topology view" });
+  await expect(toggle.or(page.getByText("3D view unavailable"))).toBeVisible();
+  if (await toggle.isVisible()) await toggle.getByRole("button", { name: "2D" }).click();
+}
+
 test("selecting a service on the map shows its dependencies", async ({ page, baseURL }) => {
   const { checkout, payment } = await seed(page.request, baseURL!);
   await page.goto("/");
+  await show2D(page);
 
   const map = page.getByRole("group", { name: "Service map" });
   await map.getByRole("button", { name: new RegExp(`^${checkout.name}`) }).click();
@@ -39,6 +47,7 @@ test("selecting a service on the map shows its dependencies", async ({ page, bas
 test("the map works from the keyboard", async ({ page, baseURL }) => {
   const { checkout } = await seed(page.request, baseURL!);
   await page.goto("/");
+  await show2D(page);
   const map = page.getByRole("group", { name: "Service map" });
   const checkoutNode = map.getByRole("button", { name: new RegExp(`^${checkout.name}`) });
   await expect(checkoutNode).toBeVisible();
@@ -64,5 +73,72 @@ test.describe("on a phone", () => {
     const list = page.getByRole("list", { name: "Services by dependency" });
     const item = list.getByRole("listitem").filter({ hasText: checkout.name });
     await expect(item).toContainText(`Calls ${payment.name}`);
+  });
+});
+
+test.describe("3D view", () => {
+  test("is the default where WebGL works and keeps the 2D map one click away", async ({ page, baseURL }) => {
+    await seed(page.request, baseURL!);
+    await page.goto("/");
+
+    const view = page.getByTestId("topology-3d");
+    await expect(view.locator("canvas")).toBeVisible();
+    await expect(view).toHaveAttribute("data-frameloop", "always");
+    await page.getByRole("group", { name: "Topology view" }).getByRole("button", { name: "2D" }).click();
+    await expect(page.getByRole("group", { name: "Service map" })).toBeVisible();
+    await expect(view).toHaveCount(0);
+  });
+
+  test("falls back to the 2D map when WebGL is unavailable", async ({ page, baseURL }) => {
+    await page.addInitScript(() => {
+      const original = HTMLCanvasElement.prototype.getContext;
+      HTMLCanvasElement.prototype.getContext = function (this: HTMLCanvasElement, type: string, ...rest: unknown[]) {
+        return type.startsWith("webgl") ? null : original.call(this, type as "2d", ...(rest as []));
+      } as typeof original;
+    });
+    await seed(page.request, baseURL!);
+    await page.goto("/");
+
+    await expect(page.getByText("3D view unavailable")).toBeVisible();
+    await expect(page.getByRole("group", { name: "Service map" })).toBeVisible();
+    await expect(page.getByRole("group", { name: "Topology view" })).toHaveCount(0);
+    await expect(page.getByTestId("topology-3d")).toHaveCount(0);
+  });
+
+  test("falls back to the 2D map when the WebGL context is lost", async ({ page, baseURL }) => {
+    await seed(page.request, baseURL!);
+    await page.goto("/");
+    const canvas = page.getByTestId("topology-3d").locator("canvas");
+    await expect(canvas).toBeVisible();
+
+    await canvas.evaluate((node: HTMLCanvasElement) => {
+      const gl = node.getContext("webgl2") ?? node.getContext("webgl");
+      gl?.getExtension("WEBGL_lose_context")?.loseContext();
+    });
+
+    await expect(page.getByRole("group", { name: "Service map" })).toBeVisible();
+    await expect(page.getByText("3D view unavailable")).toBeVisible();
+  });
+
+  test("renders on demand only when the user prefers reduced motion", async ({ page, baseURL }) => {
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await seed(page.request, baseURL!);
+    await page.goto("/");
+
+    await expect(page.getByTestId("topology-3d")).toHaveAttribute("data-frameloop", "demand");
+  });
+
+  test("stops rendering while the tab is hidden", async ({ page, baseURL }) => {
+    await seed(page.request, baseURL!);
+    await page.goto("/");
+    const view = page.getByTestId("topology-3d");
+    await expect(view).toHaveAttribute("data-frameloop", "always");
+
+    await page.evaluate(() => {
+      Object.defineProperty(document, "visibilityState", { configurable: true, get: () => "hidden" });
+      document.dispatchEvent(new Event("visibilitychange"));
+    });
+
+    await expect(view).toHaveAttribute("data-frameloop", "never");
   });
 });

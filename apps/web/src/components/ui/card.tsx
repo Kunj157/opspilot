@@ -1,6 +1,14 @@
 "use client";
 
-import { type ComponentPropsWithoutRef, type ElementType, type PointerEvent, useRef } from "react";
+import {
+  type ComponentPropsWithoutRef,
+  type ComponentType,
+  type ElementType,
+  type HTMLAttributes,
+  type PointerEvent,
+  type Ref,
+  useRef,
+} from "react";
 
 import { useReducedMotion } from "@/lib/use-reduced-motion";
 
@@ -21,7 +29,8 @@ export function Card<T extends ElementType = "div">({
   onPointerLeave,
   ...props
 }: CardProps<T>) {
-  const Component: ElementType = as ?? "div";
+  // Narrowed on purpose: three.js JSX elements make the full ElementType union too large to check.
+  const Component = (as ?? "div") as ComponentType<HTMLAttributes<HTMLElement> & { ref?: Ref<HTMLElement> }>;
   const ref = useRef<HTMLElement>(null);
   const reduced = useReducedMotion();
   const tilting = tilt && !reduced;
