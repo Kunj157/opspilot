@@ -287,6 +287,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/incident-metrics": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Incident Metrics */
+        get: operations["incident_metrics_api_v1_incident_metrics_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -342,6 +359,34 @@ export interface components {
             status: "ok" | "fail";
             /** Detail */
             detail?: string | null;
+        };
+        /** DailySeverity */
+        DailySeverity: {
+            /**
+             * Critical
+             * @default 0
+             */
+            critical: number;
+            /**
+             * High
+             * @default 0
+             */
+            high: number;
+            /**
+             * Medium
+             * @default 0
+             */
+            medium: number;
+            /**
+             * Low
+             * @default 0
+             */
+            low: number;
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
         };
         /** DependenciesUpdate */
         DependenciesUpdate: {
@@ -414,6 +459,22 @@ export interface components {
              * @enum {string}
              */
             source: "manual" | "detector" | "alertmanager";
+        };
+        /** IncidentMetrics */
+        IncidentMetrics: {
+            /** Window Days */
+            window_days: number;
+            /** Mtta Seconds */
+            mtta_seconds: number | null;
+            /** Mttr Seconds */
+            mttr_seconds: number | null;
+            /** Acknowledged */
+            acknowledged: number;
+            /** Resolved */
+            resolved: number;
+            active_by_severity: components["schemas"]["SeverityCounts"];
+            /** Daily */
+            daily: components["schemas"]["DailySeverity"][];
         };
         /** IncidentOut */
         IncidentOut: {
@@ -614,6 +675,29 @@ export interface components {
          * @enum {string}
          */
         Severity: "critical" | "high" | "medium" | "low";
+        /** SeverityCounts */
+        SeverityCounts: {
+            /**
+             * Critical
+             * @default 0
+             */
+            critical: number;
+            /**
+             * High
+             * @default 0
+             */
+            high: number;
+            /**
+             * Medium
+             * @default 0
+             */
+            medium: number;
+            /**
+             * Low
+             * @default 0
+             */
+            low: number;
+        };
         /** Topology */
         Topology: {
             /** Nodes */
@@ -1314,6 +1398,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["EventList"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    incident_metrics_api_v1_incident_metrics_get: {
+        parameters: {
+            query?: {
+                days?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IncidentMetrics"];
                 };
             };
             /** @description Validation Error */

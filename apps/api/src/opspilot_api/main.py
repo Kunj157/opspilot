@@ -15,7 +15,15 @@ from opspilot_api.db.session import SessionFactory
 from opspilot_api.events.broker import EventBroker
 from opspilot_api.logging import configure_logging
 from opspilot_api.request_context import RequestContextMiddleware
-from opspilot_api.routes import audit_logs, incident_streams, incidents, me, services, topology
+from opspilot_api.routes import (
+    audit_logs,
+    incident_metrics,
+    incident_streams,
+    incidents,
+    me,
+    services,
+    topology,
+)
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -80,4 +88,5 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     # Before incidents.router, so /incidents/stream is not read as an incident ID.
     app.include_router(incident_streams.router)
     app.include_router(incidents.router)
+    app.include_router(incident_metrics.router)
     return app
