@@ -166,7 +166,9 @@ async def test_me_lists_effective_permissions(
     response = await client.get("/api/v1/me", headers=headers(factory, "acme", "operator"))
 
     assert response.json()["permissions"] == [
+        "manage_incidents",
         "manage_runbooks",
+        "manage_services",
         "start_investigation",
         "view_incidents",
         "view_services",

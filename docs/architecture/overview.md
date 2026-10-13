@@ -29,7 +29,8 @@ remediation against Kubernetes.
 | `worker` | Celery (one project, separate queues) | Telemetry queries, detection, agent orchestration (LangGraph), runbook ingestion, remediation, verification, postmortems | §6.3 |
 | `ml-service` | FastAPI, scikit-learn, MLflow | Feature processing, anomaly scoring, model versions | §6.4 |
 | PostgreSQL + pgvector | | System of record, embeddings | §12 |
-| Redis | | Queue broker, cache, SSE fan-out | §4.2 |
+| Redis | | Queue broker, cache, web sessions | §4.2 |
+| Live updates | PostgreSQL `LISTEN/NOTIFY` → SSE | Commit-time incident notifications fanned out to streams (ADR-004) | §13 |
 | Observability stack | OTel Collector, Prometheus, Loki, Tempo, Grafana | Telemetry for the demo system **and** OpsPilot itself | §4.4 |
 | Redpanda | | Event bus — added in Phase 11 only | §15 |
 | Demo system | storefront, checkout, payment, inventory, notification | Failure-injectable target | §6.5 |

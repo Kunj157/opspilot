@@ -10,7 +10,7 @@ import { serverConfig } from "./config";
 import { accessTokenFor } from "./oidc";
 import { SESSION_COOKIE } from "./sessions";
 
-export type CurrentUser = Pick<Me, "display_name" | "email" | "organization" | "roles" | "permissions">;
+export type CurrentUser = Pick<Me, "id" | "display_name" | "email" | "organization" | "roles" | "permissions">;
 
 /**
  * Data access layer for "who is signed in". Redirects to the login page when
@@ -29,6 +29,6 @@ export const getCurrentUser = cache(async (): Promise<CurrentUser> => {
   });
   if (response.status === 401) redirect("/login");
   if (!data) throw new Error(`could not load the current user (HTTP ${response.status})`);
-  const { display_name, email, organization, roles, permissions } = data;
-  return { display_name, email, organization, roles, permissions };
+  const { id, display_name, email, organization, roles, permissions } = data;
+  return { id, display_name, email, organization, roles, permissions };
 });
