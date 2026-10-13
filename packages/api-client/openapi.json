@@ -1563,6 +1563,11 @@
             "format": "uuid",
             "title": "Id"
           },
+          "service_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Service Id"
+          },
           "detector": {
             "type": "string",
             "title": "Detector"
@@ -1632,6 +1637,7 @@
         "type": "object",
         "required": [
           "id",
+          "service_id",
           "detector",
           "failure_category",
           "outcome",
