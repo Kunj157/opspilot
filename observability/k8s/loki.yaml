@@ -70,4 +70,5 @@ metadata:
   name: loki
 spec:
   selector: { app.kubernetes.io/name: loki }
-  ports: [{ name: http, port: 3100, targetPort: http }]
+  type: NodePort
+  ports: [{ name: http, port: 3100, targetPort: http , nodePort: 30100 }]
