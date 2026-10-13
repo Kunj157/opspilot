@@ -15,6 +15,7 @@ test("creates a service, opens it, and edits it", async ({ page }) => {
   await dialog.getByRole("button", { name: "Create service" }).click();
 
   await expect(dialog).toBeHidden();
+  await expect(page.getByRole("region", { name: "Notifications" })).toContainText(`Service “${name}” created`);
   const card = page.getByRole("list", { name: "Services" }).getByRole("link", { name: new RegExp(name) });
   await expect(card).toContainText("Unknown");
   await card.click();

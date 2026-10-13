@@ -3,6 +3,8 @@ import { act, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { ToastProvider } from "@/components/ui/toast";
+
 import { IncidentList } from "./incident-list";
 
 const navigation = vi.hoisted(() => ({ search: "", replace: vi.fn() }));
@@ -77,7 +79,9 @@ function renderIt(canManage = true) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={client}>
-      <IncidentList canManage={canManage} currentUserId="user-1" />
+      <ToastProvider>
+        <IncidentList canManage={canManage} currentUserId="user-1" />
+      </ToastProvider>
     </QueryClientProvider>,
   );
 }

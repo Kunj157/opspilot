@@ -44,16 +44,20 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   const dismiss = useCallback((id: number) => setToasts((all) => all.filter((t) => t.id !== id)), []);
 
   const region = (tone: Tone) => (
-    <ul
-      role={tone === "error" ? "alert" : "status"}
-      className="pointer-events-none fixed right-4 bottom-4 z-50 flex w-[min(24rem,calc(100vw-2rem))] flex-col gap-2"
+    // Live regions without a landmark role, so page-level status and alert queries stay unambiguous.
+    <section
+      aria-label={tone === "error" ? "Error messages" : "Notifications"}
+      aria-live={tone === "error" ? "assertive" : "polite"}
+      className="pointer-events-none fixed right-4 bottom-4 z-50 w-[min(24rem,calc(100vw-2rem))]"
     >
-      {toasts
-        .filter((t) => t.tone === tone)
-        .map((t) => (
-          <ToastItem key={t.id} toast={t} dismiss={dismiss} />
-        ))}
-    </ul>
+      <ul className="flex flex-col gap-2">
+        {toasts
+          .filter((t) => t.tone === tone)
+          .map((t) => (
+            <ToastItem key={t.id} toast={t} dismiss={dismiss} />
+          ))}
+      </ul>
+    </section>
   );
 
   return (

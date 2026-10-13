@@ -8,7 +8,9 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 
 import { SERVICES_KEY } from "@/components/services/service-catalog";
+import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
+import { useToast } from "@/components/ui/toast";
 import {
   filtersToSearch,
   type IncidentFilters,
@@ -63,6 +65,7 @@ export function IncidentList({ canManage, currentUserId }: { canManage: boolean;
   const pathname = usePathname();
   const filters = parseFilters(new URLSearchParams(useSearchParams().toString()));
   const queryClient = useQueryClient();
+  const toast = useToast();
   const [creating, setCreating] = useState(false);
 
   const setFilters = (change: Partial<IncidentFilters>) =>
@@ -107,13 +110,11 @@ export function IncidentList({ canManage, currentUserId }: { canManage: boolean;
       <div className="flex flex-wrap items-center justify-between gap-3">
         <LiveIndicator state={stream} />
         {canManage && (
-          <button
-            type="button"
+          <Button
             onClick={() => setCreating(true)}
-            className="rounded-sm bg-accent px-4 py-2 text-sm font-semibold text-on-accent hover:bg-accent-hover"
           >
             New incident
-          </button>
+          </Button>
         )}
       </div>
 
@@ -276,6 +277,7 @@ export function IncidentList({ canManage, currentUserId }: { canManage: boolean;
           services={services.data ?? []}
           onCreated={(incident) => {
             setCreating(false);
+            toast(`Incident “${incident.title}” created`);
             void queryClient.invalidateQueries({ queryKey: INCIDENTS_KEY });
             router.push(`/incidents/${incident.id}`);
           }}
