@@ -1,0 +1,24 @@
+image:
+  repository: opspilot-demo
+  tag: dev
+  pullPolicy: IfNotPresent
+
+environment: local
+# OTLP/HTTP endpoint of the OpenTelemetry Collector.
+otlpEndpoint: http://otel-collector.observability:4318
+
+# Service version reported in telemetry; a release bumps it.
+serviceVersion: "1.0.0"
+
+resources:
+  requests: { cpu: 25m, memory: 64Mi }
+  limits: { cpu: 250m, memory: 192Mi }
+
+# Faults are configuration, so injecting one creates a new rollout revision
+# and `kubectl rollout undo` removes it.
+services:
+  storefront: { replicas: 1, faults: { errorRate: 0, latencyMs: 0 } }
+  checkout: { replicas: 2, faults: { errorRate: 0, latencyMs: 0 } }
+  payment: { replicas: 1, faults: { errorRate: 0, latencyMs: 0 } }
+  inventory: { replicas: 1, faults: { errorRate: 0, latencyMs: 0 } }
+  notification: { replicas: 1, faults: { errorRate: 0, latencyMs: 0 } }

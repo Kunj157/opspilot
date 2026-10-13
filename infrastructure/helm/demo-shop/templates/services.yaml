@@ -1,0 +1,77 @@
+{{- range $name, $svc := .Values.services }}
+{{- $ctx := dict "name" $name "root" $ }}
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ $name }}
+  labels: {{- include "demo-shop.labels" $ctx | nindent 4 }}
+automountServiceAccountToken: false
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $name }}
+  labels: {{- include "demo-shop.labels" $ctx | nindent 4 }}
+spec:
+  replicas: {{ $svc.replicas }}
+  revisionHistoryLimit: 10
+  selector:
+    matchLabels: {{- include "demo-shop.selector" $ctx | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "demo-shop.labels" $ctx | nindent 8 }}
+        app.kubernetes.io/version: {{ $.Values.serviceVersion | quote }}
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8080"
+        prometheus.io/path: /metrics
+    spec:
+      serviceAccountName: {{ $name }}
+      terminationGracePeriodSeconds: 20
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        seccompProfile: { type: RuntimeDefault }
+      containers:
+        - name: {{ $name }}
+          image: "{{ $.Values.image.repository }}:{{ $.Values.image.tag }}"
+          imagePullPolicy: {{ $.Values.image.pullPolicy }}
+          ports:
+            - { name: http, containerPort: 8080 }
+          env:
+            - { name: SERVICE_NAME, value: {{ $name | quote }} }
+            - { name: SERVICE_VERSION, value: {{ $.Values.serviceVersion | quote }} }
+            - { name: ENVIRONMENT, value: {{ $.Values.environment | quote }} }
+            - { name: OTLP_ENDPOINT, value: {{ $.Values.otlpEndpoint | quote }} }
+            - { name: FAULT_ERROR_RATE, value: {{ $svc.faults.errorRate | quote }} }
+            - { name: FAULT_LATENCY_MS, value: {{ $svc.faults.latencyMs | quote }} }
+            - name: K8S_NAMESPACE
+              valueFrom: { fieldRef: { fieldPath: metadata.namespace } }
+            - name: K8S_POD_NAME
+              valueFrom: { fieldRef: { fieldPath: metadata.name } }
+          readinessProbe:
+            httpGet: { path: /healthz, port: http }
+            periodSeconds: 5
+          livenessProbe:
+            httpGet: { path: /healthz, port: http }
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          resources: {{- toYaml $.Values.resources | nindent 12 }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: [ALL] }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $name }}
+  labels: {{- include "demo-shop.labels" $ctx | nindent 4 }}
+spec:
+  selector: {{- include "demo-shop.selector" $ctx | nindent 4 }}
+  ports:
+    - { name: http, port: 80, targetPort: http }
+{{- end }}
