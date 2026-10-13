@@ -21,6 +21,7 @@ dependencies = [
 
 [project.scripts]
 opspilot-demo = "opspilot_demo.__main__:run"
+opspilot-demo-load = "opspilot_demo.loadgen:main"
 
 [build-system]
 requires = ["uv_build>=0.11.12,<0.12.0"]
