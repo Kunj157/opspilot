@@ -5,10 +5,10 @@ incidents in a cloud application, investigates them with AI agents and
 machine learning, proposes safe remediation, runs human-approved runbooks,
 verifies recovery, and writes the postmortem.
 
-> **Status:** v0.4.0 released: foundation, authentication and audit, service
-> catalog and incident management, and the modern UI with a 3D service
-> topology. Phase 5, demo microservices and telemetry, is next. See the
-> [roadmap](#roadmap).
+> **Status:** v0.5.0 released: foundation, authentication and audit, service
+> catalog and incident management, the modern UI with a 3D service topology,
+> and an instrumented demo shop on Kubernetes with full telemetry. Phase 6,
+> the detection engine, is next. See the [roadmap](#roadmap).
 
 ## What it does today
 
@@ -30,6 +30,10 @@ verifies recovery, and writes the postmortem.
   lazily loaded 3D view (React Three Fiber) with an accessible 2D map and
   list fallback. Incident list and detail pages update live, with actions
   for each state.
+- **Demo shop on Kubernetes:** five instrumented services on kind with
+  OpenTelemetry traces, JSON logs, and Prometheus metrics correlated by
+  trace ID in Tempo, Loki, and Grafana; synthetic load and faulty-release
+  scenarios that a rollback undoes.
 - **Design system:** Graphite & Iris tokens with contrast checked in CI,
   shared primitives (buttons, tilting cards, tabs, drawer, toasts), and
   Lighthouse budgets on primary pages.
@@ -72,8 +76,8 @@ Each phase ends with a tagged release.
 | 2 | Authentication, RBAC, audit logs | ✅ v0.2.0 |
 | 3 | Service catalog and incident management | ✅ v0.3.0 |
 | 4 | Modern UI and 3D service topology | ✅ v0.4.0 |
-| 5 | Demo microservices and telemetry | 🚧 next |
-| 6 | Detection engine | planned |
+| 5 | Demo microservices and telemetry | ✅ v0.5.0 |
+| 6 | Detection engine | 🚧 next |
 | 7 | Runbook retrieval (RAG) | planned |
 | 8 | Multi-agent investigation | planned |
 | 9 | Approval and safe remediation | planned |
