@@ -101,6 +101,7 @@ async def create_incident(
     description: str | None = None,
     service_id: uuid.UUID | None = None,
     detection_score: float | None = None,
+    dedup_key: str | None = None,
 ) -> Incident:
     incident = Incident(
         organization_id=actor.organization_id,
@@ -110,6 +111,7 @@ async def create_incident(
         source=source,
         service_id=service_id,
         detection_score=detection_score,
+        dedup_key=dedup_key,
         status=IncidentStatus.DETECTED,
     )
     session.add(incident)
@@ -124,6 +126,23 @@ async def create_incident(
     )
     await session.flush()
     return incident
+
+
+async def note(
+    session: AsyncSession,
+    incident: Incident,
+    actor: Actor,
+    *,
+    event_type: str,
+    title: str,
+    metadata: dict[str, Any],
+) -> IncidentEvent:
+    """A timeline event that does not change the incident itself (no version bump)."""
+    event = await _write_trails(
+        session, incident, actor, event_type=event_type, title=title, metadata=metadata
+    )
+    await session.flush()
+    return event
 
 
 async def transition(

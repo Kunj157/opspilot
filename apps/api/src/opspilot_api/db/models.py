@@ -21,6 +21,7 @@ from sqlalchemy import (
     Table,
     UniqueConstraint,
     func,
+    text,
 )
 from sqlalchemy.dialects.postgresql import INET, JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -177,7 +178,16 @@ def _enum(cls: type[enum.StrEnum], name: str) -> Enum:
 
 class Incident(UUIDPrimaryKey, Timestamps, OrganizationScoped, Base):
     __tablename__ = "incidents"
-    __table_args__ = (Index(None, "organization_id", "status", "started_at"),)
+    __table_args__ = (
+        Index(None, "organization_id", "status", "started_at"),
+        Index(
+            "uq_incidents_open_dedup_key",
+            "organization_id",
+            "dedup_key",
+            unique=True,
+            postgresql_where=text("dedup_key IS NOT NULL AND status <> 'RESOLVED'"),
+        ),
+    )
 
     organization_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("organizations.id", ondelete="RESTRICT")
@@ -199,6 +209,9 @@ class Incident(UUIDPrimaryKey, Timestamps, OrganizationScoped, Base):
     assigned_user_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("users.id", ondelete="SET NULL")
     )
+    # Detector incidents: organization + service + detector + failure category.
+    # At most one unresolved incident per key (partial unique index).
+    dedup_key: Mapped[str | None] = mapped_column(String(255))
     # Optimistic locking: every UPDATE checks and increments this.
     version: Mapped[int] = mapped_column(Integer, server_default="1")
 
@@ -224,6 +237,46 @@ class IncidentEvent(UUIDPrimaryKey, OrganizationScoped, Base):
     description: Mapped[str | None] = mapped_column(String(2000))
     metadata_json: Mapped[dict[str, Any]] = mapped_column(JSONB, server_default="{}")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class AnomalyDetection(UUIDPrimaryKey, OrganizationScoped, Base):
+    """One detector decision about one service: what was measured and what it meant."""
+
+    __tablename__ = "anomaly_detections"
+    __table_args__ = (Index(None, "organization_id", "service_id", "created_at"),)
+
+    organization_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("organizations.id", ondelete="RESTRICT")
+    )
+    service_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("services.id", ondelete="CASCADE"))
+    incident_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("incidents.id", ondelete="SET NULL"), index=True
+    )
+    detector: Mapped[str] = mapped_column(String(50))
+    failure_category: Mapped[str] = mapped_column(String(50))
+    outcome: Mapped[str] = mapped_column(String(20))
+    score: Mapped[float | None] = mapped_column(Float)
+    threshold: Mapped[float | None] = mapped_column(Float)
+    features: Mapped[dict[str, Any]] = mapped_column(JSONB, server_default="{}")
+    model_version: Mapped[str | None] = mapped_column(String(50))
+    window_start: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    window_end: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class DetectorCheckpoint(Base):
+    """Rule state per service and detector, so a worker restart does not re-trigger."""
+
+    __tablename__ = "detector_checkpoints"
+
+    service_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("services.id", ondelete="CASCADE"), primary_key=True
+    )
+    detector: Mapped[str] = mapped_column(String(50), primary_key=True)
+    state: Mapped[dict[str, Any]] = mapped_column(JSONB)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
 
 
 class IdempotencyKey(Base):
