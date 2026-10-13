@@ -5,7 +5,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import JSONResponse
 from pydantic import AnyHttpUrl, BaseModel, ConfigDict, Field, field_validator
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -13,7 +13,7 @@ from opspilot_api.audit.service import record
 from opspilot_api.auth.permissions import Permission, require
 from opspilot_api.auth.principal import Principal
 from opspilot_api.auth.tenancy import get_owned_or_404, scoped
-from opspilot_api.db.models import HealthStatus, Service
+from opspilot_api.db.models import HealthStatus, Service, ServiceDependency
 from opspilot_api.db.session import get_session
 from opspilot_api.idempotency import Idempotency, idempotency_key
 
@@ -165,3 +165,81 @@ async def update_service(
     await session.commit()
     await session.refresh(service)
     return ServiceOut.model_validate(service)
+
+
+class DependenciesUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    target_ids: list[uuid.UUID] = Field(max_length=200)
+
+
+def _invalid_targets(message: str) -> HTTPException:
+    return HTTPException(
+        status.HTTP_422_UNPROCESSABLE_CONTENT,
+        [{"loc": ["body", "target_ids"], "msg": message, "type": "value_error"}],
+    )
+
+
+async def _dependencies(session: AsyncSession, service: Service) -> ServiceList:
+    rows = await session.execute(
+        select(Service)
+        .join(ServiceDependency, ServiceDependency.target_service_id == Service.id)
+        .where(ServiceDependency.source_service_id == service.id)
+        .order_by(Service.name)
+    )
+    return ServiceList(items=[ServiceOut.model_validate(s) for s in rows.scalars()])
+
+
+@router.get("/services/{service_id}/dependencies", response_model=ServiceList)
+async def list_dependencies(
+    service_id: uuid.UUID,
+    principal: Annotated[Principal, Depends(require(Permission.VIEW_SERVICES))],
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> ServiceList:
+    """Services this service calls."""
+    return await _dependencies(
+        session, await get_owned_or_404(session, Service, service_id, principal)
+    )
+
+
+@router.put("/services/{service_id}/dependencies", response_model=ServiceList)
+async def replace_dependencies(
+    service_id: uuid.UUID,
+    body: DependenciesUpdate,
+    principal: Annotated[Principal, Depends(require(Permission.MANAGE_SERVICES))],
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> ServiceList:
+    """Replace the full set of services this service calls."""
+    service = await get_owned_or_404(session, Service, service_id, principal)
+    targets = sorted(set(body.target_ids), key=str)
+    if service.id in targets:
+        raise _invalid_targets("a service cannot depend on itself")
+    found = await session.scalars(
+        scoped(select(Service.id), Service, principal).where(Service.id.in_(targets))
+    )
+    if len(set(found)) != len(targets):
+        # Services in other organizations are reported like missing ones.
+        raise _invalid_targets("unknown service")
+    await session.execute(
+        delete(ServiceDependency).where(ServiceDependency.source_service_id == service.id)
+    )
+    session.add_all(
+        ServiceDependency(
+            organization_id=principal.organization_id,
+            source_service_id=service.id,
+            target_service_id=target,
+        )
+        for target in targets
+    )
+    await record(
+        session,
+        principal=principal,
+        action="service.dependencies_updated",
+        resource_type="service",
+        resource_id=str(service.id),
+        metadata={"target_ids": [str(t) for t in targets]},
+    )
+    await session.flush()
+    result = await _dependencies(session, service)
+    await session.commit()
+    return result
