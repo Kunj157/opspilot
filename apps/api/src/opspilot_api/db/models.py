@@ -20,7 +20,7 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import INET, JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from opspilot_api.db.base import Base, Timestamps, UUIDPrimaryKey
+from opspilot_api.db.base import Base, OrganizationScoped, Timestamps, UUIDPrimaryKey
 
 
 class UserStatus(enum.StrEnum):
@@ -56,7 +56,7 @@ class Role(Base):
     name: Mapped[str] = mapped_column(String(50), unique=True)
 
 
-class User(UUIDPrimaryKey, Timestamps, Base):
+class User(UUIDPrimaryKey, Timestamps, OrganizationScoped, Base):
     __tablename__ = "users"
     __table_args__ = (UniqueConstraint("issuer", "external_auth_id"),)
 
@@ -76,7 +76,7 @@ class User(UUIDPrimaryKey, Timestamps, Base):
     roles: Mapped[list[Role]] = relationship(secondary=user_roles, lazy="selectin")
 
 
-class AuditLog(UUIDPrimaryKey, Base):
+class AuditLog(UUIDPrimaryKey, OrganizationScoped, Base):
     """Append-only: a database trigger rejects UPDATE and DELETE."""
 
     __tablename__ = "audit_logs"

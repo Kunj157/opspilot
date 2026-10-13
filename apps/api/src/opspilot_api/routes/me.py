@@ -4,6 +4,7 @@ from fastapi import APIRouter
 from pydantic import BaseModel
 
 from opspilot_api.auth.dependencies import CurrentPrincipal
+from opspilot_api.auth.permissions import Permission, permissions_for
 from opspilot_api.auth.roles import Role
 
 router = APIRouter(prefix="/api/v1", tags=["identity"])
@@ -20,6 +21,7 @@ class MeResponse(BaseModel):
     display_name: str
     organization: OrganizationRef
     roles: list[Role]
+    permissions: list[Permission]
 
 
 @router.get("/me", response_model=MeResponse)
@@ -32,4 +34,5 @@ async def me(principal: CurrentPrincipal) -> MeResponse:
             id=principal.organization_id, slug=principal.organization_slug
         ),
         roles=sorted(principal.roles),
+        permissions=sorted(permissions_for(principal.roles)),
     )

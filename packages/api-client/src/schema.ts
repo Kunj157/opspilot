@@ -91,6 +91,8 @@ export interface components {
             organization: components["schemas"]["OrganizationRef"];
             /** Roles */
             roles: components["schemas"]["Role"][];
+            /** Permissions */
+            permissions: components["schemas"]["Permission"][];
         };
         /** OrganizationRef */
         OrganizationRef: {
@@ -102,6 +104,11 @@ export interface components {
             /** Slug */
             slug: string;
         };
+        /**
+         * Permission
+         * @enum {string}
+         */
+        Permission: "view_services" | "view_incidents" | "start_investigation" | "approve_remediation" | "manage_users" | "manage_runbooks" | "view_audit_logs";
         /** ReadinessResponse */
         ReadinessResponse: {
             /**
