@@ -16,7 +16,7 @@ DEMO_IMAGE := opspilot-demo:dev
 API := cd apps/api && uv run
 DEMO := cd demo/services && uv run
 
-.PHONY: db-upgrade db-downgrade db-revision keycloak-smoke token api-client web-dev dev build test-e2e test-lighthouse kind-create kind-delete docker-build deploy-local help infra-up infra-down stop secrets-scan install api-dev format lint typecheck test test-unit test-integration
+.PHONY: db-upgrade db-downgrade db-revision keycloak-smoke token api-client web-dev dev build test-e2e test-lighthouse kind-create kind-delete docker-build deploy-local observability-up grafana help infra-up infra-down stop secrets-scan install api-dev format lint typecheck test test-unit test-integration
 
 help: ## List available targets
 	@grep -hE '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | sort | \
@@ -122,5 +122,15 @@ docker-build: ## Build the demo image and load it into the kind cluster
 	docker build -q -t $(DEMO_IMAGE) demo/services
 	kind load docker-image $(DEMO_IMAGE) --name opspilot
 
-deploy-local: kind-create docker-build ## Deploy the demo shop to the kind cluster
+observability-up: kind-create ## Deploy the collector, Prometheus, Loki, Tempo, and Grafana to the kind cluster
+	$(KUBECTL) apply -f observability/k8s/namespace.yaml
+	@$(KUBECTL) -n observability get secret grafana-admin >/dev/null 2>&1 || \
+		$(KUBECTL) -n observability create secret generic grafana-admin --from-literal=password="$$(openssl rand -hex 16)"
+	$(KUBECTL) apply -k observability/k8s
+	$(KUBECTL) -n observability rollout status deploy,daemonset --timeout=5m
+
+deploy-local: observability-up docker-build ## Deploy observability and the demo shop to the kind cluster
 	$(HELM) upgrade --install demo-shop infrastructure/helm/demo-shop --namespace demo --create-namespace --wait --timeout 5m
+
+grafana: ## Open Grafana on http://localhost:3300 (port-forward; Ctrl+C stops)
+	$(KUBECTL) -n observability port-forward svc/grafana 3300:3000
