@@ -13,8 +13,9 @@ with `kubectl apply -k`.
 | kube-state-metrics | `kube_pod_container_status_restarts_total`, `kube_deployment_status_replicas_available` |
 | Grafana | Provisioned datasources (log lines link to their trace, traces link to their logs) and the **Demo shop** dashboard |
 
-`make grafana` opens Grafana on http://localhost:3300 with anonymous
-read-only access. The admin password is generated into the
+Grafana is on http://localhost:33300 (anonymous, read-only), Prometheus on
+:39090, Loki on :33100, and Tempo on :33200; the kind cluster maps these to
+NodePort services. The admin password is generated into the
 `grafana-admin` Secret on first deploy:
 
 ```bash
