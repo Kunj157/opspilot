@@ -10,7 +10,7 @@ export
 COMPOSE := docker compose
 API := cd apps/api && uv run
 
-.PHONY: help infra-up infra-down stop secrets-scan install api-dev format lint typecheck test test-unit test-integration
+.PHONY: api-client web-dev dev build test-e2e help infra-up infra-down stop secrets-scan install api-dev format lint typecheck test test-unit test-integration
 
 help: ## List available targets
 	@grep -hE '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | sort | \
@@ -29,6 +29,7 @@ secrets-scan: ## Scan the working tree and history for secrets
 
 install: ## Install all dependencies
 	cd apps/api && uv sync --frozen
+	pnpm install --frozen-lockfile
 
 api-dev: ## Run the API with auto-reload against local infra
 	cd apps/api && uv run uvicorn opspilot_api.main:create_app --factory --reload \
@@ -37,18 +38,42 @@ api-dev: ## Run the API with auto-reload against local infra
 format: ## Format all code
 	$(API) ruff format .
 	$(API) ruff check --fix .
+	pnpm --filter @opspilot/web exec eslint --fix
 
 lint: ## Lint all code (no changes)
 	$(API) ruff format --check .
 	$(API) ruff check .
+	pnpm --filter @opspilot/web lint
 
 typecheck: ## Static type checks
 	$(API) mypy
+	pnpm --filter @opspilot/api-client typecheck
+	pnpm --filter @opspilot/web typecheck
 
 test: test-unit ## Fast tests (unit)
 
 test-unit: ## Unit tests
 	$(API) pytest tests/unit
+	pnpm --filter @opspilot/web test
 
 test-integration: ## Integration tests against real containers (needs Docker)
 	$(API) pytest tests/integration
+
+api-client: ## Regenerate the typed API client from the API's OpenAPI schema
+	cd apps/api && uv run python -c "import json; from opspilot_api.config import Settings; \
+		from opspilot_api.main import create_app; \
+		print(json.dumps(create_app(Settings()).openapi(), indent=2))" > ../../packages/api-client/openapi.json
+	pnpm --filter @opspilot/api-client generate
+
+web-dev: ## Run the web app with hot reload (proxies /api/v1 to the API)
+	API_URL=http://127.0.0.1:$${API_PORT:-8000} pnpm --filter @opspilot/web dev --port $${WEB_PORT:-3000}
+
+dev: infra-up ## Start PostgreSQL, Redis, API, and web together
+	@trap 'kill 0' INT TERM EXIT; $(MAKE) --no-print-directory api-dev & $(MAKE) --no-print-directory web-dev & wait
+
+build: ## Production build of all apps
+	cd apps/api && uv build -q
+	API_URL=http://127.0.0.1:$${API_PORT:-8000} pnpm --filter @opspilot/web build
+
+test-e2e: infra-up ## Browser tests against the real stack (Playwright)
+	pnpm exec playwright test
