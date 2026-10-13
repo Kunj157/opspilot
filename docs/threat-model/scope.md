@@ -54,7 +54,7 @@ phase by phase and published before the final demo.
 - Attacks on AWS, GitHub, or the LLM provider's own infrastructure.
 - The demo microservices' business logic (they are deliberately faulty).
 - Denial of service beyond basic rate limiting and resource limits.
-- Features excluded by `DEVELOPMENT_PLAN.md` §3.2.
+- Features outside the project scope (multi-cloud, billing, mobile apps, and similar).
 
 ## Assumptions
 

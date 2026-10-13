@@ -1,6 +1,6 @@
 @import "tailwindcss";
 
-/* Graphite & Iris — DEVELOPMENT_PLAN.md §16.2. Components use these tokens only. */
+/* Graphite & Iris design tokens. Components use these tokens only. */
 :root {
   --background: #0b0c0e;
   --surface-1: #121418;

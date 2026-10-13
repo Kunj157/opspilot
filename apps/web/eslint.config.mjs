@@ -6,7 +6,7 @@ const eslintConfig = defineConfig([
   ...nextVitals,
   ...nextTs,
   {
-    // DEVELOPMENT_PLAN.md §16.2: colours come from the Graphite & Iris tokens only.
+    // Colours come from the Graphite & Iris design tokens only.
     files: ["src/**/*.{ts,tsx}"],
     ignores: ["src/**/*.test.{ts,tsx}"],
     rules: {

@@ -1,5 +1,5 @@
 # OpsPilot root automation. Targets are added as each phase lands;
-# see DEVELOPMENT_PLAN.md §10.4 for the full list.
+# `make help` lists them.
 
 SHELL := /bin/bash
 .DEFAULT_GOAL := help
