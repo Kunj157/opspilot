@@ -4,6 +4,8 @@ import { createApiClient } from "@opspilot/api-client";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 
+import { Card } from "@/components/ui/card";
+
 import { type IncidentStatus, SeverityBadge, StatusBadge } from "./incidents/badges";
 
 const ACTIVE: IncidentStatus[] = [
@@ -28,16 +30,12 @@ async function loadSummary(signal: AbortSignal) {
 
 function Stat({ label, value, tone }: { label: string; value: string; tone?: string }) {
   return (
-    <div
-      role="group"
-      aria-label={label}
-      className="rounded-card border border-border bg-surface-2 p-5 shadow-2 transition-transform duration-base hover:-translate-y-0.5 motion-reduce:hover:translate-y-0"
-    >
+    <Card tilt role="group" aria-label={label} className="p-5">
       <p className="text-xs text-fg-secondary">{label}</p>
       <p className={`mt-2 font-mono text-3xl font-semibold tracking-tight ${tone ?? "text-fg"}`}>
         {value}
       </p>
-    </div>
+    </Card>
   );
 }
 
