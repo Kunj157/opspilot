@@ -26,7 +26,7 @@ test("creates a service, opens it, and edits it", async ({ page }) => {
   await edit.getByLabel("Owner team").fill("checkout-team");
   await edit.getByRole("button", { name: "Save changes" }).click();
   await expect(edit).toBeHidden();
-  await expect(page.getByText("checkout-team")).toBeVisible();
+  await expect(page.getByText("checkout-team", { exact: true })).toBeVisible();
 });
 
 test("shows validation problems next to the field", async ({ page }) => {
