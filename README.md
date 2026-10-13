@@ -112,6 +112,27 @@ password `opspilot-dev`:
 These credentials exist only in the local realm. `make token USER=commander`
 prints an access token for API calls.
 
+## Demo stack (Kubernetes)
+
+The demo shop (storefront, checkout, payment, inventory, notification) runs on
+a local [kind](https://kind.sigs.k8s.io/) cluster with OpenTelemetry,
+Prometheus, Loki, Tempo, and Grafana. Requires `kind`, `kubectl`, and `helm`.
+
+```bash
+make deploy-local          # cluster, observability stack, demo image and chart
+make seed                  # register the demo services in OpsPilot (API running)
+make load-normal           # steady synthetic traffic
+make grafana               # dashboards on http://localhost:3300
+make inject-failure SCENARIO=checkout-http-500   # ship a faulty release
+make reset-demo            # back to the healthy release
+make test-telemetry        # follow one request through traces, logs, and metrics
+```
+
+The cluster uses its own kubeconfig (`.kube/config`), so other clusters are
+never touched. Scenarios are described in
+[`demo/failure-injection`](demo/failure-injection/README.md) and the stack in
+[`observability`](observability/README.md).
+
 ## Testing
 
 | Command | What it does |
@@ -136,7 +157,10 @@ plus a contract check on the API client, Semgrep, and dependency audits.
 apps/api            FastAPI service, migrations, tests
 apps/web            Next.js app and component tests
 packages/api-client Typed API client generated from OpenAPI
-infrastructure/     Keycloak realm (Terraform, Helm, and Argo CD come later)
+demo/services       Instrumented demo shop (one image, five services) and load generator
+demo/failure-injection  Faulty-release scenarios
+infrastructure/     Keycloak realm, kind cluster, demo-shop Helm chart
+observability/      Collector, Prometheus, Loki, Tempo, Grafana manifests and dashboards
 tests/e2e           Playwright specs
 docs/               Architecture, ADRs, SLOs, threat model
 scripts/            Development helpers
