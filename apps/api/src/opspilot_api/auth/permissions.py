@@ -23,6 +23,7 @@ class Permission(enum.StrEnum):
     MANAGE_RUNBOOKS = "manage_runbooks"
     VIEW_AUDIT_LOGS = "view_audit_logs"
     MANAGE_SERVICES = "manage_services"
+    MANAGE_INCIDENTS = "manage_incidents"
 
 
 _VIEWER = {Permission.VIEW_SERVICES, Permission.VIEW_INCIDENTS}
@@ -30,6 +31,7 @@ _OPERATOR = _VIEWER | {
     Permission.START_INVESTIGATION,
     Permission.MANAGE_RUNBOOKS,
     Permission.MANAGE_SERVICES,
+    Permission.MANAGE_INCIDENTS,
 }
 _COMMANDER = _OPERATOR | {Permission.APPROVE_REMEDIATION, Permission.VIEW_AUDIT_LOGS}
 
