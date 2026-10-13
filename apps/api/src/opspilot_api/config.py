@@ -21,6 +21,12 @@ class Settings(BaseSettings):
     # Comma-separated addresses allowed to set X-Forwarded-For (the web app's proxy).
     trusted_proxies: str = "127.0.0.1"
 
+    # Observability backends (read-only). Optional: the API runs without them.
+    prometheus_url: str | None = None
+    loki_url: str | None = None
+    tempo_url: str | None = None
+    telemetry_timeout_seconds: float = 5.0
+
     readiness_timeout_seconds: float = 2.0
     sse_heartbeat_seconds: float = 15.0
 
