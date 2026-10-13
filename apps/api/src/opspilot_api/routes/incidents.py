@@ -2,7 +2,8 @@ import uuid
 from datetime import datetime
 from typing import Annotated, Any, Literal
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 from sqlalchemy import select, tuple_
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -21,6 +22,7 @@ from opspilot_api.db.models import (
     User,
 )
 from opspilot_api.db.session import get_session
+from opspilot_api.idempotency import Idempotency, idempotency_key
 from opspilot_api.incidents import service as incidents
 from opspilot_api.incidents.state_machine import ALLOWED_TRANSITIONS
 from opspilot_api.pagination import decode_page_token, encode_page_token
@@ -207,9 +209,14 @@ async def list_incidents(
 @router.post("/incidents", response_model=IncidentOut, status_code=status.HTTP_201_CREATED)
 async def create_incident(
     body: IncidentCreate,
+    request: Request,
     principal: Annotated[Principal, Depends(require(Permission.MANAGE_INCIDENTS))],
     session: Annotated[AsyncSession, Depends(get_session)],
-) -> IncidentOut:
+    key: Annotated[str | None, Depends(idempotency_key)],
+) -> IncidentOut | JSONResponse:
+    idempotency = Idempotency(session, principal, request, key)
+    if replay := await idempotency.replay(body):
+        return replay
     await _require_owned(session, Service, body.service_id, principal, "service_id")
     incident = await incidents.create_incident(
         session,
@@ -220,7 +227,12 @@ async def create_incident(
         service_id=body.service_id,
         source=body.source,
     )
-    return await _finish(session, incident)
+    await session.flush()
+    await session.refresh(incident)
+    out = IncidentOut.of(incident)
+    await idempotency.remember(status.HTTP_201_CREATED, out.model_dump(mode="json"))
+    await session.commit()
+    return out
 
 
 @router.get("/incidents/{incident_id}", response_model=IncidentOut)

@@ -2,7 +2,8 @@ import uuid
 from datetime import datetime
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi.responses import JSONResponse
 from pydantic import AnyHttpUrl, BaseModel, ConfigDict, Field, field_validator
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
@@ -14,6 +15,7 @@ from opspilot_api.auth.principal import Principal
 from opspilot_api.auth.tenancy import get_owned_or_404, scoped
 from opspilot_api.db.models import HealthStatus, Service
 from opspilot_api.db.session import get_session
+from opspilot_api.idempotency import Idempotency, idempotency_key
 
 router = APIRouter(prefix="/api/v1", tags=["services"])
 
@@ -92,9 +94,14 @@ async def list_services(
 @router.post("/services", response_model=ServiceOut, status_code=status.HTTP_201_CREATED)
 async def create_service(
     body: ServiceCreate,
+    request: Request,
     principal: Annotated[Principal, Depends(require(Permission.MANAGE_SERVICES))],
     session: Annotated[AsyncSession, Depends(get_session)],
-) -> ServiceOut:
+    key: Annotated[str | None, Depends(idempotency_key)],
+) -> ServiceOut | JSONResponse:
+    idempotency = Idempotency(session, principal, request, key)
+    if replay := await idempotency.replay(body):
+        return replay
     service = Service(
         organization_id=principal.organization_id, **_columns(body, exclude_unset=False)
     )
@@ -112,9 +119,12 @@ async def create_service(
         resource_id=str(service.id),
         metadata={"slug": service.slug},
     )
-    await session.commit()
+    await session.flush()
     await session.refresh(service)
-    return ServiceOut.model_validate(service)
+    out = ServiceOut.model_validate(service)
+    await idempotency.remember(status.HTTP_201_CREATED, out.model_dump(mode="json"))
+    await session.commit()
+    return out
 
 
 @router.get("/services/{service_id}", response_model=ServiceOut)
