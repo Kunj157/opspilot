@@ -65,6 +65,18 @@ jobs:
       - name: Build image
         run: docker build -t opspilot-demo:ci .
 
+  helm:
+    name: Helm · lint and render
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5.0.1
+      - name: Lint charts
+        run: helm lint --strict infrastructure/helm/*/
+      - name: Render charts
+        run: for chart in infrastructure/helm/*/; do helm template ci "$chart" > /dev/null; done
+
   web:
     name: Web · lint, types, tests, build
     runs-on: ubuntu-24.04
