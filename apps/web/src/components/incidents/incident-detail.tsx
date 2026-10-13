@@ -8,6 +8,7 @@ import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 
 import { SERVICES_KEY } from "@/components/services/service-catalog";
+import { formatSeconds } from "@/lib/durations";
 import { type StreamedEvent, useIncidentStream } from "@/lib/use-incident-stream";
 
 import { SeverityBadge, StatusBadge } from "./badges";
@@ -21,13 +22,9 @@ type Event = components["schemas"]["EventOut"];
 
 /** "3h 12m" style duration between two instants. */
 export function formatDuration(fromIso: string, to: Date): string {
-  const minutes = Math.max(0, Math.floor((to.getTime() - new Date(fromIso).getTime()) / 60_000));
-  const days = Math.floor(minutes / 1440);
-  const hours = Math.floor((minutes % 1440) / 60);
-  const mins = minutes % 60;
-  if (days) return `${days}d ${hours}h`;
-  if (hours) return `${hours}h ${mins}m`;
-  return `${mins}m`;
+  const seconds = (to.getTime() - new Date(fromIso).getTime()) / 1000;
+  // An incident open for under a minute still reads as a duration, not "<1m".
+  return seconds < 60 ? "0m" : formatSeconds(seconds);
 }
 
 function useNow(intervalMs: number) {
