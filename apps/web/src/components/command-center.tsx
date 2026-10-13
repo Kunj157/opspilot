@@ -1,6 +1,7 @@
 "use client";
 
 import { createApiClient } from "@opspilot/api-client";
+import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 
 import { type IncidentStatus, SeverityBadge, StatusBadge } from "./incidents/badges";
@@ -97,7 +98,9 @@ export function CommandCenter() {
             {incidents.slice(0, 5).map((incident) => (
               <li key={incident.id} className="flex flex-wrap items-center gap-x-4 gap-y-1 px-5 py-3.5">
                 <SeverityBadge severity={incident.severity} />
-                <span className="min-w-0 flex-1 truncate text-sm">{incident.title}</span>
+                <Link href={`/incidents/${incident.id}`} className="min-w-0 flex-1 truncate text-sm hover:text-accent">
+                  {incident.title}
+                </Link>
                 <StatusBadge status={incident.status} />
                 <time dateTime={incident.started_at} className="font-mono text-xs text-fg-muted">
                   {time.format(new Date(incident.started_at))}

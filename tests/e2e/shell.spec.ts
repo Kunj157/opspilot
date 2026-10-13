@@ -27,7 +27,8 @@ test("the command center counts a newly reported incident", async ({ page, baseU
   expect(created.status()).toBe(201);
   await page.reload();
 
-  await expect(active.locator("p").nth(1)).toHaveText(String(before + 1));
+  // Other tests create incidents in parallel, so the count only has to grow.
+  await expect.poll(async () => Number(await active.locator("p").nth(1).textContent())).toBeGreaterThan(before);
   await expect(page.getByRole("list", { name: "Recent incidents" })).toContainText(
     (await created.json()).title,
   );
