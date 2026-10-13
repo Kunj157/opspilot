@@ -24,6 +24,22 @@ make install
 make dev                  # PostgreSQL, Redis, API, and web; Ctrl+C stops all
 ```
 
+`make dev` also starts a local Keycloak (http://localhost:8080, admin console
+login `admin` / `admin`) with the `opspilot` realm from
+`infrastructure/keycloak/realm-opspilot.json`. Development users, all with
+password `opspilot-dev`:
+
+| User | Organization | Role |
+|---|---|---|
+| `viewer` | acme | viewer |
+| `operator` | acme | operator |
+| `commander` | acme | incident-commander |
+| `admin` | acme | administrator |
+| `outsider` | globex | administrator (for cross-organization tests) |
+
+These credentials exist only in the local realm. `make token USER=commander`
+prints an access token for API calls.
+
 Open http://localhost:3000 for the web app; the API's readiness is at
 http://localhost:8000/api/v1/ready.
 
@@ -35,6 +51,7 @@ http://localhost:8000/api/v1/ready.
 | `make test-integration` | API tests against real containers (Testcontainers) |
 | `make test-e2e` | Playwright against the full stack |
 | `make api-client` | Regenerate the typed client from the API's OpenAPI schema |
+| `make keycloak-smoke` | Check every dev user gets correct token claims |
 | `make secrets-scan` | gitleaks |
 
 `make help` lists everything.
