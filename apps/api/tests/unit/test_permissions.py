@@ -20,6 +20,7 @@ MATRIX: dict[Permission, set[Role]] = {
     Permission.MANAGE_USERS: {ADMIN},
     Permission.MANAGE_RUNBOOKS: {OPER, CMDR, ADMIN},
     Permission.VIEW_AUDIT_LOGS: {CMDR, ADMIN},
+    Permission.MANAGE_SERVICES: {OPER, CMDR, ADMIN},
 }
 
 

@@ -1688,6 +1688,7 @@ Create a typed API client and display backend readiness.
 | Manage users | No | No | No | Yes |
 | Manage runbooks | No | Yes | Yes | Yes |
 | View audit logs | No | No | Yes | Yes |
+| Manage services | No | Yes | Yes | Yes |
 
 **Tests**
 
