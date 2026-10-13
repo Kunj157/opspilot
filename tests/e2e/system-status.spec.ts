@@ -17,7 +17,7 @@ function component(page: Page, name: string) {
 test("shows all systems operational against the real API", async ({ page }) => {
   const problems = watchForErrors(page);
 
-  await page.goto("/");
+  await page.goto("/status");
 
   await expect(page.getByRole("heading", { name: "System status" })).toBeVisible();
   await expect(page.getByRole("status")).toHaveText("All systems operational");
@@ -44,7 +44,7 @@ test("names the failing dependency when the API reports not ready", async ({ pag
     }),
   );
 
-  await page.goto("/");
+  await page.goto("/status");
 
   await expect(page.getByRole("status")).toHaveText("Degraded");
   await expect(component(page, "Redis")).toContainText("Unavailable");
@@ -54,7 +54,7 @@ test("names the failing dependency when the API reports not ready", async ({ pag
 test("shows the API as unreachable when the request fails", async ({ page }) => {
   await page.route("**/api/v1/ready", (route) => route.abort("connectionrefused"));
 
-  await page.goto("/");
+  await page.goto("/status");
 
   await expect(page.getByRole("status")).toHaveText("API unreachable");
   await expect(component(page, "API")).toContainText("Unreachable");
@@ -68,7 +68,7 @@ test("recovers on the next poll once the API is back", async ({ page }) => {
     fail ? route.abort("connectionrefused") : route.continue(),
   );
 
-  await page.goto("/");
+  await page.goto("/status");
   await expect(page.getByRole("status")).toHaveText("API unreachable");
 
   fail = false;
@@ -82,7 +82,7 @@ test("has no horizontal scroll at every breakpoint", async ({
 }, testInfo) => {
   for (const width of [1440, 1024, 768, 390]) {
     await page.setViewportSize({ width, height: 900 });
-    await page.goto("/");
+    await page.goto("/status");
     await expect(page.getByRole("status")).toHaveText("All systems operational");
 
     const overflow = await page.evaluate(
@@ -102,7 +102,7 @@ test("reduced motion disables the fetch pulse animation", async ({ page }) => {
   // Hold the request open so the fetch indicator is guaranteed to be pulsing.
   await page.route("**/api/v1/ready", () => {});
 
-  await page.goto("/");
+  await page.goto("/status");
   const indicator = page.getByTestId("fetch-indicator");
   await expect(indicator).toHaveClass(/animate-pulse/);
 
@@ -113,7 +113,7 @@ test("reduced motion disables the fetch pulse animation", async ({ page }) => {
 test("animates the fetch pulse when motion is allowed", async ({ page }) => {
   await page.route("**/api/v1/ready", () => {});
 
-  await page.goto("/");
+  await page.goto("/status");
   const indicator = page.getByTestId("fetch-indicator");
   await expect(indicator).toHaveClass(/animate-pulse/);
 
