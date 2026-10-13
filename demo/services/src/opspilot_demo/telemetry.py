@@ -92,10 +92,26 @@ class JsonFormatter(logging.Formatter):
         return json.dumps(entry)
 
 
-def configure_logging() -> None:
+class ServiceFilter(logging.Filter):
+    def __init__(self, service: str) -> None:
+        super().__init__()
+        self.service = service
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        if getattr(record, "service", None) is None:
+            record.service = self.service
+        return True
+
+
+def configure_logging(service: str) -> None:
+    """JSON lines on stdout; every record, from any library, names the service and trace."""
     handler = logging.StreamHandler()
     handler.setFormatter(JsonFormatter())
+    handler.addFilter(TraceContextFilter())
+    handler.addFilter(ServiceFilter(service))
     root = logging.getLogger()
     root.handlers = [handler]
     root.setLevel(logging.INFO)
     logging.getLogger("uvicorn.access").disabled = True
+    # Each outgoing call is already a span and a dependency metric.
+    logging.getLogger("httpx").setLevel(logging.WARNING)

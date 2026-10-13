@@ -178,6 +178,17 @@ async def test_an_unreachable_dependency_is_a_502(spans: InMemorySpanExporter) -
     assert response.json()["detail"] == "inventory unavailable"
 
 
+def test_library_log_lines_name_the_service(capsys: pytest.CaptureFixture[str]) -> None:
+    from opspilot_demo.telemetry import configure_logging
+
+    configure_logging("payment")
+    logging.getLogger("uvicorn.error").info("started")
+
+    line = json.loads(capsys.readouterr().err.strip().splitlines()[-1])
+    assert (line["service"], line["message"], line["trace_id"]) == ("payment", "started", None)
+    logging.getLogger().handlers.clear()
+
+
 def test_unknown_service_names_are_rejected() -> None:
     with pytest.raises(ValueError, match="service_name"):
         Settings(service_name="warehouse")  # type: ignore[arg-type]

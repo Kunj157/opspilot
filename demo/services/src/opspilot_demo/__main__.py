@@ -8,8 +8,8 @@ from opspilot_demo.telemetry import configure_logging
 
 
 def run() -> None:
-    configure_logging()
     settings = Settings()  # type: ignore[call-arg]  # service_name comes from SERVICE_NAME
+    configure_logging(settings.service_name)
     uvicorn.run(
         create_app(settings),
         host="0.0.0.0",  # noqa: S104 - container port, exposed only through a Service
