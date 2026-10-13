@@ -1,0 +1,40 @@
+name: Bug
+description: Something does not behave as specified
+labels: ["type: bug"]
+body:
+  - type: input
+    id: env
+    attributes:
+      label: Environment and version
+      placeholder: "local / development / staging — commit or tag"
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Reproduction steps
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected result
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual result
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Logs, trace ID, screenshots
+  - type: dropdown
+    id: severity
+    attributes:
+      label: Severity
+      options: ["low", "medium", "high", "critical"]
+    validations:
+      required: true
