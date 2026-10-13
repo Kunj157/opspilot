@@ -15,7 +15,7 @@ from dataclasses import dataclass, field
 import psycopg
 import structlog
 
-CHANNEL = "incident_events"
+LISTEN_STATEMENT = "LISTEN incident_events"  # literal: no SQL is ever composed here
 
 logger = structlog.get_logger()
 
@@ -67,7 +67,7 @@ class EventBroker:
                 async with await psycopg.AsyncConnection.connect(
                     self._dsn, autocommit=True
                 ) as conn:
-                    await conn.execute(f"LISTEN {CHANNEL}")
+                    await conn.execute(LISTEN_STATEMENT)
                     logger.info("event broker listening")
                     backoff = 0.2
                     self._wake_all()  # catch up on anything missed while disconnected
