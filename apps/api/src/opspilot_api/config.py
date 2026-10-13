@@ -27,6 +27,11 @@ class Settings(BaseSettings):
     tempo_url: str | None = None
     telemetry_timeout_seconds: float = 5.0
 
+    # Detection worker
+    detection_interval_seconds: float = 15.0
+    detection_lag_seconds: float = 30.0
+    worker_metrics_port: int | None = None
+
     readiness_timeout_seconds: float = 2.0
     sse_heartbeat_seconds: float = 15.0
 
