@@ -48,13 +48,14 @@ wins; if they disagree on scope, the plan wins.
 | `bugfix/<short-desc>` | Non-urgent bug | Same lifecycle as `feature/*`. |
 | `infra/<short-desc>` | Terraform, Helm, Argo CD, CI, Docker Compose | Same lifecycle as `feature/*`. |
 | `docs/<short-desc>` | Documentation, ADRs, runbooks | Same lifecycle as `feature/*`. |
-| `release/vX.Y.Z` | Pre-release stabilization | Branched from `dev` when `dev` is ready. Only final testing and bug fixes. PR → `main`, then tag. |
-| `hotfix/vX.Y.Z` | Urgent fix on a release | Branched from **`main`**. PR → `main` **and** `dev`. Tag new patch release. |
+| `release/<short-desc>` | Pre-release stabilization | Branched from `dev` when `dev` is ready. Only final testing and bug fixes. PR → `main`, then tag `vX.Y.Z`. Example: `release/authentication-and-audit`. |
+| `hotfix/<short-desc>` | Urgent fix on a release | Branched from **`main`**. PR → `main` **and** `dev`. Tag a new patch release. |
 
 Branch names are short, lowercase, hyphenated descriptions and **contain no
 numbers** — no issue number, no username: `feature/incident-state-machine`,
 not `feature/12-incident-state-machine`. The issue is linked from the PR
-(`Closes #<n>`), not from the branch name.
+(`Closes #<n>`), not from the branch name. Versions are carried by git tags
+and GitHub releases (`v0.2.0`), never by release or hotfix branch names.
 
 ### 1.1 Repository bootstrap (one time only)
 
@@ -94,10 +95,10 @@ scenario (`DEVELOPMENT_PLAN.md` §2) works end to end.
 10. **Self-review the PR diff in full** on GitHub and wait for CI to pass.
     Both are required.
 11. Squash-or-merge into `dev` (keep history readable). Delete the branch.
-12. When a phase's exit criteria are met → `release/vX.Y.Z` → full system
+12. When a phase's exit criteria are met → `release/<short-desc>` → full system
     test (plan §23, as far as built) → PR to `main` → merge → tag.
-13. For urgent fixes on a release → `hotfix/vX.Y.Z` from `main` → fix → PR to
-    `main` **and** back-merge to `dev` → tag patch release.
+13. For urgent fixes on a release → `hotfix/<short-desc>` from `main` → fix →
+    PR to `main` **and** back-merge to `dev` → tag patch release.
 
 ---
 
