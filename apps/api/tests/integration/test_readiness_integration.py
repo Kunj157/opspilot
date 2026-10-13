@@ -51,6 +51,8 @@ async def test_ready_with_real_dependencies(
         app_env="test",
         database_url=postgres.get_connection_url(),
         redis_url=_redis_url(redis_container),
+        jwt_issuer="https://idp.invalid/realms/opspilot",
+        jwt_audience="opspilot-api",
     )
     async for client in _client(settings):
         response = await client.get("/api/v1/ready")

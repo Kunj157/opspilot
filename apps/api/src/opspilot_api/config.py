@@ -15,11 +15,19 @@ class Settings(BaseSettings):
     database_url: str | None = None
     redis_url: str | None = None
 
+    jwt_issuer: str | None = None
+    jwt_audience: str | None = None
+
     readiness_timeout_seconds: float = 2.0
 
     def missing_required(self) -> list[str]:
         """Names of required environment variables that are not set."""
-        required = {"DATABASE_URL": self.database_url, "REDIS_URL": self.redis_url}
+        required = {
+            "DATABASE_URL": self.database_url,
+            "REDIS_URL": self.redis_url,
+            "JWT_ISSUER": self.jwt_issuer,
+            "JWT_AUDIENCE": self.jwt_audience,
+        }
         return [name for name, value in required.items() if not value]
 
 

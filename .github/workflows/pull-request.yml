@@ -90,6 +90,8 @@ jobs:
       CI: "1"
       DATABASE_URL: postgresql+psycopg://opspilot:opspilot@localhost:5432/opspilot
       REDIS_URL: redis://localhost:6379/0
+      JWT_ISSUER: http://localhost:8080/realms/opspilot
+      JWT_AUDIENCE: opspilot-api
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6
