@@ -5,3 +5,18 @@ packages:
 allowBuilds:
   sharp: false
   unrs-resolver: false
+
+# Supply-chain hardening
+blockExoticSubdeps: true
+minimumReleaseAge: 10080
+# The framework version is chosen deliberately; everything else must be 7+ days old.
+minimumReleaseAgeExclude:
+  - next
+  - "@next/*"
+  - eslint-config-next
+trustPolicy: no-downgrade
+# Older releases published before provenance existed; reviewed 2026-10-13.
+trustPolicyExclude:
+  - eslint-import-resolver-typescript@3.10.1
+  - semver@6.3.1
+  - undici-types@6.21.0
