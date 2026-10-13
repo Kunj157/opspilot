@@ -44,3 +44,6 @@ dist/
 
 # Local planning notes (kept out of the repository)
 DEVELOPMENT_PLAN.md
+
+# Local kind cluster credentials
+.kube/

@@ -8,10 +8,15 @@ SHELL := /bin/bash
 export
 
 COMPOSE := docker compose
+# The local cluster gets its own kubeconfig so other clusters are never touched.
+KUBECONFIG := $(CURDIR)/.kube/config
+KUBECTL := kubectl --context kind-opspilot
+HELM := helm --kube-context kind-opspilot
+DEMO_IMAGE := opspilot-demo:dev
 API := cd apps/api && uv run
 DEMO := cd demo/services && uv run
 
-.PHONY: db-upgrade db-downgrade db-revision keycloak-smoke token api-client web-dev dev build test-e2e test-lighthouse help infra-up infra-down stop secrets-scan install api-dev format lint typecheck test test-unit test-integration
+.PHONY: db-upgrade db-downgrade db-revision keycloak-smoke token api-client web-dev dev build test-e2e test-lighthouse kind-create kind-delete docker-build deploy-local help infra-up infra-down stop secrets-scan install api-dev format lint typecheck test test-unit test-integration
 
 help: ## List available targets
 	@grep -hE '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | sort | \
@@ -106,3 +111,16 @@ db-downgrade: ## Roll back the last database migration
 
 db-revision: ## Autogenerate a migration: make db-revision MSG="add incidents"
 	$(API) python -m opspilot_api.db revision --autogenerate -m "$(MSG)"
+
+kind-create: ## Create the local kind cluster (kubeconfig in .kube/config)
+	@kind get clusters 2>/dev/null | grep -qx opspilot || kind create cluster --config infrastructure/kind/cluster.yaml --kubeconfig $(KUBECONFIG)
+
+kind-delete: ## Delete the local kind cluster
+	kind delete cluster --name opspilot --kubeconfig $(KUBECONFIG)
+
+docker-build: ## Build the demo image and load it into the kind cluster
+	docker build -q -t $(DEMO_IMAGE) demo/services
+	kind load docker-image $(DEMO_IMAGE) --name opspilot
+
+deploy-local: kind-create docker-build ## Deploy the demo shop to the kind cluster
+	$(HELM) upgrade --install demo-shop infrastructure/helm/demo-shop --namespace demo --create-namespace --wait --timeout 5m
