@@ -34,8 +34,9 @@ test("creates an incident from the dialog", async ({ page }) => {
   await dialog.getByLabel("Severity").selectOption("high");
   await dialog.getByRole("button", { name: "Create incident" }).click();
 
-  await expect(dialog).toBeHidden();
-  const row = page.getByRole("row").filter({ has: page.getByText(title, { exact: true }) });
+  await expect(page.getByRole("heading", { level: 1, name: title })).toBeVisible();
+  await page.getByRole("link", { name: "← Incidents" }).click();
+  const row = page.getByRole("row").filter({ has: page.getByRole("link", { name: title }) });
   await expect(row).toContainText("High");
   await expect(row).toContainText("Detected");
 });

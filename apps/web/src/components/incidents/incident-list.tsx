@@ -2,6 +2,7 @@
 
 import { createApiClient } from "@opspilot/api-client";
 import type { components } from "@opspilot/api-client/schema";
+import Link from "next/link";
 import { useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-query";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
@@ -235,7 +236,9 @@ export function IncidentList({ canManage, currentUserId }: { canManage: boolean;
                     <SeverityBadge severity={incident.severity} />
                   </td>
                   <td className="max-w-0 px-2 py-3.5">
-                    <span className="block truncate font-medium">{incident.title}</span>
+                    <Link href={`/incidents/${incident.id}`} className="block truncate font-medium hover:text-accent">
+                      {incident.title}
+                    </Link>
                     <span className="mt-1 block sm:hidden">
                       <StatusBadge status={incident.status} />
                     </span>
@@ -271,9 +274,10 @@ export function IncidentList({ canManage, currentUserId }: { canManage: boolean;
       <Modal open={creating} title="New incident" onClose={() => setCreating(false)}>
         <IncidentForm
           services={services.data ?? []}
-          onCreated={() => {
+          onCreated={(incident) => {
             setCreating(false);
             void queryClient.invalidateQueries({ queryKey: INCIDENTS_KEY });
+            router.push(`/incidents/${incident.id}`);
           }}
         />
       </Modal>

@@ -114,7 +114,9 @@ export function ServiceDetail({ canManage }: { canManage: boolean }) {
             {incidents.data.map((incident) => (
               <li key={incident.id} className="flex flex-wrap items-center gap-x-4 gap-y-1 px-5 py-3.5">
                 <SeverityBadge severity={incident.severity} />
-                <span className="min-w-0 flex-1 truncate text-sm">{incident.title}</span>
+                <Link href={`/incidents/${incident.id}`} className="min-w-0 flex-1 truncate text-sm hover:text-accent">
+                  {incident.title}
+                </Link>
                 <StatusBadge status={incident.status} />
               </li>
             ))}
