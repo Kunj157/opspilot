@@ -31,6 +31,7 @@ describe("upstreamHeaders", () => {
     accept: "application/json",
     "content-type": "application/json",
     "x-request-id": "req-1",
+    "last-event-id": "42",
     "x-forwarded-for": "1.2.3.4, 198.51.100.23",
     cookie: "opspilot_session=secret",
     authorization: "Bearer from-the-browser",
@@ -42,6 +43,7 @@ describe("upstreamHeaders", () => {
       accept: "application/json",
       "content-type": "application/json",
       "x-request-id": "req-1",
+      "last-event-id": "42",
       "x-forwarded-for": "198.51.100.23",
       authorization: "Bearer session-token",
     });

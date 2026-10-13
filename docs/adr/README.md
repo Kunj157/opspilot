@@ -9,6 +9,7 @@ and update the old one's status line.
 | [001](001-technology-stack.md) | Technology stack | Accepted |
 | [002](002-modular-monolith.md) | Modular monolith over microservices | Accepted |
 | [003](003-human-approved-remediation.md) | Human-approved, allow-listed remediation | Accepted |
+| [004](004-live-updates-via-postgres-notify.md) | Live incident updates via PostgreSQL NOTIFY | Accepted |
 
 ## Template
 
