@@ -115,6 +115,7 @@ prints an access token for API calls.
 | `make test` | API and web unit tests (pytest, Vitest) |
 | `make test-integration` | API tests against real PostgreSQL and Redis (Testcontainers) |
 | `make test-e2e` | Playwright against the full stack, headless |
+| `make test-lighthouse` | Lighthouse budgets (performance ≥ 85, accessibility ≥ 90) on primary pages; summary in `test-results/lighthouse/` |
 | `make build` | Production builds |
 | `make api-client` | Regenerate the typed client from the OpenAPI schema |
 | `make keycloak-smoke` | Check every dev user gets the right token claims |

@@ -6,6 +6,7 @@
     "node": ">=22"
   },
   "devDependencies": {
-    "@playwright/test": "^1.60.0"
+    "@playwright/test": "^1.60.0",
+    "lighthouse": "13.5.0"
   }
 }

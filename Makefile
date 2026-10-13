@@ -10,7 +10,7 @@ export
 COMPOSE := docker compose
 API := cd apps/api && uv run
 
-.PHONY: db-upgrade db-downgrade db-revision keycloak-smoke token api-client web-dev dev build test-e2e help infra-up infra-down stop secrets-scan install api-dev format lint typecheck test test-unit test-integration
+.PHONY: db-upgrade db-downgrade db-revision keycloak-smoke token api-client web-dev dev build test-e2e test-lighthouse help infra-up infra-down stop secrets-scan install api-dev format lint typecheck test test-unit test-integration
 
 help: ## List available targets
 	@grep -hE '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | sort | \
@@ -80,6 +80,9 @@ build: ## Production build of all apps
 
 test-e2e: infra-up db-upgrade ## Browser tests against the real stack (Playwright)
 	pnpm exec playwright test
+
+test-lighthouse: infra-up db-upgrade ## Lighthouse budgets on primary pages (production build); summary in test-results/lighthouse
+	pnpm exec playwright test --config playwright.lighthouse.config.ts
 
 keycloak-smoke: ## Check every dev user gets a token with roles, organization, and API audience
 	./scripts/keycloak-smoke.sh
