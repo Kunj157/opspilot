@@ -49,7 +49,7 @@ test.describe("signed out", () => {
   test("a forged return address cannot redirect off-site", async ({ page }) => {
     await page.goto("/login?returnTo=%2F%2Fevil.example%2F");
     await page.getByRole("link", { name: "Continue with single sign-on" }).click();
-    await signInOnKeycloak(page, "viewer");
+    await signInOnKeycloak(page, "admin");
 
     await expect(page).toHaveURL(/^http:\/\/localhost:\d+\/$/);
   });
