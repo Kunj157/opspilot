@@ -6,11 +6,15 @@ from datetime import datetime
 from typing import Any
 
 from sqlalchemy import (
+    BigInteger,
     Column,
     DateTime,
     Enum,
+    Float,
     ForeignKey,
+    Identity,
     Index,
+    Integer,
     SmallInteger,
     String,
     Table,
@@ -33,6 +37,26 @@ class HealthStatus(enum.StrEnum):
     HEALTHY = "healthy"
     DEGRADED = "degraded"
     CRITICAL = "critical"
+
+
+class Severity(enum.StrEnum):
+    CRITICAL = "critical"
+    HIGH = "high"
+    MEDIUM = "medium"
+    LOW = "low"
+
+
+class IncidentStatus(enum.StrEnum):
+    """States from DEVELOPMENT_PLAN.md §13; transitions live in incidents.state_machine."""
+
+    DETECTED = "DETECTED"
+    INVESTIGATING = "INVESTIGATING"
+    AWAITING_APPROVAL = "AWAITING_APPROVAL"
+    REMEDIATING = "REMEDIATING"
+    VERIFYING = "VERIFYING"
+    MONITORING = "MONITORING"
+    RESOLVED = "RESOLVED"
+    REJECTED = "REJECTED"
 
 
 class ActorType(enum.StrEnum):
@@ -123,3 +147,58 @@ class Service(UUIDPrimaryKey, Timestamps, OrganizationScoped, Base):
         Enum(HealthStatus, name="health_status", values_callable=lambda e: [m.value for m in e]),
         server_default=HealthStatus.UNKNOWN.value,
     )
+
+
+def _enum(cls: type[enum.StrEnum], name: str) -> Enum:
+    return Enum(cls, name=name, values_callable=lambda e: [m.value for m in e])
+
+
+class Incident(UUIDPrimaryKey, Timestamps, OrganizationScoped, Base):
+    __tablename__ = "incidents"
+    __table_args__ = (Index(None, "organization_id", "status", "started_at"),)
+
+    organization_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("organizations.id", ondelete="RESTRICT")
+    )
+    service_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("services.id", ondelete="SET NULL"), index=True
+    )
+    title: Mapped[str] = mapped_column(String(200))
+    description: Mapped[str | None] = mapped_column(String(5000))
+    severity: Mapped[Severity] = mapped_column(_enum(Severity, "incident_severity"))
+    status: Mapped[IncidentStatus] = mapped_column(
+        _enum(IncidentStatus, "incident_status"), server_default=IncidentStatus.DETECTED.value
+    )
+    source: Mapped[str] = mapped_column(String(50))
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    acknowledged_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    detection_score: Mapped[float | None] = mapped_column(Float)
+    assigned_user_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL")
+    )
+    # Optimistic locking: every UPDATE checks and increments this.
+    version: Mapped[int] = mapped_column(Integer, server_default="1")
+
+    # SQLAlchemy reads this declarative attribute at class creation; never mutated.
+    __mapper_args__ = {"version_id_col": version}  # noqa: RUF012
+
+
+class IncidentEvent(UUIDPrimaryKey, OrganizationScoped, Base):
+    """Timeline entry. `sequence` orders events and resumes live streams."""
+
+    __tablename__ = "incident_events"
+    __table_args__ = (Index(None, "incident_id", "sequence"),)
+
+    sequence: Mapped[int] = mapped_column(BigInteger, Identity(always=True), unique=True)
+    organization_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("organizations.id", ondelete="RESTRICT")
+    )
+    incident_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("incidents.id", ondelete="CASCADE"))
+    event_type: Mapped[str] = mapped_column(String(100))
+    actor_type: Mapped[ActorType] = mapped_column(_enum(ActorType, "actor_type"))
+    actor_id: Mapped[str] = mapped_column(String(255))
+    title: Mapped[str] = mapped_column(String(200))
+    description: Mapped[str | None] = mapped_column(String(2000))
+    metadata_json: Mapped[dict[str, Any]] = mapped_column(JSONB, server_default="{}")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

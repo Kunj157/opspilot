@@ -13,7 +13,16 @@ from opspilot_api.db.migrations import alembic_config
 
 pytestmark = pytest.mark.integration
 
-TABLES = {"organizations", "users", "roles", "user_roles", "audit_logs", "services"}
+TABLES = {
+    "organizations",
+    "users",
+    "roles",
+    "user_roles",
+    "audit_logs",
+    "services",
+    "incidents",
+    "incident_events",
+}
 
 
 @pytest.fixture(scope="module")
