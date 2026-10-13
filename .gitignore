@@ -39,3 +39,4 @@ crash.log
 .idea/
 .vscode/
 .DS_Store
+dist/
