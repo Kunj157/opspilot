@@ -10,16 +10,16 @@ export
 COMPOSE := docker compose
 API := cd apps/api && uv run
 
-.PHONY: api-client web-dev dev build test-e2e help infra-up infra-down stop secrets-scan install api-dev format lint typecheck test test-unit test-integration
+.PHONY: keycloak-smoke token api-client web-dev dev build test-e2e help infra-up infra-down stop secrets-scan install api-dev format lint typecheck test test-unit test-integration
 
 help: ## List available targets
 	@grep -hE '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | sort | \
 		awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-18s\033[0m %s\n", $$1, $$2}'
 
-infra-up: ## Start PostgreSQL and Redis and wait until healthy
-	$(COMPOSE) up -d --wait postgres redis
+infra-up: ## Start PostgreSQL, Redis, and Keycloak and wait until healthy
+	$(COMPOSE) up -d --wait postgres redis keycloak
 
-infra-down: ## Stop PostgreSQL and Redis (keeps data)
+infra-down: ## Stop local infrastructure (keeps data)
 	$(COMPOSE) down
 
 stop: infra-down ## Stop everything started by make dev
@@ -77,3 +77,9 @@ build: ## Production build of all apps
 
 test-e2e: infra-up ## Browser tests against the real stack (Playwright)
 	pnpm exec playwright test
+
+keycloak-smoke: ## Check every dev user gets a token with roles, organization, and API audience
+	./scripts/keycloak-smoke.sh
+
+token: ## Print a dev access token: make token USER=commander
+	@./scripts/dev-token.sh $(USER)
