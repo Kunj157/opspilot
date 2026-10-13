@@ -4,6 +4,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { CommandCenter } from "./command-center";
 
+vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn() }) }));
+
 function incident(n: number, severity: string, status = "DETECTED") {
   return {
     id: `00000000-0000-4000-8000-${String(n).padStart(12, "0")}`,
@@ -32,7 +34,7 @@ function service(n: number, health: string) {
 function respond(routes: Record<string, unknown>, status = 200) {
   return vi.fn(async (input: Request | string) => {
     const url = new URL(typeof input === "string" ? input : input.url);
-    const body = routes[url.pathname];
+    const body = url.pathname === "/api/v1/topology" ? { nodes: [], edges: [] } : routes[url.pathname];
     return new Response(JSON.stringify(body ?? {}), {
       status: body === undefined ? 404 : status,
       headers: { "Content-Type": "application/json" },
