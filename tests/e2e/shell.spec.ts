@@ -14,24 +14,31 @@ test("the sidebar navigates between sections", async ({ page }) => {
   await expect(nav.getByRole("link", { name: "System status" })).toHaveAttribute("aria-current", "page");
 });
 
-test("the command center counts a newly reported incident", async ({ page, baseURL }) => {
-  await page.goto("/");
-  const active = page.getByRole("group", { name: "Active incidents" });
-  await expect(active).toBeVisible();
-  const before = Number(await active.locator("p").nth(1).textContent());
-
+test("the command center matches the active incidents the API reports", async ({ page, baseURL }) => {
   const created = await page.request.post("/api/v1/incidents", {
     headers: { Origin: baseURL! },
     data: { title: `Shell check ${Date.now()}`, severity: "critical" },
   });
   expect(created.status()).toBe(201);
-  await page.reload();
+  const active = ["DETECTED", "INVESTIGATING", "AWAITING_APPROVAL", "REMEDIATING", "VERIFYING", "MONITORING", "REJECTED"];
+  const query = `${active.map((s) => `status=${s}`).join("&")}&limit=200`;
 
-  // Other tests create incidents in parallel, so the count only has to grow.
-  await expect.poll(async () => Number(await active.locator("p").nth(1).textContent())).toBeGreaterThan(before);
-  await expect(page.getByRole("list", { name: "Recent incidents" })).toContainText(
-    (await created.json()).title,
-  );
+  // Other specs create and resolve incidents in parallel, so compare against
+  // the API at the same moment and retry until both agree.
+  await expect(async () => {
+    await page.goto("/");
+    const recent = page.getByRole("list", { name: "Recent incidents" });
+    await expect(recent).toBeVisible();
+    const items = (await (await page.request.get(`/api/v1/incidents?${query}`)).json()).items as { title: string }[];
+    await expect(page.getByRole("group", { name: "Active incidents" }).locator("p").nth(1)).toHaveText(
+      String(items.length),
+      { timeout: 2_000 },
+    );
+    await expect(recent.getByRole("listitem")).toHaveText(
+      items.slice(0, 5).map((i) => new RegExp(i.title.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))),
+      { timeout: 2_000 },
+    );
+  }).toPass({ timeout: 30_000 });
 });
 
 test.describe("on a phone", () => {
