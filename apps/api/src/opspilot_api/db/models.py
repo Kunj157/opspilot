@@ -7,6 +7,7 @@ from typing import Any
 
 from sqlalchemy import (
     BigInteger,
+    CheckConstraint,
     Column,
     DateTime,
     Enum,
@@ -147,6 +148,27 @@ class Service(UUIDPrimaryKey, Timestamps, OrganizationScoped, Base):
         Enum(HealthStatus, name="health_status", values_callable=lambda e: [m.value for m in e]),
         server_default=HealthStatus.UNKNOWN.value,
     )
+
+
+class ServiceDependency(UUIDPrimaryKey, OrganizationScoped, Base):
+    """Directed edge: `source` calls `target`. Both services share the organization."""
+
+    __tablename__ = "service_dependencies"
+    __table_args__ = (
+        UniqueConstraint("source_service_id", "target_service_id"),
+        CheckConstraint("source_service_id <> target_service_id", name="no_self_dependency"),
+    )
+
+    organization_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("organizations.id", ondelete="RESTRICT"), index=True
+    )
+    source_service_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("services.id", ondelete="CASCADE")
+    )
+    target_service_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("services.id", ondelete="CASCADE"), index=True
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
 def _enum(cls: type[enum.StrEnum], name: str) -> Enum:
