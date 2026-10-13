@@ -12,6 +12,7 @@ import structlog
 from structlog.typing import EventDict, WrappedLogger
 
 from opspilot_api.config import Settings
+from opspilot_api.redaction import redact
 
 
 def configure_logging(settings: Settings) -> None:
@@ -22,6 +23,10 @@ def configure_logging(settings: Settings) -> None:
             event_dict.setdefault(key, value)
         return event_dict
 
+    def redact_secrets(_: WrappedLogger, __: str, event_dict: EventDict) -> EventDict:
+        redacted: EventDict = redact(event_dict)
+        return redacted
+
     structlog.configure(
         processors=[
             structlog.contextvars.merge_contextvars,
@@ -30,6 +35,7 @@ def configure_logging(settings: Settings) -> None:
             add_static_fields,
             structlog.processors.format_exc_info,
             structlog.processors.EventRenamer("message"),
+            redact_secrets,
             structlog.processors.JSONRenderer(),
         ],
         wrapper_class=structlog.make_filtering_bound_logger(
