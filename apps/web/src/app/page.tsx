@@ -1,12 +1,20 @@
+import { Suspense } from "react";
+
 import { SystemStatus } from "@/components/system-status";
+import { UserMenu, UserMenuSkeleton } from "@/components/user-menu";
 
 export default function Home() {
   return (
     <>
       <header className="border-b border-border bg-surface-1/60 backdrop-blur">
-        <div className="mx-auto flex h-14 max-w-5xl items-center gap-2.5 px-4 sm:px-6">
-          <span aria-hidden className="size-3 rotate-45 rounded-[3px] bg-accent shadow-[0_0_12px_var(--accent-subtle)]" />
-          <span className="text-sm font-semibold tracking-tight">OpsPilot</span>
+        <div className="mx-auto flex h-14 max-w-5xl items-center justify-between gap-4 px-4 sm:px-6">
+          <div className="flex items-center gap-2.5">
+            <span aria-hidden className="size-3 rotate-45 rounded-[3px] bg-accent shadow-[0_0_12px_var(--accent-subtle)]" />
+            <span className="text-sm font-semibold tracking-tight">OpsPilot</span>
+          </div>
+          <Suspense fallback={<UserMenuSkeleton />}>
+            <UserMenu />
+          </Suspense>
         </div>
       </header>
 
