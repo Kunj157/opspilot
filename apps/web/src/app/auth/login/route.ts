@@ -1,5 +1,5 @@
 import * as client from "openid-client";
-import { type NextRequest, NextResponse } from "next/server";
+import { connection, type NextRequest, NextResponse } from "next/server";
 
 import { AUTH_FLOW_COOKIE } from "@/server/auth-flow";
 import { oidc } from "@/server/oidc";
@@ -8,6 +8,7 @@ import { isSecure } from "@/server/request";
 
 
 export async function GET(request: NextRequest) {
+  await connection(); // always at request time: never prerender an auth flow
   const config = await oidc();
   const codeVerifier = client.randomPKCECodeVerifier();
   const state = client.randomState();

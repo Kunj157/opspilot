@@ -74,7 +74,9 @@ dev: infra-up db-upgrade ## Start infrastructure, migrate, and run API and web t
 
 build: ## Production build of all apps
 	cd apps/api && uv build -q
-	API_URL=http://127.0.0.1:$${API_PORT:-8000} pnpm --filter @opspilot/web build
+	@# Build without runtime settings, as CI does: nothing may need them at build time.
+	env -u API_URL -u REDIS_URL -u OIDC_ISSUER -u OIDC_CLIENT_ID -u OIDC_CLIENT_SECRET \
+		pnpm --filter @opspilot/web build
 
 test-e2e: infra-up db-upgrade ## Browser tests against the real stack (Playwright)
 	pnpm exec playwright test

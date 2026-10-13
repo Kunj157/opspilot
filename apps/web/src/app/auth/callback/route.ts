@@ -1,5 +1,5 @@
 import * as client from "openid-client";
-import { type NextRequest, NextResponse } from "next/server";
+import { connection, type NextRequest, NextResponse } from "next/server";
 
 import { AUTH_FLOW_COOKIE } from "@/server/auth-flow";
 import { oidc, sessionFromTokens } from "@/server/oidc";
@@ -16,6 +16,7 @@ function loginError(request: NextRequest) {
 }
 
 export async function GET(request: NextRequest) {
+  await connection(); // always at request time: never prerender an auth flow
   const raw = request.cookies.get(AUTH_FLOW_COOKIE)?.value;
   if (!raw) return loginError(request);
 
