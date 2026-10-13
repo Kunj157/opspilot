@@ -469,7 +469,7 @@ export interface components {
         };
         /**
          * IncidentStatus
-         * @description States from DEVELOPMENT_PLAN.md §13; transitions live in incidents.state_machine.
+         * @description Incident lifecycle states; transitions live in incidents.state_machine.
          * @enum {string}
          */
         IncidentStatus: "DETECTED" | "INVESTIGATING" | "AWAITING_APPROVAL" | "REMEDIATING" | "VERIFYING" | "MONITORING" | "RESOLVED" | "REJECTED";

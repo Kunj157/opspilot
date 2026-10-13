@@ -8,9 +8,9 @@ This is a **one-person project**. There is no team, no reviewer, no approver.
 Every rule below is written for a single developer who is also their own
 reviewer. Follow it on every task, without being asked.
 
-`DEVELOPMENT_PLAN.md` says **what** to build and in which order. This file
-says **how** every change gets made. If the two disagree on process, this file
-wins; if they disagree on scope, the plan wins.
+`DEVELOPMENT_PLAN.md` (a local file, not committed) says **what** to build
+and in which order. This file says **how** every change gets made. If the two
+disagree on process, this file wins; if they disagree on scope, the plan wins.
 
 ---
 
@@ -336,8 +336,8 @@ architecture, ADRs, runbooks, and threat model are deliverables.
 - Work the plan in order (§34 starting checklist, §35 core rule). Do not
   start excluded-scope work (§3.2).
 - Update docs, README, and ADRs in the same PR as the behavior change.
-- Keep dependencies current (Dependabot/Renovate); review their PRs like any
-  other.
+- Keep dependencies current by updating them yourself on an `infra/*` or
+  `feature/*` branch. No automated bot pull requests or bot branches.
 - Tag every release. Write release notes from the merged PR titles.
 - Clean code, clear commits, honest status reports. Resume metrics come only
   from real measurements.

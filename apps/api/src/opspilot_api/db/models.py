@@ -1,4 +1,4 @@
-"""Core identity and audit tables (DEVELOPMENT_PLAN.md §12.1)."""
+"""Database models: identity, audit, service catalog, and incidents."""
 
 import enum
 import uuid
@@ -48,7 +48,7 @@ class Severity(enum.StrEnum):
 
 
 class IncidentStatus(enum.StrEnum):
-    """States from DEVELOPMENT_PLAN.md §13; transitions live in incidents.state_machine."""
+    """Incident lifecycle states; transitions live in incidents.state_machine."""
 
     DETECTED = "DETECTED"
     INVESTIGATING = "INVESTIGATING"

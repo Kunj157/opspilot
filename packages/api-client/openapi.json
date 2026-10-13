@@ -1757,7 +1757,7 @@
           "REJECTED"
         ],
         "title": "IncidentStatus",
-        "description": "States from DEVELOPMENT_PLAN.md \u00a713; transitions live in incidents.state_machine."
+        "description": "Incident lifecycle states; transitions live in incidents.state_machine."
       },
       "IncidentUpdate": {
         "properties": {

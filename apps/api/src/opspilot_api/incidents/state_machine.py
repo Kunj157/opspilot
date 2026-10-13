@@ -1,4 +1,4 @@
-"""Allowed incident status transitions (DEVELOPMENT_PLAN.md §13)."""
+"""Allowed incident status transitions."""
 
 from opspilot_api.db.models import IncidentStatus as S
 

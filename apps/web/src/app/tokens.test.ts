@@ -3,7 +3,7 @@ import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-// DEVELOPMENT_PLAN.md §16.2: every text and status token meets WCAG AA (4.5:1) on every surface.
+// Every text and status token meets WCAG AA (4.5:1) on every surface.
 const css = readFileSync(join(__dirname, "globals.css"), "utf8");
 const root = css.slice(css.indexOf(":root {"), css.indexOf("}", css.indexOf(":root {")));
 const tokens = Object.fromEntries(
