@@ -16,7 +16,7 @@ DEMO_IMAGE := opspilot-demo:dev
 API := cd apps/api && uv run
 DEMO := cd demo/services && uv run
 
-.PHONY: db-upgrade db-downgrade db-revision keycloak-smoke token api-client web-dev dev build test-e2e test-lighthouse kind-create kind-delete docker-build deploy-local observability-up grafana help infra-up infra-down stop secrets-scan install api-dev format lint typecheck test test-unit test-integration
+.PHONY: db-upgrade db-downgrade db-revision keycloak-smoke token api-client web-dev dev build test-e2e test-lighthouse kind-create kind-delete docker-build deploy-local observability-up grafana load-normal load-stop inject-failure reset-demo help infra-up infra-down stop secrets-scan install api-dev format lint typecheck test test-unit test-integration
 
 help: ## List available targets
 	@grep -hE '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | sort | \
@@ -131,6 +131,21 @@ observability-up: kind-create ## Deploy the collector, Prometheus, Loki, Tempo, 
 
 deploy-local: observability-up docker-build ## Deploy observability and the demo shop to the kind cluster
 	$(HELM) upgrade --install demo-shop infrastructure/helm/demo-shop --namespace demo --create-namespace --wait --timeout 5m
+
+load-normal: ## Start steady synthetic traffic against the demo shop (RPS=5)
+	$(HELM) upgrade demo-shop infrastructure/helm/demo-shop --namespace demo --reuse-values \
+		--set loadgen.enabled=true --set loadgen.rps=$${RPS:-5} --wait
+
+load-stop: ## Stop the synthetic traffic
+	$(HELM) upgrade demo-shop infrastructure/helm/demo-shop --namespace demo --reuse-values \
+		--set loadgen.enabled=false --wait
+
+inject-failure: ## Ship a faulty release: make inject-failure SCENARIO=checkout-http-500
+	./scripts/inject-failure.sh $(SCENARIO)
+
+reset-demo: ## Restore every demo service to its healthy release (keeps load running)
+	$(KUBECTL) -n demo annotate deployment --all --overwrite kubernetes.io/change-cause="reset to the healthy release"
+	$(HELM) upgrade demo-shop infrastructure/helm/demo-shop --namespace demo --reuse-values --force-conflicts --wait
 
 grafana: ## Open Grafana on http://localhost:3300 (port-forward; Ctrl+C stops)
 	$(KUBECTL) -n observability port-forward svc/grafana 3300:3000
