@@ -160,15 +160,31 @@ def main() -> None:
         errors_before = metric(url["prometheus"], 'sum(http_errors_total{service="payment"})')
         subprocess.run([INJECT, "payment-outage"], check=True)  # noqa: S603 - repository script
         try:
-            failed_trace, status = checkout(url["storefront"])
-            require(status == 502, f"checkout during the outage returned {status}")
-            errors = wait(
-                lambda: [
-                    span
-                    for svc, span in trace_spans(url["tempo"], failed_trace)
-                    if svc == "payment"
-                    and span.get("status", {}).get("code") == "STATUS_CODE_ERROR"
-                ],
+            # Right after the rollout the old payment pod may still be leaving the
+            # endpoints, so a request can fail before reaching payment. Send a few
+            # and follow the first trace with a failed payment span.
+            failed = []
+            for _ in range(5):
+                trace_id, status = checkout(url["storefront"])
+                require(status == 502, f"checkout during the outage returned {status}")
+                failed.append(trace_id)
+                time.sleep(1)
+            failed_trace, errors = wait(
+                lambda: next(
+                    (
+                        (tid, errs)
+                        for tid in failed
+                        if (
+                            errs := [
+                                span
+                                for svc, span in trace_spans(url["tempo"], tid)
+                                if svc == "payment"
+                                and span.get("status", {}).get("code") == "STATUS_CODE_ERROR"
+                            ]
+                        )
+                    ),
+                    None,
+                ),
                 "an error span on payment",
             )
             print(f"PASS error trace: {len(errors)} failed payment span(s)")
