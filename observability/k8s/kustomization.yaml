@@ -1,0 +1,18 @@
+# Local observability stack for the demo shop (kind). `make deploy-local` applies it.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: observability
+resources:
+  - namespace.yaml
+  - otel-collector.yaml
+  - prometheus.yaml
+  - kube-state-metrics.yaml
+  - loki.yaml
+  - tempo.yaml
+  - grafana.yaml
+configMapGenerator:
+  - name: grafana-dashboards
+    files:
+      - dashboards/demo-shop.json
+generatorOptions:
+  disableNameSuffixHash: true
