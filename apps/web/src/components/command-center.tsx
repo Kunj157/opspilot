@@ -4,6 +4,7 @@ import { createApiClient } from "@opspilot/api-client";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 
+import { TopologyPanel } from "@/components/topology/topology-panel";
 import { Card } from "@/components/ui/card";
 
 import { type IncidentStatus, SeverityBadge, StatusBadge } from "./incidents/badges";
@@ -84,6 +85,8 @@ export function CommandCenter() {
           tone={services.length && healthy === services.length ? "text-healthy" : undefined}
         />
       </div>
+
+      <TopologyPanel />
 
       <section aria-labelledby="recent-heading" className="rounded-card border border-border bg-surface-2 shadow-3">
         <h2 id="recent-heading" className="border-b border-border px-5 py-4 text-sm font-medium text-fg-secondary">
