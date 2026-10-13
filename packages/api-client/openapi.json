@@ -159,6 +159,13 @@
             },
             "type": "array",
             "title": "Roles"
+          },
+          "permissions": {
+            "items": {
+              "$ref": "#/components/schemas/Permission"
+            },
+            "type": "array",
+            "title": "Permissions"
           }
         },
         "type": "object",
@@ -167,7 +174,8 @@
           "email",
           "display_name",
           "organization",
-          "roles"
+          "roles",
+          "permissions"
         ],
         "title": "MeResponse"
       },
@@ -189,6 +197,19 @@
           "slug"
         ],
         "title": "OrganizationRef"
+      },
+      "Permission": {
+        "type": "string",
+        "enum": [
+          "view_services",
+          "view_incidents",
+          "start_investigation",
+          "approve_remediation",
+          "manage_users",
+          "manage_runbooks",
+          "view_audit_logs"
+        ],
+        "title": "Permission"
       },
       "ReadinessResponse": {
         "properties": {

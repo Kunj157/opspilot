@@ -29,3 +29,10 @@ class Timestamps:
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
+
+
+class OrganizationScoped:
+    """Marker for rows that belong to exactly one organization (see auth.tenancy)."""
+
+    id: Mapped[uuid.UUID]
+    organization_id: Mapped[uuid.UUID]
