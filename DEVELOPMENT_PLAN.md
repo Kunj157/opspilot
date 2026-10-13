@@ -442,10 +442,10 @@ opspilot/
 
 - `main`: always releasable
 - `dev`: integration branch
-- `feature/<issue#>-<name>`: new functionality
-- `bugfix/<issue#>-<name>`: bug fixes
-- `infra/<issue#>-<name>`: infrastructure changes
-- `docs/<issue#>-<name>`: documentation
+- `feature/<name>`: new functionality
+- `bugfix/<name>`: bug fixes
+- `infra/<name>`: infrastructure changes
+- `docs/<name>`: documentation
 
 ### 8.2 Pull-request requirements
 

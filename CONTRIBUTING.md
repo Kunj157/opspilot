@@ -15,10 +15,10 @@ version and wins on any conflict.
 
 ```bash
 git checkout dev && git pull origin dev
-git checkout -b feature/<issue#>-<short-desc>     # or bugfix/ infra/ docs/
+git checkout -b feature/<short-desc>     # or bugfix/ infra/ docs/
 # test first → smallest implementation → small commits
 make format lint typecheck test test-integration build
-git push -u origin feature/<issue#>-<short-desc>
+git push -u origin feature/<short-desc>
 ```
 
 Then open a pull request **into `dev`** and fill in every section of the
