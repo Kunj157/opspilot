@@ -6,12 +6,13 @@ from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from opspilot_api import readiness
+from opspilot_api.audit.middleware import AuditMiddleware
 from opspilot_api.auth.tokens import TokenVerifier, discovered_key_resolver
 from opspilot_api.config import Settings, get_settings
 from opspilot_api.db.session import SessionFactory
 from opspilot_api.logging import configure_logging
 from opspilot_api.request_context import RequestContextMiddleware
-from opspilot_api.routes import me
+from opspilot_api.routes import audit_logs, me
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -51,7 +52,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             yield
 
     app = FastAPI(title="OpsPilot API", version="0.1.0", lifespan=lifespan)
+    # Last added runs first: request context wraps auditing, so audit
+    # records carry the request ID and client IP.
+    app.add_middleware(AuditMiddleware)
     app.add_middleware(RequestContextMiddleware)
     app.include_router(readiness.router)
     app.include_router(me.router)
+    app.include_router(audit_logs.router)
     return app

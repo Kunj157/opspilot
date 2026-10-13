@@ -10,10 +10,11 @@ from sqlalchemy import delete, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from opspilot_api.audit.service import record
 from opspilot_api.auth.principal import Principal
 from opspilot_api.auth.roles import Role
 from opspilot_api.auth.tokens import TokenIdentity
-from opspilot_api.db.models import Organization, User, UserStatus, user_roles
+from opspilot_api.db.models import ActorType, Organization, User, UserStatus, user_roles
 from opspilot_api.db.models import Role as RoleRow
 
 
@@ -53,7 +54,7 @@ async def _sync_roles(session: AsyncSession, user_id: uuid.UUID, roles: frozense
 async def provision(session: AsyncSession, identity: TokenIdentity) -> Principal:
     organization_id = await _organization_id(session, identity.organization)
 
-    await session.execute(
+    inserted = await session.execute(
         insert(User)
         .values(
             organization_id=organization_id,
@@ -63,7 +64,9 @@ async def provision(session: AsyncSession, identity: TokenIdentity) -> Principal
             display_name=identity.display_name,
         )
         .on_conflict_do_nothing(index_elements=[User.issuer, User.external_auth_id])
+        .returning(User.id)
     )
+    created = inserted.scalar_one_or_none() is not None
     user = (
         await session.execute(
             select(User).where(
@@ -82,6 +85,17 @@ async def provision(session: AsyncSession, identity: TokenIdentity) -> Principal
     user.email = identity.email
     user.display_name = identity.display_name
     await _sync_roles(session, user.id, identity.roles)
+    if created:
+        await record(
+            session,
+            organization_id=organization_id,
+            actor_type=ActorType.SYSTEM,
+            actor_id="provisioning",
+            action="user.provisioned",
+            resource_type="user",
+            resource_id=str(user.id),
+            metadata={"roles": sorted(identity.roles)},
+        )
     await session.commit()
 
     return Principal(

@@ -1,6 +1,7 @@
 import re
 import time
 import uuid
+from contextvars import ContextVar
 
 import structlog
 from starlette.datastructures import MutableHeaders
@@ -10,6 +11,9 @@ REQUEST_ID_HEADER = "X-Request-ID"
 _VALID_REQUEST_ID = re.compile(r"^[A-Za-z0-9._-]{1,128}$")
 
 logger = structlog.get_logger()
+
+current_request_id: ContextVar[str | None] = ContextVar("current_request_id", default=None)
+current_client_ip: ContextVar[str | None] = ContextVar("current_client_ip", default=None)
 
 
 def _request_id_from(scope: Scope) -> str:
@@ -41,6 +45,9 @@ class RequestContextMiddleware:
         request_id = _request_id_from(scope)
         structlog.contextvars.clear_contextvars()
         structlog.contextvars.bind_contextvars(request_id=request_id)
+        client = scope.get("client")
+        request_token = current_request_id.set(request_id)
+        ip_token = current_client_ip.set(client[0] if client else None)
         started = time.perf_counter()
         status_code = 500
 
@@ -62,3 +69,5 @@ class RequestContextMiddleware:
                 duration_ms=round((time.perf_counter() - started) * 1000, 2),
             )
             structlog.contextvars.clear_contextvars()
+            current_request_id.reset(request_token)
+            current_client_ip.reset(ip_token)

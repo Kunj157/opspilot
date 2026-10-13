@@ -29,6 +29,7 @@ def get_token_verifier(request: Request) -> TokenVerifier:
 
 
 async def get_principal(
+    request: Request,
     credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(bearer_scheme)],
     verifier: Annotated[TokenVerifier, Depends(get_token_verifier)],
     session: Annotated[AsyncSession, Depends(get_session)],
@@ -55,6 +56,7 @@ async def get_principal(
     structlog.contextvars.bind_contextvars(
         user_id=str(principal.user_id), organization_id=str(principal.organization_id)
     )
+    request.state.principal = principal
     return principal
 
 
