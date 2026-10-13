@@ -10,6 +10,7 @@ out/
 coverage/
 playwright-report/
 test-results/
+playwright/.auth/
 *.tsbuildinfo
 
 # Python
@@ -39,3 +40,4 @@ crash.log
 .idea/
 .vscode/
 .DS_Store
+dist/

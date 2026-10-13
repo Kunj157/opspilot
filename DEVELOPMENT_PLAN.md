@@ -442,10 +442,10 @@ opspilot/
 
 - `main`: always releasable
 - `dev`: integration branch
-- `feature/<issue#>-<name>`: new functionality
-- `bugfix/<issue#>-<name>`: bug fixes
-- `infra/<issue#>-<name>`: infrastructure changes
-- `docs/<issue#>-<name>`: documentation
+- `feature/<name>`: new functionality
+- `bugfix/<name>`: bug fixes
+- `infra/<name>`: infrastructure changes
+- `docs/<name>`: documentation
 
 ### 8.2 Pull-request requirements
 
@@ -1099,65 +1099,119 @@ Requirements:
 
 ### 16.1 Design direction
 
-The interface should feel like a modern command center rather than a game.
+The UI must be **modern, three-dimensional, and minimal**, built on a
+**distinctive but restrained colour palette**. It should feel like a calm,
+precise command center, not a game and not a generic "dark navy + neon"
+dashboard.
 
-Use:
+**Modern**
 
-- Dark navy background
-- Glass-like elevated panels
-- Soft gradients
-- Layered shadows
-- Thin borders
-- Subtle depth
-- Animated status glows
-- Perspective card movement
-- A restrained 3D service topology
-- Smooth transitions
+- Clean typographic hierarchy: one sans-serif for UI (e.g. Inter or Geist),
+  one monospace for IDs, queries, and logs (e.g. Geist Mono / JetBrains Mono).
+- Generous spacing, a strict 4 px spacing scale, and consistent radii.
+- Fast, purposeful motion (150–250 ms, ease-out) for state changes only.
+- Dark-first; a light theme is optional later and uses the same token names.
 
-Avoid:
+**Three-dimensional**
 
-- Excessive neon
-- Constant animations
-- Large 3D assets
-- Low-contrast text
-- Unnecessary particle effects
+Depth is part of the visual language, not decoration:
+
+- **Layered elevation** — every surface sits on a defined elevation level
+  (background → surface-1 → surface-2 → surface-3), separated by tone,
+  hairline borders, and soft layered shadows rather than heavy gradients.
+- **Subtle perspective** — cards tilt slightly toward the pointer (max ~4°)
+  and lift on hover; disabled under reduced motion.
+- **3D service topology** (React Three Fiber) on the Command Center as the
+  signature element: low-poly nodes, soft lighting, gentle depth of field.
+- **3D accents elsewhere stay small**: a slowly rotating wireframe grid on
+  the login page, depth-stacked incident cards in the timeline.
+- Glass is used sparingly — only for overlays (drawers, command palette)
+  that float above live content.
+
+**Minimal**
+
+- ~90% of every screen is neutral graphite tones. Colour is information.
+- **One signature accent** — *Iris* — is the colour of OpsPilot itself: it
+  marks primary actions, focus rings, selection, and **AI agent activity**
+  (an investigation in progress pulses in Iris). Nothing else uses it.
+- **Status colours are reserved for status** (healthy, degraded, critical)
+  and are always paired with an icon and a text label.
+- No gradients on text, no rainbow charts, no decorative glow. A soft glow is
+  allowed only on a node or badge whose state is actively changing.
+
+**Avoid**
+
+- Generic navy + cyan/purple neon palettes
+- Constant or looping animations
+- Large 3D assets or textures
+- Low-contrast text (every text token meets WCAG AA on every surface)
+- Particle effects
 - Animations that interfere with incident response
 
-### 16.2 Suggested design tokens
+### 16.2 Design tokens — "Graphite & Iris"
+
+All colours are defined once as CSS variables (and mirrored in the Tailwind
+theme and the R3F materials). Components never use raw hex values.
 
 ```css
 :root {
-  --background: #060816;
-  --surface-1: #0c1022;
-  --surface-2: #121832;
-  --surface-glass: rgba(18, 24, 50, 0.68);
+  /* Neutrals — cool graphite, slightly desaturated */
+  --background: #0b0c0e;
+  --surface-1: #121418;
+  --surface-2: #181b20;
+  --surface-3: #20242b;
+  --surface-glass: rgba(24, 27, 32, 0.72);
 
-  --text-primary: #f7f8ff;
-  --text-secondary: #a9b1d6;
-  --text-muted: #737da8;
+  --text-primary: #edeef0;    /* 14.9:1 on surface-2 */
+  --text-secondary: #a6abb5;  /*  7.5:1 on surface-2 */
+  --text-muted: #868c97;      /*  4.9:1 on surface-2 */
 
-  --accent-cyan: #42d9ff;
-  --accent-violet: #8b5cf6;
-  --accent-blue: #3b82f6;
+  --border: rgba(255, 255, 255, 0.08);
+  --border-strong: rgba(255, 255, 255, 0.14);
 
-  --success: #2dd4bf;
-  --warning: #fbbf24;
-  --danger: #fb7185;
-  --critical: #ef4444;
+  /* Signature accent — Iris: actions, focus, selection, AI activity */
+  --accent: #a79bff;          /*  7.2:1 on surface-2 */
+  --accent-hover: #bbb2ff;
+  --accent-subtle: rgba(167, 155, 255, 0.12);
+  --on-accent: #0b0c0e;
 
-  --border: rgba(148, 163, 184, 0.18);
-  --shadow-soft: 0 16px 50px rgba(0, 0, 0, 0.28);
-  --radius-card: 20px;
+  /* Status — only for status, always with icon + label */
+  --status-healthy: #5cc98b;
+  --status-degraded: #e3b34c;
+  --status-critical: #ef5f5f;
+  --status-unknown: #868c97;
+
+  /* Depth */
+  --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.30);
+  --shadow-2: 0 4px 12px rgba(0, 0, 0, 0.28), 0 1px 2px rgba(0, 0, 0, 0.30);
+  --shadow-3: 0 16px 40px rgba(0, 0, 0, 0.36), 0 2px 6px rgba(0, 0, 0, 0.30);
+  --radius-sm: 8px;
+  --radius-card: 14px;
+  --radius-lg: 20px;
+
+  /* Motion */
+  --duration-fast: 150ms;
+  --duration-base: 220ms;
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
 }
 ```
+
+Palette rules:
+
+- Contrast is verified in CI (token contrast test) — any token change that
+  drops below WCAG AA fails the build.
+- Charts use neutrals plus at most one status colour or Iris to highlight;
+  multi-series charts use tints of the neutral scale, not a rainbow.
+- The palette is the product's identity: do not introduce a new hue without
+  updating this section in the same PR.
 
 ### 16.3 Primary pages
 
 **Login**
 
 - Product logo
-- Animated gradient background
-- Subtle 3D grid
+- Slowly rotating 3D wireframe grid in graphite with a faint Iris horizon
+  (static under reduced motion)
 - OIDC login button
 - No heavy WebGL requirement
 
@@ -1175,12 +1229,15 @@ Avoid:
 **Service Topology** — use React Three Fiber. Each service is represented as a
 node:
 
-- Green: healthy
-- Yellow: degraded
-- Red: critical
-- Purple pulse: being investigated
-- Blue connection: successful dependency
-- Red connection: failing dependency
+- `--status-healthy`: healthy
+- `--status-degraded`: degraded
+- `--status-critical`: critical
+- `--accent` (Iris) pulse: being investigated by an agent
+- Neutral (`--border-strong`) edge: healthy dependency, with latency label
+- `--status-critical` edge: failing dependency
+
+Node shape and an on-hover label also encode status, so colour is never the
+only signal.
 
 Interactions:
 
@@ -1260,6 +1317,8 @@ const ServiceTopology3D = dynamic(
 - Initial JavaScript bundle is monitored
 - 3D topology loads lazily
 - Reduced-motion mode disables nonessential animations
+- All text and status colour tokens meet WCAG AA contrast on every surface
+- Only the tokens in §16.2 are used; no raw hex values in components
 
 ---
 
@@ -1628,6 +1687,7 @@ Create a typed API client and display backend readiness.
 | Approve remediation | No | No | Yes | Yes |
 | Manage users | No | No | No | Yes |
 | Manage runbooks | No | Yes | Yes | Yes |
+| View audit logs | No | No | Yes | Yes |
 
 **Tests**
 

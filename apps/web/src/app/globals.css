@@ -1,0 +1,115 @@
+@import "tailwindcss";
+
+/* Graphite & Iris — DEVELOPMENT_PLAN.md §16.2. Components use these tokens only. */
+:root {
+  --background: #0b0c0e;
+  --surface-1: #121418;
+  --surface-2: #181b20;
+  --surface-3: #20242b;
+  --surface-glass: rgba(24, 27, 32, 0.72);
+
+  --text-primary: #edeef0;
+  --text-secondary: #a6abb5;
+  --text-muted: #868c97;
+
+  --border: rgba(255, 255, 255, 0.08);
+  --border-strong: rgba(255, 255, 255, 0.14);
+
+  --accent: #a79bff;
+  --accent-hover: #bbb2ff;
+  --accent-subtle: rgba(167, 155, 255, 0.12);
+  --on-accent: #0b0c0e;
+
+  --status-healthy: #5cc98b;
+  --status-degraded: #e3b34c;
+  --status-critical: #ef5f5f;
+  --status-unknown: #868c97;
+
+  --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-2: 0 4px 12px rgba(0, 0, 0, 0.28), 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-3: 0 16px 40px rgba(0, 0, 0, 0.36), 0 2px 6px rgba(0, 0, 0, 0.3);
+  --radius-sm: 8px;
+  --radius-card: 14px;
+  --radius-lg: 20px;
+
+  --duration-fast: 150ms;
+  --duration-base: 220ms;
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-surface-1: var(--surface-1);
+  --color-surface-2: var(--surface-2);
+  --color-surface-3: var(--surface-3);
+  --color-fg: var(--text-primary);
+  --color-fg-secondary: var(--text-secondary);
+  --color-fg-muted: var(--text-muted);
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-subtle: var(--accent-subtle);
+  --color-on-accent: var(--on-accent);
+  --color-healthy: var(--status-healthy);
+  --color-degraded: var(--status-degraded);
+  --color-critical: var(--status-critical);
+  --shadow-1: var(--shadow-1);
+  --shadow-2: var(--shadow-2);
+  --shadow-3: var(--shadow-3);
+  --radius-card: var(--radius-card);
+  --radius-lg: var(--radius-lg);
+  --duration-base: var(--duration-base);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+html {
+  color-scheme: dark;
+}
+
+body {
+  background: var(--background);
+  color: var(--text-primary);
+  font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* Depth backdrop: a perspective grid receding toward a faint Iris horizon. */
+.depth-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  pointer-events: none;
+  background: radial-gradient(60% 40% at 50% 0%, var(--accent-subtle), transparent 70%);
+}
+
+.depth-backdrop::after {
+  content: "";
+  position: absolute;
+  inset: 40% -50% -60%;
+  background-image:
+    linear-gradient(var(--border) 1px, transparent 1px),
+    linear-gradient(90deg, var(--border) 1px, transparent 1px);
+  background-size: 56px 56px;
+  transform: perspective(600px) rotateX(62deg);
+  transform-origin: top center;
+  opacity: 0.6;
+  mask-image: linear-gradient(to bottom, transparent, black 30%, transparent 80%);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  ::before,
+  ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

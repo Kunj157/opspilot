@@ -1,0 +1,147 @@
+name: pull-request
+
+on:
+  pull_request:
+    branches: [dev, main]
+  push:
+    branches: [dev, main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  UV_FROZEN: "1"
+
+jobs:
+  api:
+    name: API · lint, types, tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: apps/api
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6
+        with:
+          enable-cache: true
+      - run: uv sync
+      - name: Format
+        run: uv run ruff format --check .
+      - name: Lint
+        run: uv run ruff check .
+      - name: Type check
+        run: uv run mypy
+      - name: Unit tests
+        run: uv run pytest tests/unit --cov=opspilot_api --cov-report=term-missing
+      - name: Integration tests (Testcontainers)
+        run: uv run pytest tests/integration
+
+  web:
+    name: Web · lint, types, tests, build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Lint
+        run: pnpm --filter @opspilot/web lint
+      - name: Type check
+        run: |
+          pnpm --filter @opspilot/api-client typecheck
+          pnpm --filter @opspilot/web typecheck
+      - name: Unit tests
+        run: pnpm --filter @opspilot/web test
+      - name: Build
+        run: pnpm --filter @opspilot/web build
+
+  contract:
+    name: Contract · API client matches OpenAPI
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: make api-client
+      - name: Generated client is committed and current
+        run: git diff --exit-code -- packages/api-client
+
+  e2e:
+    name: E2E · Playwright against real stack
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    needs: [api, web]
+    env:
+      CI: "1"
+      DATABASE_URL: postgresql+psycopg://opspilot:opspilot@localhost:5432/opspilot
+      REDIS_URL: redis://localhost:6379/0
+      JWT_ISSUER: http://localhost:8080/realms/opspilot
+      JWT_AUDIENCE: opspilot-api
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6
+        with:
+          enable-cache: true
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: (cd apps/api && uv sync)
+      - run: pnpm exec playwright install --with-deps chromium
+      - run: make infra-up
+      - name: Keycloak realm smoke test
+        run: make keycloak-smoke
+      - run: make test-e2e
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always()
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 14
+
+  security:
+    name: Security · secrets, SAST, dependencies
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+      - name: Gitleaks
+        env:
+          GITLEAKS_VERSION: 8.30.1
+        run: |
+          curl -sSL "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" \
+            | tar -xz gitleaks
+          ./gitleaks detect --no-banner --redact
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6
+      - name: Semgrep
+        run: uvx semgrep scan --config p/default --error --metrics off --exclude node_modules --exclude .venv .
+      - name: Python dependency audit
+        working-directory: apps/api
+        run: |
+          uv export --no-hashes --no-emit-project -q > /tmp/requirements.txt
+          uvx pip-audit -r /tmp/requirements.txt
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version-file: .node-version
+      - name: JS dependency audit (runtime)
+        run: pnpm audit --prod --audit-level high

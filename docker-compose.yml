@@ -1,0 +1,60 @@
+name: opspilot
+
+services:
+  postgres:
+    image: pgvector/pgvector:0.8.0-pg17
+    environment:
+      POSTGRES_USER: opspilot
+      POSTGRES_PASSWORD: opspilot
+      POSTGRES_DB: opspilot
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U opspilot -d opspilot"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  redis:
+    image: redis:7.4-alpine
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.7.5
+    command: ["start-dev", "--import-realm"]
+    environment:
+      # Development-only bootstrap admin; never used outside local compose.
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: admin
+      KC_HEALTH_ENABLED: "true"
+      # Fixed public URL so the token issuer is the same for browser and API.
+      KC_HOSTNAME: http://localhost:${KEYCLOAK_PORT:-8080}
+      KC_HOSTNAME_BACKCHANNEL_DYNAMIC: "true"
+      # Substituted into the realm import (${WEB_PORT:3000}) for exact redirect URIs.
+      WEB_PORT: ${WEB_PORT:-3000}
+    ports:
+      - "${KEYCLOAK_PORT:-8080}:8080"
+    volumes:
+      - ./infrastructure/keycloak/realm-opspilot.json:/opt/keycloak/data/import/realm-opspilot.json:ro
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >-
+          exec 3<>/dev/tcp/127.0.0.1/9000 &&
+          printf 'GET /health/ready HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n' >&3 &&
+          grep -q '"UP"' <&3
+      interval: 5s
+      timeout: 3s
+      retries: 60
+      start_period: 10s
+
+volumes:
+  postgres-data:

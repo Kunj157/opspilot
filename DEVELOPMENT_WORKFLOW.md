@@ -44,15 +44,18 @@ wins; if they disagree on scope, the plan wins.
 |---|---|---|
 | `main` | Always stable, releasable | Protected. No direct pushes. Only PRs from `dev`, `release/*`, or `hotfix/*`. Tagged releases (`v0.1.0`, `v0.2.0`, …). |
 | `dev` | Integration branch (default) | Latest development code. Only PRs from work branches. Must pass CI. |
-| `feature/<issue#>-<short-desc>` | One task / one feature | Branched from `dev`. Merged back into `dev` via PR. |
-| `bugfix/<issue#>-<short-desc>` | Non-urgent bug | Same lifecycle as `feature/*`. |
-| `infra/<issue#>-<short-desc>` | Terraform, Helm, Argo CD, CI, Docker Compose | Same lifecycle as `feature/*`. |
-| `docs/<issue#>-<short-desc>` | Documentation, ADRs, runbooks | Same lifecycle as `feature/*`. |
-| `release/vX.Y.Z` | Pre-release stabilization | Branched from `dev` when `dev` is ready. Only final testing and bug fixes. PR → `main`, then tag. |
-| `hotfix/vX.Y.Z` | Urgent fix on a release | Branched from **`main`**. PR → `main` **and** `dev`. Tag new patch release. |
+| `feature/<short-desc>` | One task / one feature | Branched from `dev`. Merged back into `dev` via PR. |
+| `bugfix/<short-desc>` | Non-urgent bug | Same lifecycle as `feature/*`. |
+| `infra/<short-desc>` | Terraform, Helm, Argo CD, CI, Docker Compose | Same lifecycle as `feature/*`. |
+| `docs/<short-desc>` | Documentation, ADRs, runbooks | Same lifecycle as `feature/*`. |
+| `release/<short-desc>` | Pre-release stabilization | Branched from `dev` when `dev` is ready. Only final testing and bug fixes. PR → `main`, then tag `vX.Y.Z`. Example: `release/authentication-and-audit`. |
+| `hotfix/<short-desc>` | Urgent fix on a release | Branched from **`main`**. PR → `main` **and** `dev`. Tag a new patch release. |
 
-Branch names carry the issue number, not a username:
-`feature/12-incident-state-machine`.
+Branch names are short, lowercase, hyphenated descriptions and **contain no
+numbers** — no issue number, no username: `feature/incident-state-machine`,
+not `feature/12-incident-state-machine`. The issue is linked from the PR
+(`Closes #<n>`), not from the branch name. Versions are carried by git tags
+and GitHub releases (`v0.2.0`), never by release or hotfix branch names.
 
 ### 1.1 Repository bootstrap (one time only)
 
@@ -78,7 +81,7 @@ scenario (`DEVELOPMENT_PLAN.md` §2) works end to end.
    to its phase milestone. One issue = one unit of work.
 2. `git checkout dev && git pull origin dev` — always start from the latest
    `dev`.
-3. `git checkout -b feature/<issue#>-<short-desc>`.
+3. `git checkout -b feature/<short-desc>`.
 4. **Design before code** (plan §9 Step 2): API contract, DB/migration
    changes, event schema, authorization, test plan, rollback.
 5. **Test first → implement smallest version → commit** in small,
@@ -86,16 +89,16 @@ scenario (`DEVELOPMENT_PLAN.md` §2) works end to end.
 6. Run the full local gate before pushing (§5). It must be green.
 7. Run the **iterative test loop** (§6) for anything touching a UI, API, or
    agent surface. It must be green, warnings included.
-8. `git push -u origin feature/<issue#>-<short-desc>`.
+8. `git push -u origin feature/<short-desc>`.
 9. **Open a PR into `dev`** using the template in §4. Link the issue with
    `Closes #<n>`.
 10. **Self-review the PR diff in full** on GitHub and wait for CI to pass.
     Both are required.
 11. Squash-or-merge into `dev` (keep history readable). Delete the branch.
-12. When a phase's exit criteria are met → `release/vX.Y.Z` → full system
+12. When a phase's exit criteria are met → `release/<short-desc>` → full system
     test (plan §23, as far as built) → PR to `main` → merge → tag.
-13. For urgent fixes on a release → `hotfix/vX.Y.Z` from `main` → fix → PR to
-    `main` **and** back-merge to `dev` → tag patch release.
+13. For urgent fixes on a release → `hotfix/<short-desc>` from `main` → fix →
+    PR to `main` **and** back-merge to `dev` → tag patch release.
 
 ---
 

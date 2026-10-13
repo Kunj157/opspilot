@@ -1,0 +1,47 @@
+name: Feature / task
+description: One unit of work from the development plan
+labels: ["type: feature"]
+body:
+  - type: input
+    id: phase
+    attributes:
+      label: Plan phase
+      description: Phase and step in DEVELOPMENT_PLAN.md
+      placeholder: "Phase 3 — Service Catalog and Incident Management"
+    validations:
+      required: true
+  - type: textarea
+    id: story
+    attributes:
+      label: User story
+      placeholder: "As an incident commander, I want … so that …"
+    validations:
+      required: true
+  - type: textarea
+    id: requirements
+    attributes:
+      label: Functional and non-functional requirements
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: Checkable statements; the PR is done when all hold.
+    validations:
+      required: true
+  - type: textarea
+    id: failures
+    attributes:
+      label: Failure cases
+  - type: textarea
+    id: security
+    attributes:
+      label: Security risks
+  - type: textarea
+    id: observability
+    attributes:
+      label: Observability requirements
+      description: Logs, metrics, traces, audit records.
+  - type: textarea
+    id: tests
+    attributes:
+      label: Test plan

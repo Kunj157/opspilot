@@ -1,0 +1,68 @@
+[project]
+name = "opspilot-api"
+version = "0.2.0"
+description = "OpsPilot API service"
+
+authors = [
+    { name = "Kunj157", email = "kunjr157@gmail.com" }
+]
+requires-python = ">=3.12"
+dependencies = [
+    "alembic>=1.20.0",
+    "fastapi>=0.143.0",
+    "httpx>=0.28.1",
+    "psycopg[binary]>=3.3.6",
+    "pydantic-settings>=2.15.0",
+    "pyjwt[crypto]>=2.15.1",
+    "redis>=8.1.0",
+    "sqlalchemy[asyncio]>=2.1.4",
+    "structlog>=26.1.0",
+    "uvicorn>=0.54.0",
+]
+
+[project.scripts]
+opspilot-api = "opspilot_api.__main__:run"
+
+[build-system]
+requires = ["uv_build>=0.11.12,<0.12.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "asgi-lifespan>=2.1.0",
+    "mypy>=2.4.0",
+    "pytest>=9.1.1",
+    "pytest-asyncio>=1.4.0",
+    "pytest-cov>=7.1.0",
+    "ruff>=0.17.0",
+    "testcontainers[postgres,redis]>=4.15.0",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "S", "ASYNC", "RUF", "SIM", "PT"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S101", "S105", "S106", "S608"]
+"src/opspilot_api/db/alembic/versions/**" = ["E501"]
+
+[tool.mypy]
+strict = true
+python_version = "3.12"
+files = ["src", "tests"]
+
+[[tool.mypy.overrides]]
+module = ["testcontainers.*", "asgi_lifespan.*"]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "session"
+asyncio_default_test_loop_scope = "session"
+testpaths = ["tests"]
+markers = ["integration: needs Docker (Testcontainers)"]
+addopts = "-ra --strict-markers"
+filterwarnings = ["error"]
