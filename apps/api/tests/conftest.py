@@ -17,6 +17,8 @@ def settings() -> Settings:
         app_env="test",
         database_url="postgresql+psycopg://user:pw@db.invalid:5432/opspilot",
         redis_url="redis://redis.invalid:6379/0",
+        jwt_issuer="https://idp.invalid/realms/opspilot",
+        jwt_audience="opspilot-api",
     )
 
 

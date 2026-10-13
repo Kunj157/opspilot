@@ -3,12 +3,15 @@ from contextlib import AsyncExitStack, asynccontextmanager
 
 from fastapi import FastAPI
 from redis.asyncio import Redis
-from sqlalchemy.ext.asyncio import create_async_engine
+from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from opspilot_api import readiness
+from opspilot_api.auth.tokens import TokenVerifier, discovered_key_resolver
 from opspilot_api.config import Settings, get_settings
+from opspilot_api.db.session import SessionFactory
 from opspilot_api.logging import configure_logging
 from opspilot_api.request_context import RequestContextMiddleware
+from opspilot_api.routes import me
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -18,11 +21,20 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         checks: dict[str, readiness.ReadinessCheck] = {}
+        session_factory: SessionFactory | None = None
+        token_verifier: TokenVerifier | None = None
         async with AsyncExitStack() as stack:
             if settings.database_url:
                 engine = create_async_engine(settings.database_url, pool_pre_ping=True)
                 stack.push_async_callback(engine.dispose)
                 checks["database"] = readiness.database_check(engine)
+                session_factory = async_sessionmaker(engine, expire_on_commit=False)
+            if settings.jwt_issuer and settings.jwt_audience:
+                token_verifier = TokenVerifier(
+                    issuer=settings.jwt_issuer,
+                    audience=settings.jwt_audience,
+                    key_resolver=discovered_key_resolver(settings.jwt_issuer),
+                )
             if settings.redis_url:
                 redis = Redis.from_url(
                     settings.redis_url,
@@ -34,9 +46,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
             app.state.settings = settings
             app.state.readiness_checks = checks
+            app.state.session_factory = session_factory
+            app.state.token_verifier = token_verifier
             yield
 
     app = FastAPI(title="OpsPilot API", version="0.1.0", lifespan=lifespan)
     app.add_middleware(RequestContextMiddleware)
     app.include_router(readiness.router)
+    app.include_router(me.router)
     return app
