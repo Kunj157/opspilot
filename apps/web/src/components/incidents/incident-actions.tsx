@@ -4,6 +4,8 @@ import { createApiClient } from "@opspilot/api-client";
 import type { components } from "@opspilot/api-client/schema";
 import { useState } from "react";
 
+import { Button } from "@/components/ui/button";
+
 type Incident = components["schemas"]["IncidentOut"];
 type Action = { key: string; label: string; primary?: boolean; run: (incident: Incident) => Promise<Result> };
 type Result = { data?: Incident; response: Response; error?: unknown };
@@ -102,19 +104,14 @@ export function IncidentActions({
     <div className="flex flex-col gap-3">
       <div role="group" aria-label="Incident actions" className="flex flex-wrap gap-2">
         {actions.map((action) => (
-          <button
+          <Button
             key={action.key}
-            type="button"
+            variant={action.primary ? "primary" : "secondary"}
             disabled={pending !== null}
             onClick={() => void run(action)}
-            className={
-              action.primary
-                ? "rounded-sm bg-accent px-4 py-2 text-sm font-semibold text-on-accent hover:bg-accent-hover disabled:opacity-50"
-                : "rounded-sm border border-border px-4 py-2 text-sm text-fg-secondary hover:border-border-strong hover:text-fg disabled:opacity-50"
-            }
           >
             {pending === action.key ? "Saving…" : action.label}
-          </button>
+          </Button>
         ))}
       </div>
       {error && (
