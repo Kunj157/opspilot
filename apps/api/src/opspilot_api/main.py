@@ -1,5 +1,6 @@
 from collections.abc import AsyncIterator
 from contextlib import AsyncExitStack, asynccontextmanager
+from importlib.metadata import version
 
 from fastapi import FastAPI
 from redis.asyncio import Redis
@@ -52,7 +53,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             app.state.token_verifier = token_verifier
             yield
 
-    app = FastAPI(title="OpsPilot API", version="0.1.0", lifespan=lifespan)
+    app = FastAPI(title="OpsPilot API", version=version("opspilot-api"), lifespan=lifespan)
     # Last added runs first: request context wraps auditing, so audit
     # records carry the request ID and client IP.
     app.add_middleware(AuditMiddleware)
