@@ -5,9 +5,10 @@ incidents in a cloud application, investigates them with AI agents and
 machine learning, proposes safe remediation, runs human-approved runbooks,
 verifies recovery, and writes the postmortem.
 
-> **Status:** v0.3.0 released (foundation, authentication and audit, service
-> catalog and incident management). Phase 4, modern UI and 3D service
-> topology, is in progress. See the [roadmap](#roadmap).
+> **Status:** v0.4.0 released: foundation, authentication and audit, service
+> catalog and incident management, and the modern UI with a 3D service
+> topology. Phase 5, demo microservices and telemetry, is next. See the
+> [roadmap](#roadmap).
 
 ## What it does today
 
@@ -24,9 +25,14 @@ verifies recovery, and writes the postmortem.
   Filters, keyset pagination, and idempotent creation are included.
 - **Live updates:** server-sent events driven by PostgreSQL `NOTIFY`. Streams
   resume with `Last-Event-ID`, so nothing is lost or duplicated.
-- **Command center:** an incident and service-health summary and an
-  accessible service topology map. Incident list and detail pages update
-  live, with actions for each state.
+- **Command center:** active incidents, service health, MTTA and MTTR, a
+  daily severity chart, a live alert stream, and the service topology as a
+  lazily loaded 3D view (React Three Fiber) with an accessible 2D map and
+  list fallback. Incident list and detail pages update live, with actions
+  for each state.
+- **Design system:** Graphite & Iris tokens with contrast checked in CI,
+  shared primitives (buttons, tilting cards, tabs, drawer, toasts), and
+  Lighthouse budgets on primary pages.
 
 ## The end-to-end goal
 
@@ -65,8 +71,8 @@ Each phase ends with a tagged release.
 | 1 | Local development foundation | ✅ v0.2.0 |
 | 2 | Authentication, RBAC, audit logs | ✅ v0.2.0 |
 | 3 | Service catalog and incident management | ✅ v0.3.0 |
-| 4 | Modern UI and 3D service topology | 🚧 in progress |
-| 5 | Demo microservices and telemetry | planned |
+| 4 | Modern UI and 3D service topology | ✅ v0.4.0 |
+| 5 | Demo microservices and telemetry | 🚧 next |
 | 6 | Detection engine | planned |
 | 7 | Runbook retrieval (RAG) | planned |
 | 8 | Multi-agent investigation | planned |
