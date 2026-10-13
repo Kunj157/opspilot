@@ -23,6 +23,9 @@ services:
   inventory: { replicas: 1, faults: { errorRate: 0, latencyMs: 0 } }
   notification: { replicas: 1, faults: { errorRate: 0, latencyMs: 0 } }
 
+# Exposes the storefront on the kind node (localhost:38080); empty to disable.
+storefrontNodePort: 30080
+
 # Synthetic shoppers (make load-normal / load-stop).
 loadgen:
   enabled: false
