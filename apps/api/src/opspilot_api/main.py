@@ -14,7 +14,7 @@ from opspilot_api.config import Settings, get_settings
 from opspilot_api.db.session import SessionFactory
 from opspilot_api.logging import configure_logging
 from opspilot_api.request_context import RequestContextMiddleware
-from opspilot_api.routes import audit_logs, me
+from opspilot_api.routes import audit_logs, me, services
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -69,4 +69,5 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(readiness.router)
     app.include_router(me.router)
     app.include_router(audit_logs.router)
+    app.include_router(services.router)
     return app

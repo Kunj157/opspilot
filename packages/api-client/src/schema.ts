@@ -72,6 +72,42 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/services": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Services */
+        get: operations["list_services_api_v1_services_get"];
+        put?: never;
+        /** Create Service */
+        post: operations["create_service_api_v1_services_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/services/{service_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Service */
+        get: operations["get_service_api_v1_services__service_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Update Service */
+        patch: operations["update_service_api_v1_services__service_id__patch"];
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -141,6 +177,11 @@ export interface components {
              */
             status: "ok";
         };
+        /**
+         * HealthStatus
+         * @enum {string}
+         */
+        HealthStatus: "unknown" | "healthy" | "degraded" | "critical";
         /** MeResponse */
         MeResponse: {
             /**
@@ -172,7 +213,7 @@ export interface components {
          * Permission
          * @enum {string}
          */
-        Permission: "view_services" | "view_incidents" | "start_investigation" | "approve_remediation" | "manage_users" | "manage_runbooks" | "view_audit_logs";
+        Permission: "view_services" | "view_incidents" | "start_investigation" | "approve_remediation" | "manage_users" | "manage_runbooks" | "view_audit_logs" | "manage_services";
         /** ReadinessResponse */
         ReadinessResponse: {
             /**
@@ -190,6 +231,78 @@ export interface components {
          * @enum {string}
          */
         Role: "viewer" | "operator" | "incident-commander" | "administrator";
+        /** ServiceCreate */
+        ServiceCreate: {
+            /** Description */
+            description?: string | null;
+            /** Owner Team */
+            owner_team?: string | null;
+            /** Repository Url */
+            repository_url?: string | null;
+            /** Namespace */
+            namespace?: string | null;
+            /** Deployment Name */
+            deployment_name?: string | null;
+            /** Name */
+            name: string;
+            /** Slug */
+            slug: string;
+        };
+        /** ServiceList */
+        ServiceList: {
+            /** Items */
+            items: components["schemas"]["ServiceOut"][];
+        };
+        /** ServiceOut */
+        ServiceOut: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Name */
+            name: string;
+            /** Slug */
+            slug: string;
+            /** Description */
+            description: string | null;
+            /** Owner Team */
+            owner_team: string | null;
+            /** Repository Url */
+            repository_url: string | null;
+            /** Namespace */
+            namespace: string | null;
+            /** Deployment Name */
+            deployment_name: string | null;
+            health_status: components["schemas"]["HealthStatus"];
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
+        /** ServiceUpdate */
+        ServiceUpdate: {
+            /** Description */
+            description?: string | null;
+            /** Owner Team */
+            owner_team?: string | null;
+            /** Repository Url */
+            repository_url?: string | null;
+            /** Namespace */
+            namespace?: string | null;
+            /** Deployment Name */
+            deployment_name?: string | null;
+            /** Name */
+            name?: string | null;
+            /** Slug */
+            slug?: string | null;
+        };
         /** ValidationError */
         ValidationError: {
             /** Location */
@@ -305,6 +418,125 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AuditLogPage"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_services_api_v1_services_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceList"];
+                };
+            };
+        };
+    };
+    create_service_api_v1_services_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ServiceCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_service_api_v1_services__service_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                service_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_service_api_v1_services__service_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                service_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ServiceUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceOut"];
                 };
             };
             /** @description Validation Error */

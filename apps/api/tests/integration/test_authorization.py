@@ -167,6 +167,7 @@ async def test_me_lists_effective_permissions(
 
     assert response.json()["permissions"] == [
         "manage_runbooks",
+        "manage_services",
         "start_investigation",
         "view_incidents",
         "view_services",
