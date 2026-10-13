@@ -8,9 +8,15 @@ SHELL := /bin/bash
 export
 
 COMPOSE := docker compose
+# The local cluster gets its own kubeconfig so other clusters are never touched.
+KUBECONFIG := $(CURDIR)/.kube/config
+KUBECTL := kubectl --context kind-opspilot
+HELM := helm --kube-context kind-opspilot
+DEMO_IMAGE := opspilot-demo:dev
 API := cd apps/api && uv run
+DEMO := cd demo/services && uv run
 
-.PHONY: db-upgrade db-downgrade db-revision keycloak-smoke token api-client web-dev dev build test-e2e test-lighthouse help infra-up infra-down stop secrets-scan install api-dev format lint typecheck test test-unit test-integration
+.PHONY: db-upgrade db-downgrade db-revision keycloak-smoke token api-client web-dev dev build test-e2e test-lighthouse kind-create kind-delete docker-build deploy-local observability-up grafana load-normal load-stop inject-failure reset-demo seed test-telemetry help infra-up infra-down stop secrets-scan install api-dev format lint typecheck test test-unit test-integration
 
 help: ## List available targets
 	@grep -hE '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | sort | \
@@ -29,6 +35,7 @@ secrets-scan: ## Scan the working tree and history for secrets
 
 install: ## Install all dependencies
 	cd apps/api && uv sync --frozen
+	cd demo/services && uv sync --frozen
 	pnpm install --frozen-lockfile
 
 api-dev: ## Run the API with auto-reload against local infra
@@ -38,15 +45,20 @@ api-dev: ## Run the API with auto-reload against local infra
 format: ## Format all code
 	$(API) ruff format .
 	$(API) ruff check --fix .
+	$(DEMO) ruff format .
+	$(DEMO) ruff check --fix .
 	pnpm --filter @opspilot/web exec eslint --fix
 
 lint: ## Lint all code (no changes)
 	$(API) ruff format --check .
 	$(API) ruff check .
+	$(DEMO) ruff format --check .
+	$(DEMO) ruff check .
 	pnpm --filter @opspilot/web lint
 
 typecheck: ## Static type checks
 	$(API) mypy
+	$(DEMO) mypy
 	pnpm --filter @opspilot/api-client typecheck
 	pnpm --filter @opspilot/web typecheck
 
@@ -54,6 +66,7 @@ test: test-unit ## Fast tests (unit)
 
 test-unit: ## Unit tests
 	$(API) pytest tests/unit
+	$(DEMO) pytest
 	pnpm --filter @opspilot/web test
 
 test-integration: ## Integration tests against real containers (needs Docker)
@@ -98,3 +111,48 @@ db-downgrade: ## Roll back the last database migration
 
 db-revision: ## Autogenerate a migration: make db-revision MSG="add incidents"
 	$(API) python -m opspilot_api.db revision --autogenerate -m "$(MSG)"
+
+kind-create: ## Create the local kind cluster (kubeconfig in .kube/config)
+	@kind get clusters 2>/dev/null | grep -qx opspilot || kind create cluster --config infrastructure/kind/cluster.yaml --kubeconfig $(KUBECONFIG)
+
+kind-delete: ## Delete the local kind cluster
+	kind delete cluster --name opspilot --kubeconfig $(KUBECONFIG)
+
+docker-build: ## Build the demo image and load it into the kind cluster
+	docker build -q -t $(DEMO_IMAGE) demo/services
+	kind load docker-image $(DEMO_IMAGE) --name opspilot
+
+observability-up: kind-create ## Deploy the collector, Prometheus, Loki, Tempo, and Grafana to the kind cluster
+	$(KUBECTL) apply -f observability/k8s/namespace.yaml
+	@$(KUBECTL) -n observability get secret grafana-admin >/dev/null 2>&1 || \
+		$(KUBECTL) -n observability create secret generic grafana-admin --from-literal=password="$$(openssl rand -hex 16)"
+	$(KUBECTL) apply -k observability/k8s
+	$(KUBECTL) -n observability rollout status deploy,daemonset --timeout=5m
+
+deploy-local: observability-up docker-build ## Deploy observability and the demo shop to the kind cluster
+	$(HELM) upgrade --install demo-shop infrastructure/helm/demo-shop --namespace demo --create-namespace --wait --timeout 5m
+
+load-normal: ## Start steady synthetic traffic against the demo shop (RPS=5)
+	$(HELM) upgrade demo-shop infrastructure/helm/demo-shop --namespace demo --reuse-values \
+		--set loadgen.enabled=true --set loadgen.rps=$${RPS:-5} --wait
+
+load-stop: ## Stop the synthetic traffic
+	$(HELM) upgrade demo-shop infrastructure/helm/demo-shop --namespace demo --reuse-values \
+		--set loadgen.enabled=false --wait
+
+inject-failure: ## Ship a faulty release: make inject-failure SCENARIO=checkout-http-500
+	./scripts/inject-failure.sh $(SCENARIO)
+
+reset-demo: ## Restore every demo service to its healthy release (keeps load running)
+	$(KUBECTL) -n demo annotate deployment --all --overwrite kubernetes.io/change-cause="reset to the healthy release"
+	$(HELM) upgrade demo-shop infrastructure/helm/demo-shop --namespace demo --reuse-values --force-conflicts --wait
+
+seed: ## Register the demo shop in the service catalog (API must be running)
+	cd apps/api && uv run python -m opspilot_api.demo_seed \
+		--api-url http://127.0.0.1:$${API_PORT:-8000} --token "$$(../../scripts/dev-token.sh admin)"
+
+test-telemetry: ## Follow one request through traces, logs, and metrics on the kind cluster
+	cd demo/services && uv run python -u ../../tests/telemetry/telemetry_smoke.py
+
+grafana: ## Open Grafana on http://localhost:3300 (port-forward; Ctrl+C stops)
+	$(KUBECTL) -n observability port-forward svc/grafana 3300:3000

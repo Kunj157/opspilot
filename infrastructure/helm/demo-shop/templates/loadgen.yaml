@@ -1,0 +1,38 @@
+{{- if .Values.loadgen.enabled }}
+{{- $ctx := dict "name" "loadgen" "root" $ }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: loadgen
+  labels: {{- include "demo-shop.labels" $ctx | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {{- include "demo-shop.selector" $ctx | nindent 6 }}
+  template:
+    metadata:
+      labels: {{- include "demo-shop.labels" $ctx | nindent 8 }}
+    spec:
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: 5
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        seccompProfile: { type: RuntimeDefault }
+      containers:
+        - name: loadgen
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: [opspilot-demo-load]
+          env:
+            - { name: LOAD_TARGET_URL, value: http://storefront }
+            - { name: LOAD_RPS, value: {{ .Values.loadgen.rps | quote }} }
+            - { name: LOAD_CHECKOUT_RATIO, value: {{ .Values.loadgen.checkoutRatio | quote }} }
+          resources:
+            requests: { cpu: 10m, memory: 48Mi }
+            limits: { cpu: 200m, memory: 128Mi }
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: [ALL] }
+{{- end }}
