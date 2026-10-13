@@ -5,12 +5,21 @@ so callers cannot probe for IDs that exist elsewhere.
 """
 
 import uuid
+from typing import Any
 
 from fastapi import HTTPException, status
+from sqlalchemy import Select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from opspilot_api.auth.principal import Principal
 from opspilot_api.db.base import OrganizationScoped
+
+
+def scoped[S: Select[Any]](
+    statement: S, model: type[OrganizationScoped], principal: Principal
+) -> S:
+    """Restrict a SELECT to the caller's organization."""
+    return statement.where(model.organization_id == principal.organization_id)
 
 
 async def get_owned_or_404[T: OrganizationScoped](
