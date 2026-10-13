@@ -690,7 +690,9 @@ export interface operations {
     create_service_api_v1_services_post: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                "Idempotency-Key"?: string | null;
+            };
             path?: never;
             cookie?: never;
         };
@@ -828,7 +830,9 @@ export interface operations {
     create_incident_api_v1_incidents_post: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                "Idempotency-Key"?: string | null;
+            };
             path?: never;
             cookie?: never;
         };
