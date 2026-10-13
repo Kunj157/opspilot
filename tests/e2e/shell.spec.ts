@@ -57,7 +57,7 @@ test.describe("on a phone", () => {
 test("no page scrolls sideways at any breakpoint", async ({ page }) => {
   for (const width of [1440, 1024, 768, 390]) {
     await page.setViewportSize({ width, height: 900 });
-    for (const path of ["/", "/services", "/status", "/audit-logs"]) {
+    for (const path of ["/", "/incidents", "/services", "/status", "/audit-logs"]) {
       await page.goto(path);
       await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
       const overflow = await page.evaluate(
