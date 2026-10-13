@@ -75,6 +75,14 @@ spec:
     spec:
       serviceAccountName: otel-collector
       terminationGracePeriodSeconds: 20
+      # Node pod logs are root:root, 0750 dirs and 0640 files: membership of
+      # group 0 is enough to read them without running as root.
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        supplementalGroups: [0]
+        seccompProfile: { type: RuntimeDefault }
       containers:
         - name: otel-collector
           image: otel/opentelemetry-collector-contrib:0.162.0
@@ -90,13 +98,10 @@ spec:
           resources:
             requests: { cpu: 50m, memory: 128Mi }
             limits: { cpu: 500m, memory: 256Mi }
-          # Reading other pods' log files needs root on the node's log directory;
-          # everything else is locked down and the mount is read-only.
           securityContext:
-            runAsUser: 0
             readOnlyRootFilesystem: true
             allowPrivilegeEscalation: false
-            capabilities: { drop: [ALL], add: [DAC_READ_SEARCH] }
+            capabilities: { drop: [ALL] }
           volumeMounts:
             - { name: config, mountPath: /conf }
             - { name: pod-logs, mountPath: /var/log/pods, readOnly: true }
