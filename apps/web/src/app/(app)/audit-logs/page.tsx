@@ -23,7 +23,7 @@ async function AuditLogGate() {
 
 export default function AuditLogPage() {
   return (
-    <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-12 sm:px-6 sm:py-16">
+    <main className="w-full max-w-5xl flex-1 px-4 py-10 sm:px-8 sm:py-12">
       <p className="font-mono text-xs uppercase tracking-[0.18em] text-accent">Governance</p>
       <h1 className="mt-3 text-3xl font-semibold tracking-tight sm:text-4xl">Audit log</h1>
       <p className="mt-3 max-w-xl text-fg-secondary">
