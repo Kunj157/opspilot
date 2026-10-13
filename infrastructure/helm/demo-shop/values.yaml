@@ -22,3 +22,9 @@ services:
   payment: { replicas: 1, faults: { errorRate: 0, latencyMs: 0 } }
   inventory: { replicas: 1, faults: { errorRate: 0, latencyMs: 0 } }
   notification: { replicas: 1, faults: { errorRate: 0, latencyMs: 0 } }
+
+# Synthetic shoppers (make load-normal / load-stop).
+loadgen:
+  enabled: false
+  rps: 5
+  checkoutRatio: 0.3
