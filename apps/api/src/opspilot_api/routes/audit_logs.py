@@ -1,10 +1,8 @@
-import base64
-import binascii
 import uuid
 from datetime import datetime
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel
 from sqlalchemy import select, tuple_
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -14,6 +12,7 @@ from opspilot_api.auth.principal import Principal
 from opspilot_api.auth.tenancy import scoped
 from opspilot_api.db.models import ActorType, AuditLog
 from opspilot_api.db.session import get_session
+from opspilot_api.pagination import decode_page_token, encode_page_token
 
 router = APIRouter(prefix="/api/v1", tags=["audit"])
 
@@ -34,19 +33,6 @@ class AuditLogItem(BaseModel):
 class AuditLogPage(BaseModel):
     items: list[AuditLogItem]
     next_cursor: str | None
-
-
-def _encode_cursor(entry: AuditLog) -> str:
-    raw = f"{entry.created_at.isoformat()}|{entry.id}"
-    return base64.urlsafe_b64encode(raw.encode()).decode()
-
-
-def _decode_cursor(cursor: str) -> tuple[datetime, uuid.UUID]:
-    try:
-        created_at, entry_id = base64.urlsafe_b64decode(cursor.encode()).decode().split("|")
-        return datetime.fromisoformat(created_at), uuid.UUID(entry_id)
-    except (ValueError, binascii.Error) as exc:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "invalid cursor") from exc
 
 
 @router.get("/audit-logs", response_model=AuditLogPage)
@@ -74,7 +60,7 @@ async def list_audit_logs(
         statement = statement.where(AuditLog.created_at < until)
     if cursor:
         statement = statement.where(
-            tuple_(AuditLog.created_at, AuditLog.id) < tuple_(*_decode_cursor(cursor))
+            tuple_(AuditLog.created_at, AuditLog.id) < tuple_(*decode_page_token(cursor))
         )
     statement = statement.order_by(AuditLog.created_at.desc(), AuditLog.id.desc()).limit(limit + 1)
 
@@ -96,5 +82,5 @@ async def list_audit_logs(
             )
             for e in page
         ],
-        next_cursor=_encode_cursor(page[-1]) if more and page else None,
+        next_cursor=encode_page_token(page[-1].created_at, page[-1].id) if more and page else None,
     )
