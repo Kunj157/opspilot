@@ -22,6 +22,7 @@ class Settings(BaseSettings):
     trusted_proxies: str = "127.0.0.1"
 
     readiness_timeout_seconds: float = 2.0
+    sse_heartbeat_seconds: float = 15.0
 
     def missing_required(self) -> list[str]:
         """Names of required environment variables that are not set."""
