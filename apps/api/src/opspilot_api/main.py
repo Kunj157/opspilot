@@ -4,6 +4,7 @@ from contextlib import AsyncExitStack, asynccontextmanager
 from fastapi import FastAPI
 from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 
 from opspilot_api import readiness
 from opspilot_api.audit.middleware import AuditMiddleware
@@ -56,6 +57,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     # records carry the request ID and client IP.
     app.add_middleware(AuditMiddleware)
     app.add_middleware(RequestContextMiddleware)
+    # Outermost: take the client address from X-Forwarded-For only when the
+    # connection comes from a trusted proxy, so direct callers cannot spoof it.
+    app.add_middleware(
+        ProxyHeadersMiddleware,
+        trusted_hosts=[
+            host.strip() for host in settings.trusted_proxies.split(",") if host.strip()
+        ],
+    )
     app.include_router(readiness.router)
     app.include_router(me.router)
     app.include_router(audit_logs.router)

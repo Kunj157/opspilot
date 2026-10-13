@@ -33,7 +33,7 @@ install: ## Install all dependencies
 
 api-dev: ## Run the API with auto-reload against local infra
 	cd apps/api && uv run uvicorn opspilot_api.main:create_app --factory --reload \
-		--host 127.0.0.1 --port $${API_PORT:-8000} --no-access-log
+		--host 127.0.0.1 --port $${API_PORT:-8000} --no-access-log --no-proxy-headers
 
 format: ## Format all code
 	$(API) ruff format .
