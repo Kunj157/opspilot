@@ -122,14 +122,15 @@ Prometheus, Loki, Tempo, and Grafana. Requires `kind`, `kubectl`, and `helm`.
 make deploy-local          # cluster, observability stack, demo image and chart
 make seed                  # register the demo services in OpsPilot (API running)
 make load-normal           # steady synthetic traffic
-make grafana               # dashboards on http://localhost:3300
 make inject-failure SCENARIO=checkout-http-500   # ship a faulty release
 make reset-demo            # back to the healthy release
 make test-telemetry        # follow one request through traces, logs, and metrics
 ```
 
 The cluster uses its own kubeconfig (`.kube/config`), so other clusters are
-never touched. Scenarios are described in
+never touched. It publishes fixed localhost ports: Grafana
+http://localhost:33300, Prometheus :39090, Loki :33100, Tempo :33200, and the
+storefront :38080. Scenarios are described in
 [`demo/failure-injection`](demo/failure-injection/README.md) and the stack in
 [`observability`](observability/README.md).
 

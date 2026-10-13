@@ -1,6 +1,13 @@
 # Local Kubernetes for the demo shop and its observability stack.
+# Fixed localhost ports reach NodePort services without port-forwarding.
 kind: Cluster
 apiVersion: kind.x-k8s.io/v1alpha4
 name: opspilot
 nodes:
   - role: control-plane
+    extraPortMappings:
+      - { containerPort: 30090, hostPort: 39090, listenAddress: 127.0.0.1 } # prometheus
+      - { containerPort: 30100, hostPort: 33100, listenAddress: 127.0.0.1 } # loki
+      - { containerPort: 30200, hostPort: 33200, listenAddress: 127.0.0.1 } # tempo
+      - { containerPort: 30300, hostPort: 33300, listenAddress: 127.0.0.1 } # grafana
+      - { containerPort: 30080, hostPort: 38080, listenAddress: 127.0.0.1 } # storefront

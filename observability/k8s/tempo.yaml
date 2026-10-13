@@ -63,7 +63,8 @@ kind: Service
 metadata:
   name: tempo
 spec:
+  type: NodePort
   selector: { app.kubernetes.io/name: tempo }
   ports:
-    - { name: http, port: 3200, targetPort: http }
+    - { name: http, port: 3200, targetPort: http, nodePort: 30200 }
     - { name: otlp-grpc, port: 4317, targetPort: otlp-grpc }

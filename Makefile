@@ -16,7 +16,7 @@ DEMO_IMAGE := opspilot-demo:dev
 API := cd apps/api && uv run
 DEMO := cd demo/services && uv run
 
-.PHONY: db-upgrade db-downgrade db-revision keycloak-smoke token api-client web-dev dev build test-e2e test-lighthouse kind-create kind-delete docker-build deploy-local observability-up grafana load-normal load-stop inject-failure reset-demo seed test-telemetry help infra-up infra-down stop secrets-scan install api-dev format lint typecheck test test-unit test-integration
+.PHONY: db-upgrade db-downgrade db-revision keycloak-smoke token api-client web-dev dev build test-e2e test-lighthouse kind-create kind-delete docker-build deploy-local observability-up load-normal load-stop inject-failure reset-demo seed test-telemetry help infra-up infra-down stop secrets-scan install api-dev format lint typecheck test test-unit test-integration
 
 help: ## List available targets
 	@grep -hE '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | sort | \
@@ -154,5 +154,3 @@ seed: ## Register the demo shop in the service catalog (API must be running)
 test-telemetry: ## Follow one request through traces, logs, and metrics on the kind cluster
 	cd demo/services && uv run python -u ../../tests/telemetry/telemetry_smoke.py
 
-grafana: ## Open Grafana on http://localhost:3300 (port-forward; Ctrl+C stops)
-	$(KUBECTL) -n observability port-forward svc/grafana 3300:3000
