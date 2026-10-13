@@ -1,4 +1,4 @@
-"""Idempotency-Key support for create requests (DEVELOPMENT_PLAN.md §14).
+"""Idempotency-Key support for create requests.
 
 The key row is inserted in the same transaction as the resource it creates:
 - a concurrent duplicate blocks on the primary key until the first request

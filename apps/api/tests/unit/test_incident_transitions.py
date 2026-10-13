@@ -1,4 +1,4 @@
-"""Every pair of states against the state machine in DEVELOPMENT_PLAN.md §13."""
+"""Every pair of states against the incident state machine."""
 
 import itertools
 

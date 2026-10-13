@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "OpsPilot API",
-    "version": "0.3.0"
+    "version": "0.4.0"
   },
   "paths": {
     "/api/v1/health": {
@@ -421,6 +421,138 @@
             }
           }
         }
+      }
+    },
+    "/api/v1/services/{service_id}/dependencies": {
+      "get": {
+        "tags": [
+          "services"
+        ],
+        "summary": "List Dependencies",
+        "description": "Services this service calls.",
+        "operationId": "list_dependencies_api_v1_services__service_id__dependencies_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "service_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Service Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServiceList"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "services"
+        ],
+        "summary": "Replace Dependencies",
+        "description": "Replace the full set of services this service calls.",
+        "operationId": "replace_dependencies_api_v1_services__service_id__dependencies_put",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "service_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Service Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DependenciesUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServiceList"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/topology": {
+      "get": {
+        "tags": [
+          "topology"
+        ],
+        "summary": "Get Topology",
+        "operationId": "get_topology_api_v1_topology_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Topology"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
       }
     },
     "/api/v1/incidents/stream": {
@@ -1107,6 +1239,56 @@
           }
         }
       }
+    },
+    "/api/v1/incident-metrics": {
+      "get": {
+        "tags": [
+          "incidents"
+        ],
+        "summary": "Incident Metrics",
+        "operationId": "incident_metrics_api_v1_incident_metrics_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "days",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 90,
+              "minimum": 1,
+              "default": 30,
+              "title": "Days"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IncidentMetrics"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -1256,6 +1438,59 @@
           "status"
         ],
         "title": "CheckResult"
+      },
+      "DailySeverity": {
+        "properties": {
+          "critical": {
+            "type": "integer",
+            "title": "Critical",
+            "default": 0
+          },
+          "high": {
+            "type": "integer",
+            "title": "High",
+            "default": 0
+          },
+          "medium": {
+            "type": "integer",
+            "title": "Medium",
+            "default": 0
+          },
+          "low": {
+            "type": "integer",
+            "title": "Low",
+            "default": 0
+          },
+          "date": {
+            "type": "string",
+            "format": "date",
+            "title": "Date"
+          }
+        },
+        "type": "object",
+        "required": [
+          "date"
+        ],
+        "title": "DailySeverity"
+      },
+      "DependenciesUpdate": {
+        "properties": {
+          "target_ids": {
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "type": "array",
+            "maxItems": 200,
+            "title": "Target Ids"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "target_ids"
+        ],
+        "title": "DependenciesUpdate"
       },
       "EventList": {
         "properties": {
@@ -1425,6 +1660,65 @@
           "severity"
         ],
         "title": "IncidentCreate"
+      },
+      "IncidentMetrics": {
+        "properties": {
+          "window_days": {
+            "type": "integer",
+            "title": "Window Days"
+          },
+          "mtta_seconds": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mtta Seconds"
+          },
+          "mttr_seconds": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mttr Seconds"
+          },
+          "acknowledged": {
+            "type": "integer",
+            "title": "Acknowledged"
+          },
+          "resolved": {
+            "type": "integer",
+            "title": "Resolved"
+          },
+          "active_by_severity": {
+            "$ref": "#/components/schemas/SeverityCounts"
+          },
+          "daily": {
+            "items": {
+              "$ref": "#/components/schemas/DailySeverity"
+            },
+            "type": "array",
+            "title": "Daily"
+          }
+        },
+        "type": "object",
+        "required": [
+          "window_days",
+          "mtta_seconds",
+          "mttr_seconds",
+          "acknowledged",
+          "resolved",
+          "active_by_severity",
+          "daily"
+        ],
+        "title": "IncidentMetrics"
       },
       "IncidentOut": {
         "properties": {
@@ -1606,7 +1900,7 @@
           "REJECTED"
         ],
         "title": "IncidentStatus",
-        "description": "States from DEVELOPMENT_PLAN.md \u00a713; transitions live in incidents.state_machine."
+        "description": "Incident lifecycle states; transitions live in incidents.state_machine."
       },
       "IncidentUpdate": {
         "properties": {
@@ -2121,6 +2415,114 @@
           "low"
         ],
         "title": "Severity"
+      },
+      "SeverityCounts": {
+        "properties": {
+          "critical": {
+            "type": "integer",
+            "title": "Critical",
+            "default": 0
+          },
+          "high": {
+            "type": "integer",
+            "title": "High",
+            "default": 0
+          },
+          "medium": {
+            "type": "integer",
+            "title": "Medium",
+            "default": 0
+          },
+          "low": {
+            "type": "integer",
+            "title": "Low",
+            "default": 0
+          }
+        },
+        "type": "object",
+        "title": "SeverityCounts"
+      },
+      "Topology": {
+        "properties": {
+          "nodes": {
+            "items": {
+              "$ref": "#/components/schemas/TopologyNode"
+            },
+            "type": "array",
+            "title": "Nodes"
+          },
+          "edges": {
+            "items": {
+              "$ref": "#/components/schemas/TopologyEdge"
+            },
+            "type": "array",
+            "title": "Edges"
+          }
+        },
+        "type": "object",
+        "required": [
+          "nodes",
+          "edges"
+        ],
+        "title": "Topology"
+      },
+      "TopologyEdge": {
+        "properties": {
+          "source_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Source Id"
+          },
+          "target_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Target Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "source_id",
+          "target_id"
+        ],
+        "title": "TopologyEdge"
+      },
+      "TopologyNode": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "slug": {
+            "type": "string",
+            "title": "Slug"
+          },
+          "health_status": {
+            "$ref": "#/components/schemas/HealthStatus"
+          },
+          "active_incidents": {
+            "type": "integer",
+            "title": "Active Incidents"
+          },
+          "investigating": {
+            "type": "boolean",
+            "title": "Investigating"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "slug",
+          "health_status",
+          "active_incidents",
+          "investigating"
+        ],
+        "title": "TopologyNode"
       },
       "ValidationError": {
         "properties": {

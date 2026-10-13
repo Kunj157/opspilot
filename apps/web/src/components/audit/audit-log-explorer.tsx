@@ -4,6 +4,8 @@ import { createApiClient, type AuditLogItem, type AuditLogPage } from "@opspilot
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { type FormEvent, useState } from "react";
 
+import { Button } from "@/components/ui/button";
+
 const PAGE_SIZE = 25;
 
 type Filters = { action: string; resourceType: string; since: string };
@@ -122,12 +124,9 @@ export function AuditLogExplorer() {
         <Field label="Action" name="action" placeholder="e.g. user.provisioned" />
         <Field label="Resource type" name="resourceType" placeholder="e.g. user" />
         <Field label="Since" name="since" type="datetime-local" />
-        <button
-          type="submit"
-          className="h-9 rounded-sm bg-accent px-4 text-sm font-semibold text-on-accent transition-colors duration-base hover:bg-accent-hover"
-        >
+        <Button type="submit">
           Apply filters
-        </button>
+        </Button>
       </form>
 
       {query.isPending && (

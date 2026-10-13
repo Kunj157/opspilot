@@ -4,6 +4,8 @@ import { createApiClient } from "@opspilot/api-client";
 import type { components } from "@opspilot/api-client/schema";
 import { type FormEvent, useId, useState } from "react";
 
+import { Button } from "@/components/ui/button";
+
 type Service = components["schemas"]["ServiceOut"];
 type EditableField =
   | "name"
@@ -149,13 +151,9 @@ export function ServiceForm({
         </p>
       )}
       <div className="flex justify-end sm:col-span-2">
-        <button
-          type="submit"
-          disabled={saving}
-          className="rounded-sm bg-accent px-4 py-2 text-sm font-semibold text-on-accent hover:bg-accent-hover disabled:opacity-50"
-        >
+        <Button type="submit" disabled={saving}>
           {saving ? "Saving…" : service ? "Save changes" : "Create service"}
-        </button>
+        </Button>
       </div>
     </form>
   );

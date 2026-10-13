@@ -4,6 +4,7 @@ import { createApiClient } from "@opspilot/api-client";
 import type { components } from "@opspilot/api-client/schema";
 import { type FormEvent, useId, useState } from "react";
 
+import { Button } from "@/components/ui/button";
 import { SEVERITIES } from "@/lib/incident-filters";
 
 type Incident = components["schemas"]["IncidentOut"];
@@ -139,13 +140,9 @@ export function IncidentForm({
         </p>
       )}
       <div className="flex justify-end sm:col-span-2">
-        <button
-          type="submit"
-          disabled={saving}
-          className="rounded-sm bg-accent px-4 py-2 text-sm font-semibold text-on-accent hover:bg-accent-hover disabled:opacity-50"
-        >
+        <Button type="submit" disabled={saving}>
           {saving ? "Creating…" : "Create incident"}
-        </button>
+        </Button>
       </div>
     </form>
   );

@@ -108,6 +108,47 @@ export interface paths {
         patch: operations["update_service_api_v1_services__service_id__patch"];
         trace?: never;
     };
+    "/api/v1/services/{service_id}/dependencies": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Dependencies
+         * @description Services this service calls.
+         */
+        get: operations["list_dependencies_api_v1_services__service_id__dependencies_get"];
+        /**
+         * Replace Dependencies
+         * @description Replace the full set of services this service calls.
+         */
+        put: operations["replace_dependencies_api_v1_services__service_id__dependencies_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/topology": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Topology */
+        get: operations["get_topology_api_v1_topology_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/incidents/stream": {
         parameters: {
             query?: never;
@@ -246,6 +287,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/incident-metrics": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Incident Metrics */
+        get: operations["incident_metrics_api_v1_incident_metrics_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -301,6 +359,39 @@ export interface components {
             status: "ok" | "fail";
             /** Detail */
             detail?: string | null;
+        };
+        /** DailySeverity */
+        DailySeverity: {
+            /**
+             * Critical
+             * @default 0
+             */
+            critical: number;
+            /**
+             * High
+             * @default 0
+             */
+            high: number;
+            /**
+             * Medium
+             * @default 0
+             */
+            medium: number;
+            /**
+             * Low
+             * @default 0
+             */
+            low: number;
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+        };
+        /** DependenciesUpdate */
+        DependenciesUpdate: {
+            /** Target Ids */
+            target_ids: string[];
         };
         /** EventList */
         EventList: {
@@ -369,6 +460,22 @@ export interface components {
              */
             source: "manual" | "detector" | "alertmanager";
         };
+        /** IncidentMetrics */
+        IncidentMetrics: {
+            /** Window Days */
+            window_days: number;
+            /** Mtta Seconds */
+            mtta_seconds: number | null;
+            /** Mttr Seconds */
+            mttr_seconds: number | null;
+            /** Acknowledged */
+            acknowledged: number;
+            /** Resolved */
+            resolved: number;
+            active_by_severity: components["schemas"]["SeverityCounts"];
+            /** Daily */
+            daily: components["schemas"]["DailySeverity"][];
+        };
         /** IncidentOut */
         IncidentOut: {
             /**
@@ -423,7 +530,7 @@ export interface components {
         };
         /**
          * IncidentStatus
-         * @description States from DEVELOPMENT_PLAN.md §13; transitions live in incidents.state_machine.
+         * @description Incident lifecycle states; transitions live in incidents.state_machine.
          * @enum {string}
          */
         IncidentStatus: "DETECTED" | "INVESTIGATING" | "AWAITING_APPROVAL" | "REMEDIATING" | "VERIFYING" | "MONITORING" | "RESOLVED" | "REJECTED";
@@ -568,6 +675,66 @@ export interface components {
          * @enum {string}
          */
         Severity: "critical" | "high" | "medium" | "low";
+        /** SeverityCounts */
+        SeverityCounts: {
+            /**
+             * Critical
+             * @default 0
+             */
+            critical: number;
+            /**
+             * High
+             * @default 0
+             */
+            high: number;
+            /**
+             * Medium
+             * @default 0
+             */
+            medium: number;
+            /**
+             * Low
+             * @default 0
+             */
+            low: number;
+        };
+        /** Topology */
+        Topology: {
+            /** Nodes */
+            nodes: components["schemas"]["TopologyNode"][];
+            /** Edges */
+            edges: components["schemas"]["TopologyEdge"][];
+        };
+        /** TopologyEdge */
+        TopologyEdge: {
+            /**
+             * Source Id
+             * Format: uuid
+             */
+            source_id: string;
+            /**
+             * Target Id
+             * Format: uuid
+             */
+            target_id: string;
+        };
+        /** TopologyNode */
+        TopologyNode: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Name */
+            name: string;
+            /** Slug */
+            slug: string;
+            health_status: components["schemas"]["HealthStatus"];
+            /** Active Incidents */
+            active_incidents: number;
+            /** Investigating */
+            investigating: boolean;
+        };
         /** ValidationError */
         ValidationError: {
             /** Location */
@@ -818,6 +985,92 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_dependencies_api_v1_services__service_id__dependencies_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                service_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceList"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    replace_dependencies_api_v1_services__service_id__dependencies_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                service_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DependenciesUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceList"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_topology_api_v1_topology_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Topology"];
                 };
             };
         };
@@ -1145,6 +1398,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["EventList"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    incident_metrics_api_v1_incident_metrics_get: {
+        parameters: {
+            query?: {
+                days?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IncidentMetrics"];
                 };
             };
             /** @description Validation Error */

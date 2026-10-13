@@ -6,7 +6,7 @@ body:
     id: phase
     attributes:
       label: Plan phase
-      description: Phase and step in DEVELOPMENT_PLAN.md
+      description: Roadmap phase and step
       placeholder: "Phase 3 — Service Catalog and Incident Management"
     validations:
       required: true

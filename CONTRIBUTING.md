@@ -6,8 +6,8 @@ version and wins on any conflict.
 
 ## Before you start
 
-1. Read [`DEVELOPMENT_PLAN.md`](DEVELOPMENT_PLAN.md) — it defines scope,
-   order of work, and the definition of done.
+1. Check the roadmap in the [README](README.md#roadmap) — work happens
+   phase by phase, in order.
 2. Make sure an issue exists for the work. A task without an issue does not
    exist.
 

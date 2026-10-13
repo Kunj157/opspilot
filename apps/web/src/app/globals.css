@@ -1,6 +1,6 @@
 @import "tailwindcss";
 
-/* Graphite & Iris — DEVELOPMENT_PLAN.md §16.2. Components use these tokens only. */
+/* Graphite & Iris design tokens. Components use these tokens only. */
 :root {
   --background: #0b0c0e;
   --surface-1: #121418;
@@ -25,6 +25,11 @@
   --status-critical: #ef5f5f;
   --status-unknown: #868c97;
 
+  /* Charts: neutral steps (light → dark) beside at most one status colour. */
+  --chart-neutral-1: #a6abb5;
+  --chart-neutral-2: #7d838e;
+  --chart-neutral-3: #5d636e;
+
   --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.3);
   --shadow-2: 0 4px 12px rgba(0, 0, 0, 0.28), 0 1px 2px rgba(0, 0, 0, 0.3);
   --shadow-3: 0 16px 40px rgba(0, 0, 0, 0.36), 0 2px 6px rgba(0, 0, 0, 0.3);
@@ -42,6 +47,7 @@
   --color-surface-1: var(--surface-1);
   --color-surface-2: var(--surface-2);
   --color-surface-3: var(--surface-3);
+  --color-surface-glass: var(--surface-glass);
   --color-fg: var(--text-primary);
   --color-fg-secondary: var(--text-secondary);
   --color-fg-muted: var(--text-muted);
@@ -54,6 +60,9 @@
   --color-healthy: var(--status-healthy);
   --color-degraded: var(--status-degraded);
   --color-critical: var(--status-critical);
+  --color-chart-1: var(--chart-neutral-1);
+  --color-chart-2: var(--chart-neutral-2);
+  --color-chart-3: var(--chart-neutral-3);
   --shadow-1: var(--shadow-1);
   --shadow-2: var(--shadow-2);
   --shadow-3: var(--shadow-3);

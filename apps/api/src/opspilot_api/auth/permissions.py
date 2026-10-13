@@ -1,4 +1,4 @@
-"""Role → permission matrix (DEVELOPMENT_PLAN.md phase 2) and its enforcement."""
+"""Role → permission matrix and its enforcement."""
 
 import enum
 from collections.abc import Awaitable, Callable, Iterable

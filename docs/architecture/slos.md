@@ -1,6 +1,6 @@
 # Service Level Objectives
 
-Initial SLOs from `DEVELOPMENT_PLAN.md` §26, made measurable. Each SLI names
+Initial SLOs, made measurable. Each SLI names
 the signal that will compute it once the corresponding phase lands. Targets
 are for a portfolio demo environment, not a commercial commitment.
 

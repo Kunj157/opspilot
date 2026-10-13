@@ -2,6 +2,8 @@
 
 import { useSearchParams } from "next/navigation";
 
+import { buttonClass } from "@/components/ui/button";
+
 const MESSAGES: Record<string, { text: string; tone: "critical" | "healthy" }> = {
   callback: { text: "Sign-in could not be completed. Please try again.", tone: "critical" },
   signed_out: { text: "You have been signed out.", tone: "healthy" },
@@ -29,7 +31,7 @@ export function LoginPanel() {
       {/* A full navigation, not a client transition: the server starts the OIDC flow. */}
       <a
         href={`/auth/login?returnTo=${encodeURIComponent(returnTo)}`}
-        className="mt-8 flex h-11 items-center justify-center rounded-card bg-accent text-sm font-semibold text-on-accent transition-colors duration-base hover:bg-accent-hover"
+        className={buttonClass({ size: "lg", className: "mt-8 w-full" })}
       >
         Continue with single sign-on
       </a>

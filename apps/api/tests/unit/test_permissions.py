@@ -1,4 +1,4 @@
-"""The authorization matrix from DEVELOPMENT_PLAN.md phase 2, cell by cell."""
+"""The role → permission authorization matrix, cell by cell."""
 
 import pytest
 
