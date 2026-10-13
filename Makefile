@@ -10,7 +10,7 @@ export
 COMPOSE := docker compose
 API := cd apps/api && uv run
 
-.PHONY: keycloak-smoke token api-client web-dev dev build test-e2e help infra-up infra-down stop secrets-scan install api-dev format lint typecheck test test-unit test-integration
+.PHONY: db-upgrade db-downgrade db-revision keycloak-smoke token api-client web-dev dev build test-e2e help infra-up infra-down stop secrets-scan install api-dev format lint typecheck test test-unit test-integration
 
 help: ## List available targets
 	@grep -hE '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | sort | \
@@ -68,7 +68,7 @@ api-client: ## Regenerate the typed API client from the API's OpenAPI schema
 web-dev: ## Run the web app with hot reload (proxies /api/v1 to the API)
 	API_URL=http://127.0.0.1:$${API_PORT:-8000} pnpm --filter @opspilot/web dev --port $${WEB_PORT:-3000}
 
-dev: infra-up ## Start PostgreSQL, Redis, API, and web together
+dev: infra-up db-upgrade ## Start infrastructure, migrate, and run API and web together
 	@trap 'kill 0' INT TERM EXIT; $(MAKE) --no-print-directory api-dev & $(MAKE) --no-print-directory web-dev & wait
 
 build: ## Production build of all apps
@@ -83,3 +83,12 @@ keycloak-smoke: ## Check every dev user gets a token with roles, organization, a
 
 token: ## Print a dev access token: make token USER=commander
 	@./scripts/dev-token.sh $(USER)
+
+db-upgrade: ## Apply all database migrations
+	$(API) python -m opspilot_api.db upgrade head
+
+db-downgrade: ## Roll back the last database migration
+	$(API) python -m opspilot_api.db downgrade -1
+
+db-revision: ## Autogenerate a migration: make db-revision MSG="add incidents"
+	$(API) python -m opspilot_api.db revision --autogenerate -m "$(MSG)"
