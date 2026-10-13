@@ -28,6 +28,13 @@ class UserStatus(enum.StrEnum):
     DISABLED = "disabled"
 
 
+class HealthStatus(enum.StrEnum):
+    UNKNOWN = "unknown"
+    HEALTHY = "healthy"
+    DEGRADED = "degraded"
+    CRITICAL = "critical"
+
+
 class ActorType(enum.StrEnum):
     USER = "user"
     AGENT = "agent"
@@ -96,3 +103,23 @@ class AuditLog(UUIDPrimaryKey, OrganizationScoped, Base):
     request_id: Mapped[str | None] = mapped_column(String(128))
     metadata_json: Mapped[dict[str, Any]] = mapped_column(JSONB, server_default="{}")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class Service(UUIDPrimaryKey, Timestamps, OrganizationScoped, Base):
+    __tablename__ = "services"
+    __table_args__ = (UniqueConstraint("organization_id", "slug"),)
+
+    organization_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("organizations.id", ondelete="RESTRICT")
+    )
+    name: Mapped[str] = mapped_column(String(100))
+    slug: Mapped[str] = mapped_column(String(63))
+    description: Mapped[str | None] = mapped_column(String(2000))
+    owner_team: Mapped[str | None] = mapped_column(String(100))
+    repository_url: Mapped[str | None] = mapped_column(String(500))
+    namespace: Mapped[str | None] = mapped_column(String(63))
+    deployment_name: Mapped[str | None] = mapped_column(String(253))
+    health_status: Mapped[HealthStatus] = mapped_column(
+        Enum(HealthStatus, name="health_status", values_callable=lambda e: [m.value for m in e]),
+        server_default=HealthStatus.UNKNOWN.value,
+    )
