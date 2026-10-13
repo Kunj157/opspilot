@@ -50,15 +50,16 @@
       "directAccessGrantsEnabled": false,
       "serviceAccountsEnabled": false,
       "redirectUris": [
-        "http://localhost:*/*",
-        "http://127.0.0.1:*/*"
+        "http://localhost:${WEB_PORT:3000}/auth/callback",
+        "http://127.0.0.1:${WEB_PORT:3000}/auth/callback"
       ],
       "webOrigins": [
-        "+"
+        "http://localhost:${WEB_PORT:3000}",
+        "http://127.0.0.1:${WEB_PORT:3000}"
       ],
       "attributes": {
         "pkce.code.challenge.method": "S256",
-        "post.logout.redirect.uris": "http://localhost:*/*##http://127.0.0.1:*/*"
+        "post.logout.redirect.uris": "http://localhost:${WEB_PORT:3000}/login?signed_out=1##http://127.0.0.1:${WEB_PORT:3000}/login?signed_out=1"
       },
       "protocolMappers": [
         {

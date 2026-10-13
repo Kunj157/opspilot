@@ -66,16 +66,19 @@ api-client: ## Regenerate the typed API client from the API's OpenAPI schema
 	pnpm --filter @opspilot/api-client generate
 
 web-dev: ## Run the web app with hot reload (proxies /api/v1 to the API)
-	API_URL=http://127.0.0.1:$${API_PORT:-8000} pnpm --filter @opspilot/web dev --port $${WEB_PORT:-3000}
+	API_URL=http://127.0.0.1:$${API_PORT:-8000} OIDC_ISSUER=$${JWT_ISSUER} \
+		pnpm --filter @opspilot/web dev --port $${WEB_PORT:-3000}
 
 dev: infra-up db-upgrade ## Start infrastructure, migrate, and run API and web together
 	@trap 'kill 0' INT TERM EXIT; $(MAKE) --no-print-directory api-dev & $(MAKE) --no-print-directory web-dev & wait
 
 build: ## Production build of all apps
 	cd apps/api && uv build -q
-	API_URL=http://127.0.0.1:$${API_PORT:-8000} pnpm --filter @opspilot/web build
+	@# Build without runtime settings, as CI does: nothing may need them at build time.
+	env -u API_URL -u REDIS_URL -u OIDC_ISSUER -u OIDC_CLIENT_ID -u OIDC_CLIENT_SECRET \
+		pnpm --filter @opspilot/web build
 
-test-e2e: infra-up ## Browser tests against the real stack (Playwright)
+test-e2e: infra-up db-upgrade ## Browser tests against the real stack (Playwright)
 	pnpm exec playwright test
 
 keycloak-smoke: ## Check every dev user gets a token with roles, organization, and API audience
