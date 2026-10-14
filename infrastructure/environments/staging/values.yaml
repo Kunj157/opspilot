@@ -22,3 +22,8 @@ web:
   autoscaling: { enabled: true, minReplicas: 2, maxReplicas: 4, targetCPU: 70 }
 worker:
   replicas: 1
+
+# Kyverno signature verification: only CI-signed images run.
+imageVerification:
+  enabled: true
+  failureAction: Enforce

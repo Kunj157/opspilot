@@ -2,6 +2,7 @@
 
 import uuid
 from collections.abc import AsyncIterator
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import httpx
@@ -70,9 +71,9 @@ async def resolved_incident(
     )
     async with sessions() as session:
         db_incident = await session.get_one(Incident, uuid.UUID(incident["id"]))
-        for summary in (
-            "error rate 45% on checkout",
-            "revision 7 (1.4.2) rolled out 2 minutes before",
+        collected = datetime.now(UTC)
+        for i, summary in enumerate(
+            ("error rate 45% on checkout", "revision 7 (1.4.2) rolled out 2 minutes before")
         ):
             session.add(
                 Evidence(
@@ -82,6 +83,8 @@ async def resolved_incident(
                     source="prometheus",
                     summary=summary,
                     confidence=0.9,
+                    # One transaction gives both rows the same now(); E1/E2 follow this order.
+                    created_at=collected + timedelta(seconds=i),
                 )
             )
         await session.commit()

@@ -70,6 +70,23 @@ function serve(status: number, body: unknown) {
 afterEach(() => vi.unstubAllGlobals());
 
 describe("RemediationReview", () => {
+  it("labels a rollout pause and verifies it once the rollout is paused", () => {
+    renderIt(
+      {
+        ...pending,
+        action_type: "PAUSE_ROLLOUT",
+        risk_level: "low",
+        parameters: { namespace: "demo", deployment: "checkout", revision: 20, version: "1.4.3" },
+        verification_plan: { ...pending.verification_plan, require_paused: true },
+      },
+      false,
+    );
+
+    const card = screen.getByRole("region", { name: "Proposed remediation" });
+    expect(card).toHaveTextContent("Pause the rollout of checkout");
+    expect(card).toHaveTextContent("over 3 min once the rollout is paused");
+  });
+
   it("shows the action, versions, verification plan, expiry, and cited evidence", () => {
     renderIt(pending, false);
 

@@ -4,6 +4,10 @@ Each check is a short, non-blocking look at one execution:
 
 1. Wait for the rollout to complete with every pod ready; a stalled rollout
    (progress deadline exceeded, or not done within the rollout timeout) fails.
+   After PAUSE_ROLLOUT (plan `require_paused`) the rollout never completes, so
+   this waits for the Deployment to report itself paused instead; the window
+   below then decides whether pausing alone contained the errors, and if not
+   the investigation reopens (typically to propose a rollback).
 2. Once complete, wait one verification window, then measure the error rate
    and p95 latency over that window and compare them with the plan's limits
    and the pre-incident baseline.
@@ -56,7 +60,10 @@ class Verdict:
     measurements: dict[str, Any]
 
 
-async def pending(sessions: async_sessionmaker[AsyncSession]) -> list[uuid.UUID]:
+async def pending(
+    sessions: async_sessionmaker[AsyncSession], *, completed_before: datetime | None = None
+) -> list[uuid.UUID]:
+    """Executions awaiting verification; `completed_before` leaves the first look to the event."""
     async with sessions() as session:
         rows = await session.scalars(
             select(RemediationExecution.id)
@@ -65,6 +72,11 @@ async def pending(sessions: async_sessionmaker[AsyncSession]) -> list[uuid.UUID]
                 RemediationExecution.status == ExecutionStatus.SUCCEEDED,
                 RemediationExecution.verification_status == "pending",
                 Incident.status == IncidentStatus.VERIFYING,
+                *(
+                    [RemediationExecution.completed_at < completed_before]
+                    if completed_before
+                    else []
+                ),
             )
             .order_by(RemediationExecution.completed_at)
         )
@@ -126,6 +138,13 @@ def _stalled(status: RolloutStatus) -> bool:
     return any(c.startswith("Progressing=False") for c in status.conditions)
 
 
+def _paused(status: RolloutStatus) -> bool:
+    """The Deployment controller reports a paused rollout on its Progressing condition."""
+    return any(
+        c.startswith("Progressing=") and "(DeploymentPaused)" in c for c in status.conditions
+    )
+
+
 async def verify(
     sessions: async_sessionmaker[AsyncSession],
     kube: KubeReader,
@@ -159,16 +178,22 @@ async def verify(
                 )
             return None
         rollout = {"ready": status.ready, "desired": status.desired, "complete": status.complete}
-        if _stalled(status):
-            return await _decide(
-                sessions, execution_id, Verdict(False, "the rollout stalled", {"rollout": rollout})
-            )
-        if not (status.complete and status.ready == status.desired):
-            if now - finished > timedelta(minutes=plan["rollout_timeout_minutes"]):
+        if plan.get("require_paused"):
+            settled, late = _paused(status), "the rollout did not pause in time"
+            rollout["paused"] = settled
+        else:
+            if _stalled(status):
                 return await _decide(
                     sessions,
                     execution_id,
-                    Verdict(False, "the rollout did not complete in time", {"rollout": rollout}),
+                    Verdict(False, "the rollout stalled", {"rollout": rollout}),
+                )
+            settled = status.complete and status.ready == status.desired
+            late = "the rollout did not complete in time"
+        if not settled:
+            if now - finished > timedelta(minutes=plan["rollout_timeout_minutes"]):
+                return await _decide(
+                    sessions, execution_id, Verdict(False, late, {"rollout": rollout})
                 )
             return None
         async with sessions() as session:

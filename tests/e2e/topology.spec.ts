@@ -135,6 +135,39 @@ test.describe("3D view", () => {
     await expect(page.getByText("3D view unavailable")).toBeVisible();
   });
 
+  test("focusing a service flies the camera to it and reset returns to the overview", async ({ page, baseURL }) => {
+    const { checkout } = await seed(page.request, baseURL!);
+    await page.goto(`/?focus=${checkout.id}`);
+
+    const view = page.getByTestId("topology-3d");
+    await expect(view).toHaveAttribute("data-camera-target", checkout.id);
+    const details = page.getByRole("region", { name: "Selected service" });
+    await expect(details.getByRole("heading", { name: checkout.name })).toBeVisible();
+
+    await page.getByRole("button", { name: "Reset view" }).click();
+    await expect(view).toHaveAttribute("data-camera-target", "overview");
+    await expect(page.getByRole("button", { name: "Reset view" })).toHaveCount(0);
+  });
+
+  test("selecting on the 2D map carries over to the 3D camera", async ({ page, baseURL }) => {
+    const { payment } = await seed(page.request, baseURL!);
+    await page.goto("/");
+    await show2D(page);
+    await page.getByRole("group", { name: "Service map" }).getByRole("button", { name: new RegExp(`^${payment.name}`) }).click();
+
+    await page.getByRole("group", { name: "Topology view" }).getByRole("button", { name: "3D" }).click();
+
+    await expect(page.getByTestId("topology-3d")).toHaveAttribute("data-camera-target", payment.id);
+  });
+
+  test("jumps the camera without flying under reduced motion", async ({ page, baseURL }) => {
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    const { checkout } = await seed(page.request, baseURL!);
+    await page.goto(`/?focus=${checkout.id}`);
+
+    await expect(page.getByTestId("topology-3d")).toHaveAttribute("data-camera-target", checkout.id);
+  });
+
   test("renders on demand only when the user prefers reduced motion", async ({ page, baseURL }) => {
     await page.emulateMedia({ reducedMotion: "reduce" });
     await seed(page.request, baseURL!);

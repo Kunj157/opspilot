@@ -104,7 +104,7 @@ jobs:
         run: uvx checkov==3.3.29 -d . --framework terraform --compact --quiet
 
   demo:
-    name: Demo services · lint, types, tests, image
+    name: Demo services · lint, types, tests
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     defaults:
@@ -124,8 +124,46 @@ jobs:
         run: uv run mypy
       - name: Tests
         run: uv run pytest
-      - name: Build image
-        run: docker build -t opspilot-demo:ci .
+
+  images:
+    # The images main would ship, built (not pushed) and scanned on every PR.
+    # The API image is also the worker's.
+    name: Image · ${{ matrix.image }} · build and scan
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - image: api
+            context: .
+            dockerfile: apps/api/Dockerfile
+          - image: web
+            context: .
+            dockerfile: apps/web/Dockerfile
+          - image: demo
+            context: demo/services
+            dockerfile: demo/services/Dockerfile
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - name: Build
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.dockerfile }}
+          load: true
+          push: false
+          tags: opspilot-${{ matrix.image }}:ci
+          # Reuse the layers main's image builds cached.
+          cache-from: type=gha,scope=${{ matrix.image }}
+      - name: Scan (fail on fixable critical and high)
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: opspilot-${{ matrix.image }}:ci
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          exit-code: "1"
 
   helm:
     name: Helm · lint and render
@@ -138,12 +176,20 @@ jobs:
         run: helm lint --strict infrastructure/helm/*/
       - name: Render charts
         run: for chart in infrastructure/helm/*/; do helm template ci "$chart" > /dev/null; done
-      - name: Validate OpsPilot manifests against the Kubernetes schemas
+      - name: Validate OpsPilot manifests against the Kubernetes and Argo schemas
         run: |
           curl -sSL https://github.com/yannh/kubeconform/releases/download/v0.7.0/kubeconform-linux-amd64.tar.gz | tar xz kubeconform
           helm template ci infrastructure/helm/opspilot --namespace opspilot \
             --set rollouts.enabled=true --set devDatabases.enabled=true \
-            | ./kubeconform -strict -summary -kubernetes-version 1.34.0 -ignore-missing-schemas
+            | ./kubeconform -strict -summary -kubernetes-version 1.34.0 \
+              -schema-location default \
+              -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json'
+          helm template ci infrastructure/helm/opspilot --namespace opspilot \
+            --set ingress.enabled=true --set ingress.className=alb --set 'ingress.hosts={opspilot.example.com}' \
+            --set externalSecrets.enabled=true --set externalSecrets.remoteKey=opspilot-production/app \
+            | ./kubeconform -strict -summary -kubernetes-version 1.34.0 \
+              -schema-location default \
+              -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json'
 
   web:
     name: Web · lint, types, tests, build
@@ -167,6 +213,8 @@ jobs:
         run: pnpm --filter @opspilot/web test
       - name: Build
         run: pnpm --filter @opspilot/web build
+      - name: Bundle-size budget (gzipped initial JS per page, all chunks)
+        run: pnpm --filter @opspilot/web size
 
   contract:
     name: Contract · API client matches OpenAPI
@@ -198,18 +246,7 @@ jobs:
       JWT_AUDIENCE: opspilot-api
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
-        with:
-          enable-cache: true
-      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
-        with:
-          node-version-file: .node-version
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
-      - run: (cd apps/api && uv sync)
-      - run: pnpm exec playwright install --with-deps chromium
-      - run: make infra-up
+      - uses: ./.github/actions/stack
       - name: Keycloak realm smoke test
         run: make keycloak-smoke
       - run: make test-e2e
@@ -218,6 +255,31 @@ jobs:
         with:
           name: playwright-report
           path: playwright-report/
+          retention-days: 14
+
+  lighthouse:
+    name: Lighthouse · performance and accessibility budgets
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    needs: [api, web]
+    env:
+      CI: "1"
+      DATABASE_URL: postgresql+psycopg://opspilot:opspilot@localhost:5432/opspilot
+      REDIS_URL: redis://localhost:6379/0
+      JWT_ISSUER: http://localhost:8080/realms/opspilot
+      JWT_AUDIENCE: opspilot-api
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: ./.github/actions/stack
+      # Performance >= 85 and accessibility >= 90 on the primary pages.
+      - run: make test-lighthouse
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
+        with:
+          name: lighthouse
+          path: |
+            test-results/lighthouse/
+            playwright-report/
           retention-days: 14
 
   security:
@@ -238,11 +300,17 @@ jobs:
       - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
       - name: Semgrep
         run: uvx semgrep scan --config p/default --error --metrics off --exclude node_modules --exclude .venv .
-      - name: Python dependency audit
-        working-directory: apps/api
+      - name: Python dependency audit (API, ML, demo services)
+        # The exports pin every transitive dependency, so pip-audit checks the
+        # lockfile versions as they are instead of re-resolving them (which
+        # needs each project's Python version).
         run: |
-          uv export --no-hashes --no-emit-project -q > /tmp/requirements.txt
-          uvx pip-audit -r /tmp/requirements.txt
+          for project in apps/api ml demo/services; do
+            echo "::group::$project"
+            (cd "$project" && uv export --no-hashes --no-emit-project -q > /tmp/requirements.txt)
+            uvx pip-audit -r /tmp/requirements.txt --no-deps --disable-pip
+            echo "::endgroup::"
+          done
       - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
