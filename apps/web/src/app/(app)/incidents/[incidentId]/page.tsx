@@ -13,6 +13,7 @@ async function Detail() {
       permissions={{
         manage: permissions.includes("manage_incidents"),
         investigate: permissions.includes("start_investigation"),
+        approve: permissions.includes("approve_remediation"),
       }}
     />
   );

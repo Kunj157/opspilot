@@ -1,7 +1,9 @@
-"""Read-only Kubernetes access for investigations, limited to allow-listed namespaces.
+"""Kubernetes access, limited to allow-listed namespaces.
 
-Only two questions can be asked: a deployment's rollout history and its
-current rollout status. There is no generic API access.
+Investigations get a reader with two questions: a deployment's rollout
+history and its current rollout status. Approved remediations get a writer
+with three actions: roll back to a revision, restart, and scale within
+bounds. There is no generic API access.
 """
 
 import asyncio
@@ -41,7 +43,7 @@ class KubeReader(Protocol):
 
 def check_namespace(namespace: str, allowed: frozenset[str]) -> None:
     if namespace not in allowed:
-        raise NamespaceNotAllowed(f"namespace {namespace!r} is not allowed for investigations")
+        raise NamespaceNotAllowed(f"namespace {namespace!r} is not allowed")
 
 
 def _env(container: Any, name: str) -> str | None:
@@ -164,3 +166,112 @@ class KubernetesReader:
     async def rollout_status(self, namespace: str, deployment: str) -> RolloutStatus:
         check_namespace(namespace, self.allowed)
         return await asyncio.to_thread(self._status, namespace, deployment)
+
+
+class RemediationFailed(Exception):
+    """The action could not be carried out; the message says why."""
+
+
+class KubeWriter(Protocol):
+    async def rollback_deployment(
+        self, namespace: str, deployment: str, to_revision: int, *, cause: str
+    ) -> dict[str, Any]: ...
+
+    async def restart_deployment(
+        self, namespace: str, deployment: str, *, restarted_at: str
+    ) -> dict[str, Any]: ...
+
+    async def scale_deployment_within_bounds(
+        self, namespace: str, deployment: str, replicas: int, *, maximum: int
+    ) -> dict[str, Any]: ...
+
+
+class KubernetesWriter(KubernetesReader):
+    """The safe write actions. Each is idempotent for the same arguments, so a retry is harmless."""
+
+    def _rollback(
+        self, namespace: str, deployment: str, to_revision: int, cause: str
+    ) -> dict[str, Any]:
+        apps = self._api()
+        owner = apps.read_namespaced_deployment(deployment, namespace)
+        target = None
+        for rs in apps.list_namespaced_replica_set(namespace).items:
+            owned = any(ref.uid == owner.metadata.uid for ref in rs.metadata.owner_references or [])
+            revision = (rs.metadata.annotations or {}).get("deployment.kubernetes.io/revision")
+            if owned and revision == str(to_revision):
+                target = rs
+        if target is None:
+            raise RemediationFailed(f"revision {to_revision} of {deployment} no longer exists")
+        template = apps.api_client.sanitize_for_serialization(target.spec.template)
+        template.get("metadata", {}).get("labels", {}).pop("pod-template-hash", None)
+        # Replace the whole template, as `kubectl rollout undo` does: a merge patch
+        # would keep settings the faulty release added.
+        apps.patch_namespaced_deployment(
+            deployment,
+            namespace,
+            [
+                {"op": "replace", "path": "/spec/template", "value": template},
+                {
+                    "op": "add",
+                    "path": "/metadata/annotations/kubernetes.io~1change-cause",
+                    "value": cause,
+                },
+            ],
+        )
+        container = target.spec.template.spec.containers[0]
+        return {
+            "rolled_back_to": to_revision,
+            "version": _env(container, "SERVICE_VERSION"),
+            "image": container.image,
+        }
+
+    def _restart(self, namespace: str, deployment: str, restarted_at: str) -> dict[str, Any]:
+        self._api().patch_namespaced_deployment(
+            deployment,
+            namespace,
+            {
+                "spec": {
+                    "template": {
+                        "metadata": {
+                            "annotations": {"kubectl.kubernetes.io/restartedAt": restarted_at}
+                        }
+                    }
+                }
+            },
+        )
+        return {"restarted_at": restarted_at}
+
+    def _scale(self, namespace: str, deployment: str, replicas: int) -> dict[str, Any]:
+        apps = self._api()
+        before = apps.read_namespaced_deployment_scale(deployment, namespace).spec.replicas
+        apps.patch_namespaced_deployment_scale(
+            deployment, namespace, {"spec": {"replicas": replicas}}
+        )
+        return {"replicas_before": before, "replicas": replicas}
+
+    async def _run(self, namespace: str, action: Any, *args: Any) -> dict[str, Any]:
+        check_namespace(namespace, self.allowed)
+        from kubernetes.client.exceptions import ApiException
+
+        try:
+            result: dict[str, Any] = await asyncio.to_thread(action, namespace, *args)
+        except ApiException as exc:
+            raise RemediationFailed(f"Kubernetes API error {exc.status}: {exc.reason}") from exc
+        return result
+
+    async def rollback_deployment(
+        self, namespace: str, deployment: str, to_revision: int, *, cause: str
+    ) -> dict[str, Any]:
+        return await self._run(namespace, self._rollback, deployment, to_revision, cause)
+
+    async def restart_deployment(
+        self, namespace: str, deployment: str, *, restarted_at: str
+    ) -> dict[str, Any]:
+        return await self._run(namespace, self._restart, deployment, restarted_at)
+
+    async def scale_deployment_within_bounds(
+        self, namespace: str, deployment: str, replicas: int, *, maximum: int
+    ) -> dict[str, Any]:
+        if not 1 <= replicas <= maximum:
+            raise RemediationFailed(f"{replicas} replicas is outside 1..{maximum}")
+        return await self._run(namespace, self._scale, deployment, replicas)

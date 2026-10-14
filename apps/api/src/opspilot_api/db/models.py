@@ -521,6 +521,130 @@ class RemediationProposal(UUIDPrimaryKey, Timestamps, OrganizationScoped, Base):
     version: Mapped[int] = mapped_column(Integer, server_default="1")
 
 
+class Approval(UUIDPrimaryKey, OrganizationScoped, Base):
+    """A reviewer's decision on one version of a remediation proposal (append-only)."""
+
+    __tablename__ = "approvals"
+
+    organization_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("organizations.id", ondelete="RESTRICT")
+    )
+    # One decision per proposal: a changed proposal is a new proposal version, reviewed anew.
+    proposal_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("remediation_proposals.id", ondelete="CASCADE"), unique=True
+    )
+    proposal_version: Mapped[int] = mapped_column(Integer)
+    requested_by: Mapped[str] = mapped_column(String(100))
+    requested_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    reviewed_by: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="RESTRICT"))
+    reviewer_name: Mapped[str] = mapped_column(String(200))
+    decision: Mapped[str] = mapped_column(String(20))
+    comment: Mapped[str | None] = mapped_column(String(1000))
+    request_id: Mapped[str | None] = mapped_column(String(100))
+    reviewed_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+
+class ExecutionStatus(enum.StrEnum):
+    RUNNING = "running"
+    SUCCEEDED = "succeeded"
+    FAILED = "failed"
+
+
+class RemediationExecution(UUIDPrimaryKey, Timestamps, OrganizationScoped, Base):
+    """One run of an approved proposal. The idempotency key makes a retry a no-op."""
+
+    __tablename__ = "remediation_executions"
+
+    organization_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("organizations.id", ondelete="RESTRICT")
+    )
+    proposal_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("remediation_proposals.id", ondelete="CASCADE"), index=True
+    )
+    incident_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("incidents.id", ondelete="CASCADE"), index=True
+    )
+    # "<proposal id>:v<version>": one execution per approved proposal version.
+    idempotency_key: Mapped[str] = mapped_column(String(100), unique=True)
+    status: Mapped[ExecutionStatus] = mapped_column(
+        _enum(ExecutionStatus, "execution_status"),
+        server_default=ExecutionStatus.RUNNING.value,
+    )
+    attempts: Mapped[int] = mapped_column(Integer, server_default="0")
+    # A worker that dies mid-run leaves an expired lease; another worker retries.
+    lease_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    output: Mapped[dict[str, Any]] = mapped_column(JSONB, server_default="{}")
+    error_message: Mapped[str | None] = mapped_column(String(1000))
+    # After a successful run: pending → passed | failed, with the measurements taken.
+    verification_status: Mapped[str | None] = mapped_column(String(20))
+    verification: Mapped[dict[str, Any]] = mapped_column(JSONB, server_default="{}")
+    rollout_completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class ModelVersion(UUIDPrimaryKey, Timestamps, Base):
+    """A trained detector. One version at a time runs in shadow mode; the rest are kept."""
+
+    __tablename__ = "model_versions"
+    __table_args__ = (UniqueConstraint("name", "version"),)
+
+    name: Mapped[str] = mapped_column(String(100))
+    version: Mapped[int] = mapped_column(Integer)
+    artifact_uri: Mapped[str] = mapped_column(String(500))
+    feature_schema: Mapped[dict[str, Any]] = mapped_column(JSONB)
+    metrics: Mapped[dict[str, Any]] = mapped_column(JSONB, server_default="{}")
+    # candidate → shadow → retired (or back to shadow when rolled back to).
+    status: Mapped[str] = mapped_column(String(20), server_default="candidate")
+    mlflow_run_id: Mapped[str | None] = mapped_column(String(64))
+    promoted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class EventRelayCheckpoint(Base):
+    """How far the outbox relay has published the incident timeline."""
+
+    __tablename__ = "event_relay_checkpoints"
+
+    name: Mapped[str] = mapped_column(String(100), primary_key=True)
+    last_sequence: Mapped[int] = mapped_column(BigInteger)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class ProcessedEvent(Base):
+    """Idempotency: an event a consumer has handled, recorded with the handler's effects."""
+
+    __tablename__ = "processed_events"
+
+    consumer: Mapped[str] = mapped_column(String(100), primary_key=True)
+    event_id: Mapped[uuid.UUID] = mapped_column(primary_key=True)
+    topic: Mapped[str] = mapped_column(String(200))
+    outcome: Mapped[str] = mapped_column(String(50))
+    processed_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+
+class Postmortem(UUIDPrimaryKey, Timestamps, OrganizationScoped, Base):
+    """A drafted postmortem for a resolved incident; regenerated on request."""
+
+    __tablename__ = "postmortems"
+
+    organization_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("organizations.id", ondelete="RESTRICT")
+    )
+    incident_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("incidents.id", ondelete="CASCADE"), unique=True
+    )
+    # pending → ready (or ready with a template when the model failed).
+    status: Mapped[str] = mapped_column(String(20), server_default="pending")
+    content: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
+    generated_by: Mapped[str | None] = mapped_column(String(100))
+    prompt_version: Mapped[str | None] = mapped_column(String(20))
+
+
 class IdempotencyKey(Base):
     """Stored outcome of a create request, replayed when the same key is retried."""
 

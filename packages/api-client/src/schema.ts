@@ -393,6 +393,81 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/incidents/{incident_id}/postmortem": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Postmortem */
+        get: operations["get_postmortem_api_v1_incidents__incident_id__postmortem_get"];
+        put?: never;
+        /**
+         * Request Postmortem
+         * @description Ask the worker to (re)draft the postmortem of a resolved incident.
+         */
+        post: operations["request_postmortem_api_v1_incidents__incident_id__postmortem_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/proposals/{proposal_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Proposal */
+        get: operations["get_proposal_api_v1_proposals__proposal_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/proposals/{proposal_id}/approve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Approve Proposal
+         * @description Approve the reviewed version; the worker then executes it once.
+         */
+        post: operations["approve_proposal_api_v1_proposals__proposal_id__approve_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/proposals/{proposal_id}/reject": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Reject Proposal */
+        post: operations["reject_proposal_api_v1_proposals__proposal_id__reject_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/runbooks": {
         parameters: {
             query?: never;
@@ -480,6 +555,83 @@ export interface paths {
         put?: never;
         /** Archive Runbook */
         post: operations["archive_runbook_api_v1_runbooks__runbook_id__archive_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/ml/models": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Models */
+        get: operations["list_models_api_v1_ml_models_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/ml/models/{model_id}/promote": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Promote Model
+         * @description Run this version in shadow mode; promoting an older version is the rollback.
+         */
+        post: operations["promote_model_api_v1_ml_models__model_id__promote_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/ml/score": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Score Windows
+         * @description Score posted windows with the shadow model (history first, newest last).
+         */
+        post: operations["score_windows_api_v1_ml_score_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/ml/shadow": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Shadow Summary
+         * @description Per service: shadow predictions and alerts next to the rule's triggers and incidents.
+         */
+        get: operations["shadow_summary_api_v1_ml_shadow_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -614,6 +766,37 @@ export interface components {
              */
             date: string;
         };
+        /** DecisionIn */
+        DecisionIn: {
+            /**
+             * Version
+             * @description The proposal version that was reviewed
+             */
+            version: number;
+            /** Comment */
+            comment?: string | null;
+        };
+        /** DecisionOut */
+        DecisionOut: {
+            /** Decision */
+            decision: string;
+            /** Proposal Version */
+            proposal_version: number;
+            /**
+             * Reviewed By
+             * Format: uuid
+             */
+            reviewed_by: string;
+            /** Reviewer Name */
+            reviewer_name: string;
+            /** Comment */
+            comment: string | null;
+            /**
+             * Reviewed At
+             * Format: date-time
+             */
+            reviewed_at: string;
+        };
         /** DependenciesUpdate */
         DependenciesUpdate: {
             /** Target Ids */
@@ -732,6 +915,43 @@ export interface components {
              */
             created_at: string;
         };
+        /** ExecutionOut */
+        ExecutionOut: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            status: components["schemas"]["ExecutionStatus"];
+            /** Attempts */
+            attempts: number;
+            /**
+             * Started At
+             * Format: date-time
+             */
+            started_at: string;
+            /** Completed At */
+            completed_at: string | null;
+            /** Output */
+            output: {
+                [key: string]: unknown;
+            };
+            /** Error Message */
+            error_message: string | null;
+            /** Verification Status */
+            verification_status: string | null;
+            /** Verification */
+            verification: {
+                [key: string]: unknown;
+            };
+            /** Verified At */
+            verified_at: string | null;
+        };
+        /**
+         * ExecutionStatus
+         * @enum {string}
+         */
+        ExecutionStatus: "running" | "succeeded" | "failed";
         /** HTTPValidationError */
         HTTPValidationError: {
             /** Detail */
@@ -933,6 +1153,42 @@ export interface components {
             /** Permissions */
             permissions: components["schemas"]["Permission"][];
         };
+        /** ModelList */
+        ModelList: {
+            /** Items */
+            items: components["schemas"]["ModelOut"][];
+        };
+        /** ModelOut */
+        ModelOut: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Name */
+            name: string;
+            /** Version */
+            version: number;
+            /** Status */
+            status: string;
+            /** Feature Schema */
+            feature_schema: {
+                [key: string]: unknown;
+            };
+            /** Metrics */
+            metrics: {
+                [key: string]: unknown;
+            };
+            /** Mlflow Run Id */
+            mlflow_run_id: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Promoted At */
+            promoted_at: string | null;
+        };
         /** OrganizationRef */
         OrganizationRef: {
             /**
@@ -947,7 +1203,30 @@ export interface components {
          * Permission
          * @enum {string}
          */
-        Permission: "view_services" | "view_incidents" | "start_investigation" | "approve_remediation" | "manage_users" | "manage_runbooks" | "view_audit_logs" | "manage_services" | "manage_incidents";
+        Permission: "view_services" | "view_incidents" | "start_investigation" | "approve_remediation" | "manage_users" | "manage_runbooks" | "view_audit_logs" | "manage_services" | "manage_incidents" | "manage_models";
+        /** PostmortemOut */
+        PostmortemOut: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Status */
+            status: string;
+            /** Content */
+            content: {
+                [key: string]: unknown;
+            } | null;
+            /** Generated By */
+            generated_by: string | null;
+            /** Prompt Version */
+            prompt_version: string | null;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
         /** ProposalOut */
         ProposalOut: {
             /**
@@ -982,6 +1261,8 @@ export interface components {
              * Format: date-time
              */
             created_at: string;
+            decision?: components["schemas"]["DecisionOut"] | null;
+            execution?: components["schemas"]["ExecutionOut"] | null;
         };
         /**
          * ProposalStatus
@@ -1131,12 +1412,58 @@ export interface components {
             /** Source Url */
             source_url?: string | null;
         };
+        /** Score */
+        Score: {
+            /**
+             * Time
+             * Format: date-time
+             */
+            time: string;
+            /** Service */
+            service: string;
+            /** Score */
+            score: number;
+            /** Alert */
+            alert: boolean;
+        };
+        /** ScoreIn */
+        ScoreIn: {
+            /** Windows */
+            windows: components["schemas"]["Window"][];
+        };
+        /** ScoreOut */
+        ScoreOut: {
+            /** Model */
+            model: string;
+            /** Threshold */
+            threshold: number;
+            /** Scores */
+            scores: components["schemas"]["Score"][];
+        };
         /** SectionOut */
         SectionOut: {
             /** Heading */
             heading: string;
             /** Body */
             body: string;
+        };
+        /** ServiceComparison */
+        ServiceComparison: {
+            /**
+             * Service Id
+             * Format: uuid
+             */
+            service_id: string;
+            /** Service */
+            service: string;
+            /** Shadow Windows */
+            shadow_windows: number;
+            /** Shadow Alerts */
+            shadow_alerts: number;
+            /** Rule Triggers */
+            rule_triggers: number;
+            /** Incidents */
+            incidents: number;
         };
         /** ServiceCreate */
         ServiceCreate: {
@@ -1238,6 +1565,31 @@ export interface components {
              */
             low: number;
         };
+        /** ShadowSummary */
+        ShadowSummary: {
+            /**
+             * Since
+             * Format: date-time
+             */
+            since: string;
+            /** Model */
+            model: string | null;
+            /** Services */
+            services: components["schemas"]["ServiceComparison"][];
+            /**
+             * Features
+             * @default [
+             *       "request_rate",
+             *       "error_rate",
+             *       "p50_seconds",
+             *       "p95_seconds",
+             *       "p99_seconds",
+             *       "restarts_5m",
+             *       "availability"
+             *     ]
+             */
+            features: string[];
+        };
         /** ToolCallOut */
         ToolCallOut: {
             /**
@@ -1319,6 +1671,33 @@ export interface components {
         VersionedRequest: {
             /** Version */
             version: number;
+        };
+        /**
+         * Window
+         * @description One 15 s feature window of one service (feature schema v1).
+         */
+        Window: {
+            /**
+             * Time
+             * Format: date-time
+             */
+            time: string;
+            /** Service */
+            service: string;
+            /** Request Rate */
+            request_rate?: number | null;
+            /** Error Rate */
+            error_rate?: number | null;
+            /** P50 Seconds */
+            p50_seconds?: number | null;
+            /** P95 Seconds */
+            p95_seconds?: number | null;
+            /** P99 Seconds */
+            p99_seconds?: number | null;
+            /** Restarts 5M */
+            restarts_5m?: number | null;
+            /** Availability */
+            availability?: number | null;
         };
     };
     responses: never;
@@ -2204,6 +2583,169 @@ export interface operations {
             };
         };
     };
+    get_postmortem_api_v1_incidents__incident_id__postmortem_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                incident_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PostmortemOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    request_postmortem_api_v1_incidents__incident_id__postmortem_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                incident_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PostmortemOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_proposal_api_v1_proposals__proposal_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                proposal_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProposalOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    approve_proposal_api_v1_proposals__proposal_id__approve_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                proposal_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DecisionIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProposalOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    reject_proposal_api_v1_proposals__proposal_id__reject_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                proposal_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DecisionIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProposalOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_runbooks_api_v1_runbooks_get: {
         parameters: {
             query?: {
@@ -2405,6 +2947,121 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RunbookOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_models_api_v1_ml_models_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModelList"];
+                };
+            };
+        };
+    };
+    promote_model_api_v1_ml_models__model_id__promote_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                model_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModelOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    score_windows_api_v1_ml_score_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ScoreIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ScoreOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    shadow_summary_api_v1_ml_shadow_get: {
+        parameters: {
+            query?: {
+                hours?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ShadowSummary"];
                 };
             };
             /** @description Validation Error */

@@ -44,6 +44,12 @@ export const icons = {
       <path d="M5.4 5.4 7 10.4M10.6 5.4 9 10.4M6 4h4" />
     </Icon>
   ),
+  models: (p: IconProps) => (
+    <Icon {...p}>
+      <path d="M1.5 14.5h13" />
+      <path d="M3.5 12V8.5M7 12V4M10.5 12V6.5M14 12V2.5" />
+    </Icon>
+  ),
   status: (p: IconProps) => (
     <Icon {...p}>
       <path d="M1.5 8h3l2-4.5 3 9 2-4.5h3" />
