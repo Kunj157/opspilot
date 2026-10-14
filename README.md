@@ -5,10 +5,11 @@ incidents in a cloud application, investigates them with AI agents and
 machine learning, proposes safe remediation, runs it only after a human
 approves, verifies recovery, and writes the postmortem.
 
-> **Status:** v0.15.0. The full incident loop works on the Kubernetes demo,
+> **Status:** v1.0.0. The full incident loop works on the Kubernetes demo,
 > hardened for production (rate limits, secure headers, alerts, backups,
-> chaos and load tests, signed images, a release pipeline) with a redesigned
-> interface. Terraform for AWS is validated but has not been applied. See
+> chaos and load tests, signed images, a release pipeline), with a
+> redesigned interface, a threat model, a recorded walkthrough, and a
+> landing page. Terraform for AWS is validated but has not been applied. See
 > [known limitations](#known-limitations).
 
 ![OpsPilot walkthrough: command center, camera fly-to, and a faulty release detected](docs/media/walkthrough.gif)
@@ -353,7 +354,7 @@ Each phase ends with a tagged release.
 | 13 | Containers, Kubernetes, and GitOps | ✅ v0.13.0 |
 | 14 | Production hardening | ✅ v0.15.0 |
 | 15 | Interface redesign | ✅ v0.15.0 |
-| 16 | Launch readiness: docs, threat model, walkthrough | 🚧 in progress |
+| 16 | Launch readiness: docs, threat model, walkthrough, landing page | ✅ v1.0.0 |
 
 ## Repository layout
 
