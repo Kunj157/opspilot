@@ -2201,6 +2201,179 @@
           }
         }
       }
+    },
+    "/api/v1/ml/models": {
+      "get": {
+        "tags": [
+          "ml"
+        ],
+        "summary": "List Models",
+        "operationId": "list_models_api_v1_ml_models_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModelList"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/ml/models/{model_id}/promote": {
+      "post": {
+        "tags": [
+          "ml"
+        ],
+        "summary": "Promote Model",
+        "description": "Run this version in shadow mode; promoting an older version is the rollback.",
+        "operationId": "promote_model_api_v1_ml_models__model_id__promote_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "model_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Model Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModelOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/ml/score": {
+      "post": {
+        "tags": [
+          "ml"
+        ],
+        "summary": "Score Windows",
+        "description": "Score posted windows with the shadow model (history first, newest last).",
+        "operationId": "score_windows_api_v1_ml_score_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ScoreIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScoreOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/ml/shadow": {
+      "get": {
+        "tags": [
+          "ml"
+        ],
+        "summary": "Shadow Summary",
+        "description": "Per service: shadow predictions and alerts next to the rule's triggers and incidents.",
+        "operationId": "shadow_summary_api_v1_ml_shadow_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "hours",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 168,
+              "minimum": 1,
+              "default": 24,
+              "title": "Hours"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ShadowSummary"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -3606,6 +3779,94 @@
         ],
         "title": "MeResponse"
       },
+      "ModelList": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ModelOut"
+            },
+            "type": "array",
+            "title": "Items"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "title": "ModelList"
+      },
+      "ModelOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "version": {
+            "type": "integer",
+            "title": "Version"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "feature_schema": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Feature Schema"
+          },
+          "metrics": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Metrics"
+          },
+          "mlflow_run_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mlflow Run Id"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "promoted_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Promoted At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "version",
+          "status",
+          "feature_schema",
+          "metrics",
+          "mlflow_run_id",
+          "created_at",
+          "promoted_at"
+        ],
+        "title": "ModelOut"
+      },
       "OrganizationRef": {
         "properties": {
           "id": {
@@ -3636,7 +3897,8 @@
           "manage_runbooks",
           "view_audit_logs",
           "manage_services",
-          "manage_incidents"
+          "manage_incidents",
+          "manage_models"
         ],
         "title": "Permission"
       },
@@ -4218,6 +4480,79 @@
         ],
         "title": "RunbookWrite"
       },
+      "Score": {
+        "properties": {
+          "time": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Time"
+          },
+          "service": {
+            "type": "string",
+            "title": "Service"
+          },
+          "score": {
+            "type": "number",
+            "title": "Score"
+          },
+          "alert": {
+            "type": "boolean",
+            "title": "Alert"
+          }
+        },
+        "type": "object",
+        "required": [
+          "time",
+          "service",
+          "score",
+          "alert"
+        ],
+        "title": "Score"
+      },
+      "ScoreIn": {
+        "properties": {
+          "windows": {
+            "items": {
+              "$ref": "#/components/schemas/Window"
+            },
+            "type": "array",
+            "maxItems": 2000,
+            "minItems": 1,
+            "title": "Windows"
+          }
+        },
+        "type": "object",
+        "required": [
+          "windows"
+        ],
+        "title": "ScoreIn"
+      },
+      "ScoreOut": {
+        "properties": {
+          "model": {
+            "type": "string",
+            "title": "Model"
+          },
+          "threshold": {
+            "type": "number",
+            "title": "Threshold"
+          },
+          "scores": {
+            "items": {
+              "$ref": "#/components/schemas/Score"
+            },
+            "type": "array",
+            "title": "Scores"
+          }
+        },
+        "type": "object",
+        "required": [
+          "model",
+          "threshold",
+          "scores"
+        ],
+        "title": "ScoreOut"
+      },
       "SectionOut": {
         "properties": {
           "heading": {
@@ -4235,6 +4570,45 @@
           "body"
         ],
         "title": "SectionOut"
+      },
+      "ServiceComparison": {
+        "properties": {
+          "service_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Service Id"
+          },
+          "service": {
+            "type": "string",
+            "title": "Service"
+          },
+          "shadow_windows": {
+            "type": "integer",
+            "title": "Shadow Windows"
+          },
+          "shadow_alerts": {
+            "type": "integer",
+            "title": "Shadow Alerts"
+          },
+          "rule_triggers": {
+            "type": "integer",
+            "title": "Rule Triggers"
+          },
+          "incidents": {
+            "type": "integer",
+            "title": "Incidents"
+          }
+        },
+        "type": "object",
+        "required": [
+          "service_id",
+          "service",
+          "shadow_windows",
+          "shadow_alerts",
+          "rule_triggers",
+          "incidents"
+        ],
+        "title": "ServiceComparison"
       },
       "ServiceCreate": {
         "properties": {
@@ -4572,6 +4946,56 @@
         "type": "object",
         "title": "SeverityCounts"
       },
+      "ShadowSummary": {
+        "properties": {
+          "since": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Since"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
+          },
+          "services": {
+            "items": {
+              "$ref": "#/components/schemas/ServiceComparison"
+            },
+            "type": "array",
+            "title": "Services"
+          },
+          "features": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Features",
+            "default": [
+              "request_rate",
+              "error_rate",
+              "p50_seconds",
+              "p95_seconds",
+              "p99_seconds",
+              "restarts_5m",
+              "availability"
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "since",
+          "model",
+          "services"
+        ],
+        "title": "ShadowSummary"
+      },
       "ToolCallOut": {
         "properties": {
           "id": {
@@ -4773,6 +5197,106 @@
           "version"
         ],
         "title": "VersionedRequest"
+      },
+      "Window": {
+        "properties": {
+          "time": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Time"
+          },
+          "service": {
+            "type": "string",
+            "maxLength": 63,
+            "minLength": 1,
+            "title": "Service"
+          },
+          "request_rate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Request Rate"
+          },
+          "error_rate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Rate"
+          },
+          "p50_seconds": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "P50 Seconds"
+          },
+          "p95_seconds": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "P95 Seconds"
+          },
+          "p99_seconds": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "P99 Seconds"
+          },
+          "restarts_5m": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Restarts 5M"
+          },
+          "availability": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Availability"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "time",
+          "service"
+        ],
+        "title": "Window",
+        "description": "One 15 s feature window of one service (feature schema v1)."
       }
     },
     "securitySchemes": {

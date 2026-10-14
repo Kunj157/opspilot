@@ -586,6 +586,23 @@ class RemediationExecution(UUIDPrimaryKey, Timestamps, OrganizationScoped, Base)
     verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
+class ModelVersion(UUIDPrimaryKey, Timestamps, Base):
+    """A trained detector. One version at a time runs in shadow mode; the rest are kept."""
+
+    __tablename__ = "model_versions"
+    __table_args__ = (UniqueConstraint("name", "version"),)
+
+    name: Mapped[str] = mapped_column(String(100))
+    version: Mapped[int] = mapped_column(Integer)
+    artifact_uri: Mapped[str] = mapped_column(String(500))
+    feature_schema: Mapped[dict[str, Any]] = mapped_column(JSONB)
+    metrics: Mapped[dict[str, Any]] = mapped_column(JSONB, server_default="{}")
+    # candidate → shadow → retired (or back to shadow when rolled back to).
+    status: Mapped[str] = mapped_column(String(20), server_default="candidate")
+    mlflow_run_id: Mapped[str | None] = mapped_column(String(64))
+    promoted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
 class Postmortem(UUIDPrimaryKey, Timestamps, OrganizationScoped, Base):
     """A drafted postmortem for a resolved incident; regenerated on request."""
 
