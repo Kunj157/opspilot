@@ -5,11 +5,12 @@ incidents in a cloud application, investigates them with AI agents and
 machine learning, proposes safe remediation, runs human-approved runbooks,
 verifies recovery, and writes the postmortem.
 
-> **Status:** v0.6.0 released: foundation, authentication and audit, service
+> **Status:** v0.8.0 released: foundation, authentication and audit, service
 > catalog and incident management, the modern UI with a 3D service topology,
-> an instrumented demo shop on Kubernetes with full telemetry, and automatic
-> incident detection. Phase 7, runbook retrieval, is next. See the
-> [roadmap](#roadmap).
+> an instrumented demo shop on Kubernetes with full telemetry, automatic
+> incident detection, runbook retrieval, and multi-agent investigation with
+> evidence-backed remediation proposals and drafted postmortems. Phase 9,
+> approval and safe remediation, is next. See the [roadmap](#roadmap).
 
 ## What it does today
 
@@ -39,6 +40,26 @@ verifies recovery, and writes the postmortem.
   Prometheus. A sustained breach opens exactly one incident on the failing
   service (callers are noted as affected), with the detector's readings as
   evidence; recovery is recorded. Measured detection delay: 81–95 s.
+- **Runbooks:** versioned Markdown runbooks, chunked by section and embedded
+  locally (bge-small) into pgvector. Search ranks sections by meaning with
+  a boost for the affected service, cites runbook, version, and heading, and
+  flags and demotes text that looks like prompt injection. Retrieval eval: top-1 100 % on the
+  demo incidents. Runbook pages show versions and sections.
+- **Agent investigation:** a LangGraph workflow (triage → observability →
+  deployments → runbooks → synthesis → remediation) investigates each
+  detector incident with read-only tools over Prometheus, Loki, Tempo,
+  Kubernetes, the catalog, and the runbook library. Every hypothesis cites
+  collected evidence. A deterministic policy turns the model's suggestion
+  into an allow-listed proposal (for example, roll back to the previous
+  release only when the errors began with the latest one) that waits for
+  approval. It runs on a local model by default (qwen2.5 7B through Ollama)
+  or on Claude, with tool, token, cost, and time limits, and resumes after a
+  worker restart. Measured on the demo: a faulty checkout release is
+  detected in about 60 s and investigated in about 10 s, with a correct
+  rollback proposal.
+- **Postmortems:** resolved incidents get a drafted, blameless postmortem
+  whose findings are labelled confirmed, strong or weak hypothesis, or
+  unknown, each citing its evidence.
 - **Design system:** Graphite & Iris tokens with contrast checked in CI,
   shared primitives (buttons, tilting cards, tabs, drawer, toasts), and
   Lighthouse budgets on primary pages.
@@ -64,7 +85,8 @@ verifies recovery, and writes the postmortem.
 | Data | PostgreSQL (pgvector), Redis |
 | Identity | Keycloak (OIDC) |
 | Typed client (`packages/api-client`) | Generated from the API's OpenAPI schema |
-| Planned | LangGraph agents, scikit-learn/MLflow, OpenTelemetry + Prometheus/Grafana/Loki/Tempo, Redpanda, Terraform on AWS, Helm, Argo CD |
+| Agents | LangGraph, Ollama (local, default) or the Anthropic API |
+| Planned | scikit-learn/MLflow, Redpanda, Terraform on AWS, Argo CD |
 
 Design notes and decisions live in [`docs/`](docs): the
 [architecture overview](docs/architecture/overview.md), [SLOs](docs/architecture/slos.md),
@@ -83,9 +105,9 @@ Each phase ends with a tagged release.
 | 4 | Modern UI and 3D service topology | ✅ v0.4.0 |
 | 5 | Demo microservices and telemetry | ✅ v0.5.0 |
 | 6 | Detection engine | ✅ v0.6.0 |
-| 7 | Runbook retrieval (RAG) | 🚧 next |
-| 8 | Multi-agent investigation | planned |
-| 9 | Approval and safe remediation | planned |
+| 7 | Runbook retrieval (RAG) | ✅ v0.7.0 |
+| 8 | Multi-agent investigation | ✅ v0.8.0 |
+| 9 | Approval and safe remediation | 🚧 next |
 | 10 | ML anomaly detection | planned |
 | 11 | Event-driven processing | planned |
 | 12 | Cloud infrastructure (AWS, Terraform) | planned |
@@ -130,6 +152,7 @@ Prometheus, Loki, Tempo, and Grafana. Requires `kind`, `kubectl`, and `helm`.
 ```bash
 make deploy-local          # cluster, observability stack, demo image and chart
 make seed                  # register the demo services in OpsPilot (API running)
+make seed-runbooks         # load docs/runbooks into the runbook library (API running)
 make load-normal           # steady synthetic traffic
 make inject-failure SCENARIO=checkout-http-500   # ship a faulty release
 make reset-demo            # back to the healthy release
@@ -142,6 +165,12 @@ With `PROMETHEUS_URL` set, `make dev` also runs the **detection worker**. Every
 one incident on the failing service. Callers that fail because of it are
 noted as affected on that incident instead of getting incidents of their own.
 Recovery is recorded on the timeline.
+
+The worker (`make worker`) also runs the **agent investigations**. Start the
+local model once with `make llm-up` (Ollama, GPU when available). Detector
+incidents are investigated automatically, and the incident page shows the
+hypotheses, cited evidence, tool calls, and the proposed remediation.
+`make test-agent LLM=ollama` runs the agent evals on the local model.
 
 The cluster uses its own kubeconfig (`.kube/config`), so other clusters are
 never touched. It publishes fixed localhost ports: Grafana
@@ -160,6 +189,7 @@ storefront :38080. Scenarios are described in
 | `make test-integration` | API tests against real PostgreSQL and Redis (Testcontainers) |
 | `make test-e2e` | Playwright against the full stack, headless |
 | `make test-lighthouse` | Lighthouse budgets (performance ≥ 85, accessibility ≥ 90) on primary pages; summary in `test-results/lighthouse/` |
+| `make test-agent` | Agent and retrieval evals on fixed datasets (`tests/agent-evals`) |
 | `make build` | Production builds |
 | `make api-client` | Regenerate the typed client from the OpenAPI schema |
 | `make keycloak-smoke` | Check every dev user gets the right token claims |
