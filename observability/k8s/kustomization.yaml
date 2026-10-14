@@ -10,9 +10,16 @@ resources:
   - loki.yaml
   - tempo.yaml
   - grafana.yaml
+  - alertmanager.yaml
 configMapGenerator:
   - name: grafana-dashboards
     files:
       - dashboards/demo-shop.json
+  - name: prometheus-rules
+    files:
+      - rules/opspilot-alerts.yaml
+  - name: alertmanager
+    files:
+      - alertmanager/alertmanager.yml
 generatorOptions:
   disableNameSuffixHash: true
