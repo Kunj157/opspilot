@@ -6,6 +6,7 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 import sqlalchemy as sa
+from prometheus_client import REGISTRY
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
     AsyncSession,
@@ -135,6 +136,11 @@ async def test_a_crashed_investigation_is_retried_after_its_lease(
             raise RuntimeError("worker died mid-run")
         return model(schema, prompt)  # type: ignore[arg-type]
 
+    def runs(outcome: str) -> float:
+        labels = {"agent": "investigation", "outcome": outcome}
+        return REGISTRY.get_sample_value("opspilot_agent_runs_total", labels) or 0
+
+    crashed, completed = runs("crashed"), runs("completed")
     r = runner(sessions, flaky)
     await r.run_once()
     async with sessions() as session:
@@ -153,3 +159,5 @@ async def test_a_crashed_investigation_is_retried_after_its_lease(
         inv = await session.get_one(Investigation, investigation_id)
     assert inv.status is InvestigationStatus.COMPLETED
     assert inv.attempts == 2
+    assert runs("crashed") == crashed + 1
+    assert runs("completed") == completed + 1

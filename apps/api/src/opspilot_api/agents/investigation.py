@@ -54,6 +54,7 @@ from opspilot_api.db.models import (
     Service,
 )
 from opspilot_api.incidents import service as incidents
+from opspilot_api.ops_metrics import AGENT_RUNS
 
 log = structlog.get_logger("opspilot.investigation")
 
@@ -692,6 +693,7 @@ class Investigator:
                 metadata={"investigation_id": str(investigation.id), "status": status.value},
             )
             await session.commit()
+        AGENT_RUNS.labels("investigation", status.value).inc()
         return status
 
     def _check_limits(self) -> None:

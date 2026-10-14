@@ -7,6 +7,7 @@ import pytest
 import sqlalchemy as sa
 from opentelemetry import trace
 from opentelemetry.trace import NonRecordingSpan, SpanContext, TraceFlags
+from prometheus_client import REGISTRY
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from opspilot_api.db.models import ProcessedEvent
@@ -43,9 +44,14 @@ async def test_a_duplicate_event_queues_one_investigation(
 ) -> None:
     incident = await detector_incident(sessions)
     p, message = processor(sessions, Recorder()), created_event(incident)
+    delay = "opspilot_event_processing_delay_seconds_count"
+    before = REGISTRY.get_sample_value(delay, {"consumer": p.name}) or 0
 
     first = await p.process("incident.created.v1", b"k", message)
     second = await p.process("incident.created.v1", b"k", message)
+
+    # Only the handled delivery counts towards the processing-delay SLI.
+    assert REGISTRY.get_sample_value(delay, {"consumer": p.name}) == before + 1
 
     assert (first.outcome, first.detail) == ("handled", "queued")
     assert second.outcome == "duplicate"

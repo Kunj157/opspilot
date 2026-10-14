@@ -25,6 +25,7 @@ from opspilot_api.db.models import (
     RemediationProposal,
     Service,
 )
+from opspilot_api.ops_metrics import AGENT_RUNS
 
 log = structlog.get_logger("opspilot.postmortem")
 
@@ -119,7 +120,9 @@ async def generate(
             }
         )
         content = draft.model_dump()
+        AGENT_RUNS.labels("postmortem", "completed").inc()
     except LLMError as exc:
+        AGENT_RUNS.labels("postmortem", "fallback").inc()
         log.warning("postmortem model call failed", incident_id=str(incident_id), error=str(exc))
         generated_by = "template"
         content = {
