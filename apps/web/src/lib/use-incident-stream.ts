@@ -13,6 +13,12 @@ export const INCIDENT_EVENT_TYPES = [
   "incident.agent_update",
   "incident.remediation_proposed",
   "incident.investigation_finished",
+  "incident.remediation_approved",
+  "incident.remediation_rejected",
+  "incident.remediation_executed",
+  "incident.remediation_failed",
+  "incident.verification_passed",
+  "incident.verification_failed",
 ] as const;
 
 export type StreamState = "connecting" | "live" | "reconnecting";
