@@ -153,7 +153,7 @@ resource "aws_eks_node_group" "this" {
     max_unavailable = 1
   }
 
-  # The scheduled scaler and the cluster autoscaler own the desired size.
+  # The optional office-hours schedule owns the desired size.
   lifecycle {
     ignore_changes = [scaling_config[0].desired_size]
   }

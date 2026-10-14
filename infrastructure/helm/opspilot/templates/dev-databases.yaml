@@ -1,6 +1,15 @@
 {{- if .Values.devDatabases.enabled }}
 # Development only: throwaway PostgreSQL (pgvector) and Redis. Managed RDS and
 # ElastiCache replace them in AWS (infrastructure/terraform).
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: opspilot-dev-databases
+  labels: {{- include "opspilot.labels" . | nindent 4 }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "-3"
+automountServiceAccountToken: false
 {{- range $db := list (dict "name" "opspilot-postgres" "image" "pgvector/pgvector:0.8.0-pg17" "port" 5432 "uid" 999) (dict "name" "opspilot-redis" "image" "redis:7.4-alpine" "port" 6379 "uid" 999) }}
 ---
 apiVersion: v1
@@ -31,6 +40,7 @@ spec:
     metadata:
       labels: {{- include "opspilot.selector" $db.name | nindent 8 }}
     spec:
+      serviceAccountName: opspilot-dev-databases
       automountServiceAccountToken: false
       securityContext:
         runAsNonRoot: true

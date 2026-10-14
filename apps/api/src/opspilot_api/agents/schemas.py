@@ -31,7 +31,9 @@ ToolName = Literal[
     "search_similar_incidents",
 ]
 
-ActionType = Literal["ROLLBACK_DEPLOYMENT", "RESTART_DEPLOYMENT", "SCALE_DEPLOYMENT", "NO_ACTION"]
+ActionType = Literal[
+    "ROLLBACK_DEPLOYMENT", "RESTART_DEPLOYMENT", "SCALE_DEPLOYMENT", "PAUSE_ROLLOUT", "NO_ACTION"
+]
 
 
 class Strict(BaseModel):
