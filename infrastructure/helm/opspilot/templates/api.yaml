@@ -28,6 +28,7 @@ spec:
   replicas: {{ .Values.api.replicas }}
   {{- end }}
   revisionHistoryLimit: 5
+  progressDeadlineSeconds: 180
   selector:
     matchLabels: {{- include "opspilot.selector" $name | nindent 6 }}
   {{- if .Values.rollouts.enabled }}

@@ -28,11 +28,13 @@ spec:
   replicas: {{ .Values.web.replicas }}
   {{- end }}
   revisionHistoryLimit: 5
+  progressDeadlineSeconds: 180
   selector:
     matchLabels: {{- include "opspilot.selector" $name | nindent 6 }}
   {{- if .Values.rollouts.enabled }}
   strategy:
     canary:
+      progressDeadlineAbort: true
       steps:
         {{- range .Values.rollouts.steps }}
         - setWeight: {{ . }}
