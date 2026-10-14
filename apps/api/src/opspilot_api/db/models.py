@@ -521,6 +521,24 @@ class RemediationProposal(UUIDPrimaryKey, Timestamps, OrganizationScoped, Base):
     version: Mapped[int] = mapped_column(Integer, server_default="1")
 
 
+class Postmortem(UUIDPrimaryKey, Timestamps, OrganizationScoped, Base):
+    """A drafted postmortem for a resolved incident; regenerated on request."""
+
+    __tablename__ = "postmortems"
+
+    organization_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("organizations.id", ondelete="RESTRICT")
+    )
+    incident_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("incidents.id", ondelete="CASCADE"), unique=True
+    )
+    # pending → ready (or ready with a template when the model failed).
+    status: Mapped[str] = mapped_column(String(20), server_default="pending")
+    content: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
+    generated_by: Mapped[str | None] = mapped_column(String(100))
+    prompt_version: Mapped[str | None] = mapped_column(String(20))
+
+
 class IdempotencyKey(Base):
     """Stored outcome of a create request, replayed when the same key is retried."""
 
