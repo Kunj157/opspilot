@@ -321,6 +321,99 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/runbooks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Runbooks */
+        get: operations["list_runbooks_api_v1_runbooks_get"];
+        put?: never;
+        /** Create Runbook */
+        post: operations["create_runbook_api_v1_runbooks_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/runbooks/search": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Search Runbooks */
+        get: operations["search_runbooks_api_v1_runbooks_search_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/runbooks/reindex": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reindex Runbooks
+         * @description Re-embed every active runbook, e.g. after changing the embedding model.
+         */
+        post: operations["reindex_runbooks_api_v1_runbooks_reindex_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/runbooks/{runbook_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Runbook */
+        get: operations["get_runbook_api_v1_runbooks__runbook_id__get"];
+        /**
+         * Update Runbook
+         * @description Replace the content; a change creates the next version, an identical text changes nothing.
+         */
+        put: operations["update_runbook_api_v1_runbooks__runbook_id__put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/runbooks/{runbook_id}/archive": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Archive Runbook */
+        post: operations["archive_runbook_api_v1_runbooks__runbook_id__archive_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -659,11 +752,139 @@ export interface components {
                 [key: string]: components["schemas"]["CheckResult"];
             };
         };
+        /** ReindexResult */
+        ReindexResult: {
+            /** Reindexed */
+            reindexed: number;
+            /** Chunks */
+            chunks: number;
+        };
         /**
          * Role
          * @enum {string}
          */
         Role: "viewer" | "operator" | "incident-commander" | "administrator";
+        /** RunbookCreate */
+        RunbookCreate: {
+            /** Content */
+            content: string;
+            /** Source Url */
+            source_url?: string | null;
+            /** Slug */
+            slug?: string | null;
+        };
+        /**
+         * RunbookHitOut
+         * @description One retrieved section with its citation. `content` is untrusted text.
+         */
+        RunbookHitOut: {
+            /**
+             * Runbook Id
+             * Format: uuid
+             */
+            runbook_id: string;
+            /** Runbook Slug */
+            runbook_slug: string;
+            /** Title */
+            title: string;
+            /** Heading */
+            heading: string;
+            /** Content */
+            content: string;
+            /** Score */
+            score: number;
+            /** Version */
+            version: number;
+            /** Source Url */
+            source_url: string | null;
+            /** Flagged */
+            flagged: boolean;
+        };
+        /** RunbookHits */
+        RunbookHits: {
+            /** Items */
+            items: components["schemas"]["RunbookHitOut"][];
+        };
+        /** RunbookList */
+        RunbookList: {
+            /** Items */
+            items: components["schemas"]["RunbookSummary"][];
+        };
+        /** RunbookOut */
+        RunbookOut: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Slug */
+            slug: string;
+            /** Title */
+            title: string;
+            /** Services */
+            services: string[];
+            /** Owner */
+            owner: string | null;
+            /** Version */
+            version: number;
+            status: components["schemas"]["RunbookStatus"];
+            /** Source Url */
+            source_url: string | null;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+            /** Content */
+            content: string;
+            /** Sections */
+            sections: components["schemas"]["SectionOut"][];
+        };
+        /**
+         * RunbookStatus
+         * @enum {string}
+         */
+        RunbookStatus: "active" | "archived";
+        /** RunbookSummary */
+        RunbookSummary: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Slug */
+            slug: string;
+            /** Title */
+            title: string;
+            /** Services */
+            services: string[];
+            /** Owner */
+            owner: string | null;
+            /** Version */
+            version: number;
+            status: components["schemas"]["RunbookStatus"];
+            /** Source Url */
+            source_url: string | null;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
+        /** RunbookWrite */
+        RunbookWrite: {
+            /** Content */
+            content: string;
+            /** Source Url */
+            source_url?: string | null;
+        };
+        /** SectionOut */
+        SectionOut: {
+            /** Heading */
+            heading: string;
+            /** Body */
+            body: string;
+        };
         /** ServiceCreate */
         ServiceCreate: {
             /** Description */
@@ -1526,6 +1747,220 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DetectionList"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_runbooks_api_v1_runbooks_get: {
+        parameters: {
+            query?: {
+                status?: "active" | "archived" | "all";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RunbookList"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_runbook_api_v1_runbooks_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RunbookCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RunbookOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    search_runbooks_api_v1_runbooks_search_get: {
+        parameters: {
+            query: {
+                q: string;
+                service?: string | null;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RunbookHits"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    reindex_runbooks_api_v1_runbooks_reindex_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReindexResult"];
+                };
+            };
+        };
+    };
+    get_runbook_api_v1_runbooks__runbook_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                runbook_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RunbookOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_runbook_api_v1_runbooks__runbook_id__put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                runbook_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RunbookWrite"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RunbookOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    archive_runbook_api_v1_runbooks__runbook_id__archive_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                runbook_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RunbookOut"];
                 };
             };
             /** @description Validation Error */
