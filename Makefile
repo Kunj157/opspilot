@@ -16,7 +16,7 @@ DEMO_IMAGE := opspilot-demo:dev
 API := cd apps/api && uv run
 DEMO := cd demo/services && uv run
 
-.PHONY: db-upgrade db-downgrade db-revision keycloak-smoke token api-client web-dev dev build test-e2e test-lighthouse kind-create kind-delete docker-build deploy-local observability-up load-normal load-stop inject-failure reset-demo seed test-telemetry help infra-up infra-down stop secrets-scan install api-dev format lint typecheck test test-unit test-integration
+.PHONY: db-upgrade db-downgrade db-revision keycloak-smoke token api-client web-dev dev build test-e2e test-lighthouse kind-create kind-delete docker-build deploy-local observability-up load-normal load-stop inject-failure reset-demo seed test-telemetry test-detection worker help infra-up infra-down stop secrets-scan install api-dev format lint typecheck test test-unit test-integration
 
 help: ## List available targets
 	@grep -hE '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | sort | \
@@ -78,12 +78,16 @@ api-client: ## Regenerate the typed API client from the API's OpenAPI schema
 		print(json.dumps(create_app(Settings()).openapi(), indent=2))" > ../../packages/api-client/openapi.json
 	pnpm --filter @opspilot/api-client generate
 
+worker: ## Run the detection worker against local infra and the kind cluster's Prometheus
+	cd apps/api && uv run opspilot-worker
+
 web-dev: ## Run the web app with hot reload (proxies /api/v1 to the API)
 	API_URL=http://127.0.0.1:$${API_PORT:-8000} OIDC_ISSUER=$${JWT_ISSUER} \
 		pnpm --filter @opspilot/web dev --port $${WEB_PORT:-3000}
 
 dev: infra-up db-upgrade ## Start infrastructure, migrate, and run API and web together
-	@trap 'kill 0' INT TERM EXIT; $(MAKE) --no-print-directory api-dev & $(MAKE) --no-print-directory web-dev & wait
+	@trap 'kill 0' INT TERM EXIT; $(MAKE) --no-print-directory api-dev & $(MAKE) --no-print-directory web-dev & \
+		$(if $(PROMETHEUS_URL),$(MAKE) --no-print-directory worker &,) wait
 
 build: ## Production build of all apps
 	cd apps/api && uv build -q
@@ -150,6 +154,9 @@ reset-demo: ## Restore every demo service to its healthy release (keeps load run
 seed: ## Register the demo shop in the service catalog (API must be running)
 	cd apps/api && uv run python -m opspilot_api.demo_seed \
 		--api-url http://127.0.0.1:$${API_PORT:-8000} --token "$$(../../scripts/dev-token.sh admin)"
+
+test-detection: ## One sustained failure → exactly one incident, with detection delay (needs make dev and the kind stack)
+	cd demo/services && uv run python -u ../../tests/telemetry/detection_smoke.py
 
 test-telemetry: ## Follow one request through traces, logs, and metrics on the kind cluster
 	cd demo/services && uv run python -u ../../tests/telemetry/telemetry_smoke.py
