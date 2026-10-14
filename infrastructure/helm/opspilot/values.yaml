@@ -118,6 +118,39 @@ monitoring:
     enabled: false
     labels: {}
 
+# Nightly PostgreSQL backup (templates/backup.yaml). destination: pvc keeps
+# dumps on a PersistentVolumeClaim; s3 uploads them to S3 or any
+# S3-compatible store (MinIO: set s3.endpoint). On EKS give the service
+# account an IRSA role with s3:PutObject on the bucket instead of keys.
+backup:
+  enabled: false
+  schedule: "17 2 * * *"
+  destination: pvc
+  # pg_dump must match the server's major version (PostgreSQL 17 + pgvector).
+  image: pgvector/pgvector:0.8.0-pg17
+  publishImage:
+    pvc: curlimages/curl:8.16.0
+    s3: amazon/aws-cli:2.31.0
+  pushgatewayUrl: ""
+  activeDeadlineSeconds: 3600
+  resources:
+    requests: { cpu: 100m, memory: 256Mi }
+    limits: { cpu: "1", memory: 1Gi }
+  serviceAccountAnnotations: {}
+  pvc:
+    size: 20Gi
+    storageClassName: ""
+    existingClaim: ""
+    retentionDays: 14
+  s3:
+    bucket: ""
+    prefix: opspilot/postgres
+    endpoint: ""
+    region: eu-central-1
+    # Secret with AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY; empty = IRSA.
+    credentialsSecret: ""
+    stagingSize: 10Gi
+
 # Development only: in-cluster PostgreSQL and Redis instead of managed ones.
 devDatabases:
   enabled: false
