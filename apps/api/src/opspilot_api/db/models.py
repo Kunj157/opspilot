@@ -579,6 +579,11 @@ class RemediationExecution(UUIDPrimaryKey, Timestamps, OrganizationScoped, Base)
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     output: Mapped[dict[str, Any]] = mapped_column(JSONB, server_default="{}")
     error_message: Mapped[str | None] = mapped_column(String(1000))
+    # After a successful run: pending → passed | failed, with the measurements taken.
+    verification_status: Mapped[str | None] = mapped_column(String(20))
+    verification: Mapped[dict[str, Any]] = mapped_column(JSONB, server_default="{}")
+    rollout_completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 class Postmortem(UUIDPrimaryKey, Timestamps, OrganizationScoped, Base):

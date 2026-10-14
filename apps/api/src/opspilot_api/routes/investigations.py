@@ -123,6 +123,9 @@ class ExecutionOut(BaseModel):
     completed_at: datetime | None
     output: dict[str, Any]
     error_message: str | None
+    verification_status: str | None
+    verification: dict[str, Any]
+    verified_at: datetime | None
 
 
 class ProposalOut(BaseModel):
