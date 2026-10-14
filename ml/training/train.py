@@ -81,6 +81,7 @@ def main() -> None:
                 ok, why = promotable(report, reports["rolling-zscore"])
                 mlflow.set_tags({"promotable": str(ok), "promotion_reason": why})
                 artifact = HERE / "models" / f"isolation-forest-{SCHEMA_VERSION}.joblib"
+                artifact.parent.mkdir(exist_ok=True)  # gitignored, so absent in a fresh clone
                 joblib.dump(detector, artifact)
                 mlflow.log_dict(detector.describe(), "detector.json")
                 mlflow.log_artifact(str(artifact))
