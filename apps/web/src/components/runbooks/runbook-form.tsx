@@ -5,6 +5,7 @@ import type { components } from "@opspilot/api-client/schema";
 import { type FormEvent, useId, useState } from "react";
 
 import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/input";
 
 type Runbook = components["schemas"]["RunbookOut"];
 
@@ -71,7 +72,7 @@ export function RunbookForm({ runbook, onSaved }: { runbook?: Runbook; onSaved: 
         <label htmlFor={`${id}-content`} className="mb-1.5 block text-xs text-fg-secondary">
           Runbook (markdown with front matter)
         </label>
-        <textarea
+        <Textarea
           id={`${id}-content`}
           value={content}
           onChange={(e) => setContent(e.target.value)}
@@ -79,7 +80,7 @@ export function RunbookForm({ runbook, onSaved }: { runbook?: Runbook; onSaved: 
           spellCheck={false}
           aria-invalid={error ? true : undefined}
           aria-describedby={error ? `${id}-error` : undefined}
-          className="w-full rounded-sm border border-border bg-surface-1 p-3 font-mono text-xs leading-relaxed focus:border-accent focus:outline-none aria-[invalid=true]:border-critical"
+          className="font-mono text-xs leading-relaxed"
         />
       </div>
       {error && (
