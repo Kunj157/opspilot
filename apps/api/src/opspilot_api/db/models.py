@@ -341,6 +341,186 @@ class RunbookChunk(UUIDPrimaryKey, Base):
     flagged: Mapped[bool] = mapped_column(server_default=text("false"))
 
 
+class InvestigationStatus(enum.StrEnum):
+    QUEUED = "queued"
+    RUNNING = "running"
+    COMPLETED = "completed"
+    # Stopped early (limits or model failure): evidence kept, manual review advised.
+    PARTIAL = "partial"
+    FAILED = "failed"
+
+
+class RemediationAction(enum.StrEnum):
+    ROLLBACK_DEPLOYMENT = "ROLLBACK_DEPLOYMENT"
+    RESTART_DEPLOYMENT = "RESTART_DEPLOYMENT"
+    SCALE_DEPLOYMENT = "SCALE_DEPLOYMENT"
+    PAUSE_ROLLOUT = "PAUSE_ROLLOUT"
+    NO_ACTION = "NO_ACTION"
+
+
+class ProposalStatus(enum.StrEnum):
+    PENDING = "PENDING"
+    APPROVED = "APPROVED"
+    REJECTED = "REJECTED"
+    EXECUTING = "EXECUTING"
+    EXECUTED = "EXECUTED"
+    FAILED = "FAILED"
+    SUPERSEDED = "SUPERSEDED"
+    EXPIRED = "EXPIRED"
+
+
+class Investigation(UUIDPrimaryKey, Timestamps, OrganizationScoped, Base):
+    """One agent investigation of an incident; the row is also its job in the queue."""
+
+    __tablename__ = "investigations"
+    __table_args__ = (
+        Index(
+            "uq_investigations_active_incident",
+            "incident_id",
+            unique=True,
+            postgresql_where=text("status IN ('queued', 'running')"),
+        ),
+        Index(None, "status", "lease_until"),
+    )
+
+    organization_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("organizations.id", ondelete="RESTRICT")
+    )
+    incident_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("incidents.id", ondelete="CASCADE"), index=True
+    )
+    status: Mapped[InvestigationStatus] = mapped_column(
+        _enum(InvestigationStatus, "investigation_status"),
+        server_default=InvestigationStatus.QUEUED.value,
+    )
+    requested_by: Mapped[str] = mapped_column(String(255))
+    attempts: Mapped[int] = mapped_column(Integer, server_default="0")
+    lease_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    current_node: Mapped[str | None] = mapped_column(String(50))
+    round: Mapped[int] = mapped_column(Integer, server_default="0")
+    # Graph state persisted after every node, so a restarted worker resumes.
+    state: Mapped[dict[str, Any]] = mapped_column(JSONB, server_default="{}")
+    # Final or partial outcome: summary, hypotheses, unknowns.
+    result: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
+    error: Mapped[str | None] = mapped_column(String(500))
+    tool_calls: Mapped[int] = mapped_column(Integer, server_default="0")
+    input_tokens: Mapped[int] = mapped_column(Integer, server_default="0")
+    output_tokens: Mapped[int] = mapped_column(Integer, server_default="0")
+    cost_usd: Mapped[float] = mapped_column(Float, server_default="0")
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class AgentRun(UUIDPrimaryKey, OrganizationScoped, Base):
+    __tablename__ = "agent_runs"
+
+    organization_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("organizations.id", ondelete="RESTRICT")
+    )
+    investigation_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("investigations.id", ondelete="CASCADE"), index=True
+    )
+    incident_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("incidents.id", ondelete="CASCADE"), index=True
+    )
+    agent_name: Mapped[str] = mapped_column(String(50))
+    status: Mapped[str] = mapped_column(String(20))
+    model_provider: Mapped[str] = mapped_column(String(50))
+    model_name: Mapped[str] = mapped_column(String(100))
+    prompt_version: Mapped[str] = mapped_column(String(20))
+    input_tokens: Mapped[int] = mapped_column(Integer, server_default="0")
+    output_tokens: Mapped[int] = mapped_column(Integer, server_default="0")
+    estimated_cost: Mapped[float] = mapped_column(Float, server_default="0")
+    latency_ms: Mapped[float] = mapped_column(Float, server_default="0")
+    error_code: Mapped[str | None] = mapped_column(String(100))
+    output: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class AgentToolCall(UUIDPrimaryKey, OrganizationScoped, Base):
+    __tablename__ = "agent_tool_calls"
+
+    organization_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("organizations.id", ondelete="RESTRICT")
+    )
+    agent_run_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("agent_runs.id", ondelete="CASCADE"), index=True
+    )
+    tool_name: Mapped[str] = mapped_column(String(100))
+    arguments: Mapped[dict[str, Any]] = mapped_column(JSONB)
+    status: Mapped[str] = mapped_column(String(20))
+    result_summary: Mapped[str | None] = mapped_column(String(2000))
+    error: Mapped[str | None] = mapped_column(String(500))
+    duration_ms: Mapped[float] = mapped_column(Float, server_default="0")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class Evidence(UUIDPrimaryKey, OrganizationScoped, Base):
+    """A cited observation: what was queried, over which time range, and what it showed."""
+
+    __tablename__ = "evidence"
+
+    organization_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("organizations.id", ondelete="RESTRICT")
+    )
+    incident_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("incidents.id", ondelete="CASCADE"), index=True
+    )
+    investigation_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("investigations.id", ondelete="SET NULL")
+    )
+    agent_run_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("agent_runs.id", ondelete="SET NULL")
+    )
+    evidence_type: Mapped[str] = mapped_column(String(50))
+    source: Mapped[str] = mapped_column(String(100))
+    summary: Mapped[str] = mapped_column(String(2000))
+    content: Mapped[dict[str, Any]] = mapped_column(JSONB, server_default="{}")
+    query: Mapped[str | None] = mapped_column(String(2000))
+    time_range_start: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    time_range_end: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    confidence: Mapped[float] = mapped_column(Float)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class RemediationProposal(UUIDPrimaryKey, Timestamps, OrganizationScoped, Base):
+    """An allow-listed action proposed by an agent; nothing runs without approval (phase 9)."""
+
+    __tablename__ = "remediation_proposals"
+
+    organization_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("organizations.id", ondelete="RESTRICT")
+    )
+    incident_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("incidents.id", ondelete="CASCADE"), index=True
+    )
+    investigation_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("investigations.id", ondelete="SET NULL")
+    )
+    runbook_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("runbooks.id", ondelete="SET NULL")
+    )
+    action_type: Mapped[RemediationAction] = mapped_column(
+        _enum(RemediationAction, "remediation_action")
+    )
+    description: Mapped[str] = mapped_column(String(2000))
+    # Target and bounded settings, e.g. {"namespace": "demo", "deployment": "checkout"}.
+    parameters: Mapped[dict[str, Any]] = mapped_column(JSONB)
+    risk_level: Mapped[str] = mapped_column(String(20))
+    status: Mapped[ProposalStatus] = mapped_column(
+        _enum(ProposalStatus, "proposal_status"), server_default=ProposalStatus.PENDING.value
+    )
+    verification_plan: Mapped[dict[str, Any]] = mapped_column(JSONB)
+    evidence_ids: Mapped[list[str]] = mapped_column(JSONB, server_default="[]")
+    created_by_agent_run_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("agent_runs.id", ondelete="SET NULL")
+    )
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # Bumped on any change; an approval must name the version it reviewed.
+    version: Mapped[int] = mapped_column(Integer, server_default="1")
+
+
 class IdempotencyKey(Base):
     """Stored outcome of a create request, replayed when the same key is retried."""
 

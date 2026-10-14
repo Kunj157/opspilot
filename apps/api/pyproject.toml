@@ -1,6 +1,6 @@
 [project]
 name = "opspilot-api"
-version = "0.5.0"
+version = "0.6.0"
 description = "OpsPilot API service"
 
 authors = [
@@ -9,9 +9,11 @@ authors = [
 requires-python = ">=3.12"
 dependencies = [
     "alembic>=1.20.0",
+    "anthropic>=1.13.0",
     "fastapi>=0.143.0",
     "fastembed>=0.9.0",
     "httpx>=0.28.1",
+    "httpx2>=2.13.1",
     "kubernetes>=37.0.1",
     "pgvector>=0.5.1",
     "prometheus-client>=0.26.0",
