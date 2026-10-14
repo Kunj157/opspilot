@@ -71,7 +71,15 @@ function capitalize(value: string) {
   return value[0].toUpperCase() + value.slice(1);
 }
 
-export function IncidentList({ canManage, currentUserId }: { canManage: boolean; currentUserId: string }) {
+export function IncidentList({
+  canManage,
+  canReadUsers = false,
+  currentUserId,
+}: {
+  canManage: boolean;
+  canReadUsers?: boolean;
+  currentUserId: string;
+}) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -116,7 +124,7 @@ export function IncidentList({ canManage, currentUserId }: { canManage: boolean;
     void queryClient.invalidateQueries({ queryKey: INCIDENTS_KEY });
   });
 
-  // People who have incidents assigned, for the assignee filter (until the API lists users).
+  // People who have incidents assigned, for the assignee filter.
   const assignees = useQuery({
     queryKey: [...INCIDENTS_KEY, "assignees"],
     queryFn: async ({ signal }) => {
@@ -129,9 +137,27 @@ export function IncidentList({ canManage, currentUserId }: { canManage: boolean;
     },
     staleTime: 60_000,
   });
+  // Names come from the user directory, which only administrators may read;
+  // everyone else sees short ids (and never requests it).
+  const directory = useQuery({
+    enabled: canReadUsers,
+    queryKey: ["users", "directory"],
+    queryFn: async ({ signal }) => {
+      const { data } = await createApiClient(window.location.origin).GET("/api/v1/users", {
+        params: { query: { limit: 200 } },
+        signal,
+      });
+      if (!data) throw new Error("user directory unavailable");
+      return data.items;
+    },
+    staleTime: 300_000,
+  });
+  const userName = new Map((directory.data ?? []).map((u) => [u.id, u.display_name || u.email || null]));
+  const assigneeLabel = (id: string) => userName.get(id) ?? `User ${id.slice(0, 8)}`;
   const otherAssignees = [
     ...new Set([
       ...(assignees.data ?? []),
+      ...(directory.data ?? []).map((u) => u.id),
       ...(filters.assignee && filters.assignee !== "me" ? [filters.assignee] : []),
     ]),
   ].filter((id) => id !== currentUserId);
@@ -271,7 +297,7 @@ export function IncidentList({ canManage, currentUserId }: { canManage: boolean;
             <option value="me">Me</option>
             {otherAssignees.map((id) => (
               <option key={id} value={id}>
-                User {id.slice(0, 8)}
+                {assigneeLabel(id)}
               </option>
             ))}
           </FilterSelect>
