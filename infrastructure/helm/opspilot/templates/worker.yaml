@@ -76,8 +76,17 @@ spec:
           env:
             - { name: WORKER_METRICS_PORT, value: "9100" }
             - { name: WORKER_METRICS_HOST, value: "0.0.0.0" }
+            - { name: WORKER_HEARTBEAT_FILE, value: /tmp/worker-heartbeat }
           ports:
             - { name: metrics, containerPort: 9100 }
+          # Ready while the database answers: the worker touches the heartbeat
+          # file every 10 s after a successful query.
+          readinessProbe:
+            exec:
+              command: ["python", "-m", "opspilot_api.heartbeat", "/tmp/worker-heartbeat", "45"]
+            initialDelaySeconds: 5
+            periodSeconds: 15
+            timeoutSeconds: 5
           livenessProbe:
             tcpSocket: { port: metrics }
             periodSeconds: 20
