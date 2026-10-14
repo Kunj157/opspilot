@@ -16,7 +16,7 @@ DEMO_IMAGE := opspilot-demo:dev
 API := cd apps/api && uv run
 DEMO := cd demo/services && uv run
 
-.PHONY: db-upgrade db-downgrade db-revision keycloak-smoke token api-client web-dev dev build test-e2e test-lighthouse kind-create kind-delete docker-build deploy-local observability-up load-normal load-stop inject-failure reset-demo seed seed-runbooks test-telemetry test-detection worker help infra-up infra-down llm-up events-up stop secrets-scan install api-dev format lint typecheck test test-unit test-integration test-agent test-ml ml-scenarios ml-dataset ml-train images kind-load gitops-up tf-check tf-plan loadtest-teardown
+.PHONY: db-upgrade db-downgrade db-revision keycloak-smoke token api-client web-dev dev build test-e2e test-lighthouse kind-create kind-delete docker-build deploy-local observability-up load-normal load-stop inject-failure reset-demo seed seed-runbooks test-telemetry test-detection worker help infra-up infra-down llm-up events-up stop secrets-scan install api-dev format lint typecheck test test-unit test-integration test-agent test-ml ml-scenarios ml-dataset ml-train images kind-load gitops-up tf-check tf-plan loadtest-teardown infra-smoke
 
 help: ## List available targets
 	@grep -hE '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | sort | \
@@ -225,3 +225,7 @@ tf-plan: ## Plan an AWS environment: make tf-plan ENV=development (AWS credentia
 
 loadtest-teardown: ## Destroy the loadtest environment if its ttl has passed: ARGS="--dry-run" or "--force"
 	scripts/loadtest-teardown.sh $(ARGS)
+
+infra-smoke: ## After terraform apply: nodes, add-ons, secret sync, and database reachability: make infra-smoke ENV=development
+	@case " $(TF_ENVS) " in *" $(ENV) "*) ;; *) echo "ENV must be one of: $(TF_ENVS)"; exit 1;; esac
+	scripts/infra-smoke.sh $(ENV)

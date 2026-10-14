@@ -32,6 +32,14 @@ terraform init -backend-config=../backend.hcl
 terraform plan -out=tfplan && terraform apply tfplan
 ```
 
+Check the result with `make infra-smoke ENV=development` (wraps
+`scripts/infra-smoke.sh`). Through a throwaway kubeconfig, it checks that
+all nodes are Ready and the add-ons have rolled out (CoreDNS, VPC CNI,
+metrics-server, Karpenter, load balancer controller, cert-manager, External
+Secrets). It also checks that the node class, node pool, ClusterIssuer, and
+ClusterSecretStore report Ready, that the app ExternalSecret has synced
+once the chart is installed, and that a pod can reach PostgreSQL.
+
 Then delegate the environment's domain to the `name_servers` output, put the
 OIDC client secret and model API key into the Secrets Manager entries
 (`opspilot-<env>/...`), and point CI at the `ci_role_arn` output.
@@ -45,6 +53,9 @@ staging have deletion protection off. Production refuses to drop its
 database, takes a final snapshot, and keeps the state bucket.
 
 ## Security
+
+Every role, its trust, and its permissions, with the reason for each, are
+listed in [docs/security/iam-review.md](../../docs/security/iam-review.md).
 
 - Every store is encrypted with a customer-managed KMS key that rotates
   yearly: state, flow logs, EKS secrets, node disks, RDS, Redis, buckets,
@@ -119,6 +130,41 @@ KMS use is limited to decrypting through Secrets Manager or S3. The pods
 get credentials when their service account carries the
 `eks.amazonaws.com/role-arn` annotation with the matching ARN. Other
 outputs the chart needs: `app_secret_name`, `redis_app_user`, `buckets`.
+
+## Deploy OpsPilot onto an environment
+
+The chart in `infrastructure/helm/opspilot` takes the Terraform outputs
+like this (production shown):
+
+```yaml
+existingSecret: opspilot
+externalSecrets:
+  enabled: true                               # store: aws-secrets-manager (output secret_store)
+  remoteKey: opspilot-production/app          # output app_secret_name
+serviceAccounts:
+  api:    { annotations: { eks.amazonaws.com/role-arn: <app_role_arns.api> } }
+  worker: { annotations: { eks.amazonaws.com/role-arn: <app_role_arns.worker> } }
+ingress:
+  enabled: true
+  className: alb
+  hosts: [opspilot.example.com]               # inside the environment's domain
+  annotations:
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/group.name: opspilot
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTPS":443}]'
+    alb.ingress.kubernetes.io/ssl-policy: ELBSecurityPolicy-TLS13-1-2-2021-06
+networkPolicy:
+  ingressPeers: [{ ipBlock: { cidr: 10.30.0.0/16 } }]   # the VPC: ALB IP targets
+```
+
+Put the application settings into the `opspilot-<env>/app` secret as one
+JSON object (`DATABASE_URL`, `REDIS_URL`, `JWT_ISSUER`, `OIDC_*`,
+`LLM_API_KEY`, ...). External Secrets turns it into the `opspilot` Secret
+and refreshes it hourly. Then point a DNS record for the host at the ALB.
+For an in-cluster controller instead of the ALB, set its `className`,
+`certManager.enabled: true`, and `tls.secretName`. cert-manager then issues
+the certificate from the `letsencrypt` ClusterIssuer.
 
 ## Temporary load-test environment
 
