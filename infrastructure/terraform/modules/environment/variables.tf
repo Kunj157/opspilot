@@ -126,3 +126,9 @@ variable "office_hours" {
   })
   default = null
 }
+
+variable "app_namespace" {
+  description = "Namespace of the OpsPilot release; the application roles trust its service accounts"
+  type        = string
+  default     = "opspilot"
+}

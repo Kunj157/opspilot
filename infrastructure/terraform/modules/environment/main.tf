@@ -156,7 +156,7 @@ module "ml_models" {
 module "secrets" {
   source  = "../secrets"
   name    = local.name
-  secrets = ["oidc-client-secret", "llm-api-key", "session-secret"]
+  secrets = ["app", "oidc-client-secret", "llm-api-key", "session-secret"]
 }
 
 module "dns" {
