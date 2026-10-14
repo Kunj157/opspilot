@@ -5,12 +5,11 @@ incidents in a cloud application, investigates them with AI agents and
 machine learning, proposes safe remediation, runs human-approved runbooks,
 verifies recovery, and writes the postmortem.
 
-> **Status:** v0.8.0 released: foundation, authentication and audit, service
-> catalog and incident management, the modern UI with a 3D service topology,
-> an instrumented demo shop on Kubernetes with full telemetry, automatic
-> incident detection, runbook retrieval, and multi-agent investigation with
-> evidence-backed remediation proposals and drafted postmortems. Phase 9,
-> approval and safe remediation, is next. See the [roadmap](#roadmap).
+> **Status:** v0.11.0 released. The full incident loop works on the demo, from
+> detection through agent investigation, approved rollback, verification,
+> and postmortem; an ML detector runs in shadow mode; and incident events
+> flow through Redpanda with idempotent consumers. Phase 12, cloud
+> infrastructure, is next. See the [roadmap](#roadmap).
 
 ## What it does today
 
@@ -57,9 +56,35 @@ verifies recovery, and writes the postmortem.
   worker restart. Measured on the demo: a faulty checkout release is
   detected in about 60 s and investigated in about 10 s, with a correct
   rollback proposal.
+- **Approval and safe remediation:** an incident commander approves or
+  rejects the exact proposal version they reviewed. The worker then runs it
+  once (idempotency key, row locks, leases) through a Kubernetes adapter
+  with only three actions: roll back, restart, and scale within bounds, in
+  allow-listed namespaces. Everything is checked again just before acting.
+  Recovery is then verified: the rollout completes, and the error rate and
+  p95 over a 3-minute window are compared with the pre-incident baseline.
+  The incident is resolved, or the investigation reopens. Measured on the
+  demo: approval to rollback in 1 s, resolved 3 min 20 s later.
 - **Postmortems:** resolved incidents get a drafted, blameless postmortem
   whose findings are labelled confirmed, strong or weak hypothesis, or
   unknown, each citing its evidence.
+- **ML anomaly detection:** labelled failure runs recorded on the demo
+  cluster, versioned feature windows (traffic, errors, latency percentiles,
+  restarts, availability), a robust rolling z-score baseline and an
+  Isolation Forest, a chronological evaluation tracked in MLflow, and a
+  promotion rule. The model runs in shadow mode: it scores every service
+  each cycle and is compared with the rule and with real incidents on the
+  ML detector page, but it never opens incidents. On the held-out runs the
+  baseline wins (F1 0.97, no false alerts, 23 s delay), so the Isolation
+  Forest stays unpromoted. See [`ml/`](ml/README.md).
+- **Event-driven processing:** the incident timeline doubles as a
+  transactional outbox. A relay publishes it to versioned Redpanda topics
+  (envelope v1, keyed by incident, trace context in headers). Consumers are
+  idempotent by event ID, retry with backoff, and park poison or failing
+  messages on dead-letter topics, which can be replayed safely. Detector
+  incidents can be investigated from `incident.created.v1` events instead
+  of a direct call (`make events-up`, `KAFKA_BOOTSTRAP_SERVERS`,
+  `EVENT_DRIVEN_INVESTIGATIONS`).
 - **Design system:** Graphite & Iris tokens with contrast checked in CI,
   shared primitives (buttons, tilting cards, tabs, drawer, toasts), and
   Lighthouse budgets on primary pages.
@@ -86,7 +111,9 @@ verifies recovery, and writes the postmortem.
 | Identity | Keycloak (OIDC) |
 | Typed client (`packages/api-client`) | Generated from the API's OpenAPI schema |
 | Agents | LangGraph, Ollama (local, default) or the Anthropic API |
-| Planned | scikit-learn/MLflow, Redpanda, Terraform on AWS, Argo CD |
+| ML (`ml/`) | pandas, scikit-learn, MLflow |
+| Events | Redpanda (Kafka API), aiokafka |
+| Planned | Terraform on AWS, Argo CD |
 
 Design notes and decisions live in [`docs/`](docs): the
 [architecture overview](docs/architecture/overview.md), [SLOs](docs/architecture/slos.md),
@@ -107,10 +134,10 @@ Each phase ends with a tagged release.
 | 6 | Detection engine | ✅ v0.6.0 |
 | 7 | Runbook retrieval (RAG) | ✅ v0.7.0 |
 | 8 | Multi-agent investigation | ✅ v0.8.0 |
-| 9 | Approval and safe remediation | 🚧 next |
-| 10 | ML anomaly detection | planned |
-| 11 | Event-driven processing | planned |
-| 12 | Cloud infrastructure (AWS, Terraform) | planned |
+| 9 | Approval and safe remediation | ✅ v0.9.0 |
+| 10 | ML anomaly detection | ✅ v0.10.0 |
+| 11 | Event-driven processing | ✅ v0.11.0 |
+| 12 | Cloud infrastructure (AWS, Terraform) | 🚧 next |
 | 13 | Containers, Kubernetes, and GitOps | planned |
 
 ## Local development
@@ -189,6 +216,7 @@ storefront :38080. Scenarios are described in
 | `make test-integration` | API tests against real PostgreSQL and Redis (Testcontainers) |
 | `make test-e2e` | Playwright against the full stack, headless |
 | `make test-lighthouse` | Lighthouse budgets (performance ≥ 85, accessibility ≥ 90) on primary pages; summary in `test-results/lighthouse/` |
+| `make test-ml` | ML tests: feature schema, missing values, leakage, determinism |
 | `make test-agent` | Agent and retrieval evals on fixed datasets (`tests/agent-evals`) |
 | `make build` | Production builds |
 | `make api-client` | Regenerate the typed client from the OpenAPI schema |
