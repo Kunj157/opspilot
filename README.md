@@ -5,10 +5,11 @@ incidents in a cloud application, investigates them with AI agents and
 machine learning, proposes safe remediation, runs human-approved runbooks,
 verifies recovery, and writes the postmortem.
 
-> **Status:** v0.5.0 released: foundation, authentication and audit, service
+> **Status:** v0.6.0 released: foundation, authentication and audit, service
 > catalog and incident management, the modern UI with a 3D service topology,
-> and an instrumented demo shop on Kubernetes with full telemetry. Phase 6,
-> the detection engine, is next. See the [roadmap](#roadmap).
+> an instrumented demo shop on Kubernetes with full telemetry, and automatic
+> incident detection. Phase 7, runbook retrieval, is next. See the
+> [roadmap](#roadmap).
 
 ## What it does today
 
@@ -34,6 +35,10 @@ verifies recovery, and writes the postmortem.
   OpenTelemetry traces, JSON logs, and Prometheus metrics correlated by
   trace ID in Tempo, Loki, and Grafana; synthetic load and faulty-release
   scenarios that a rollback undoes.
+- **Detection:** a worker evaluates every service's error rate against
+  Prometheus. A sustained breach opens exactly one incident on the failing
+  service (callers are noted as affected), with the detector's readings as
+  evidence; recovery is recorded. Measured detection delay: 81–95 s.
 - **Design system:** Graphite & Iris tokens with contrast checked in CI,
   shared primitives (buttons, tilting cards, tabs, drawer, toasts), and
   Lighthouse budgets on primary pages.
@@ -77,8 +82,8 @@ Each phase ends with a tagged release.
 | 3 | Service catalog and incident management | ✅ v0.3.0 |
 | 4 | Modern UI and 3D service topology | ✅ v0.4.0 |
 | 5 | Demo microservices and telemetry | ✅ v0.5.0 |
-| 6 | Detection engine | 🚧 next |
-| 7 | Runbook retrieval (RAG) | planned |
+| 6 | Detection engine | ✅ v0.6.0 |
+| 7 | Runbook retrieval (RAG) | 🚧 next |
 | 8 | Multi-agent investigation | planned |
 | 9 | Approval and safe remediation | planned |
 | 10 | ML anomaly detection | planned |
