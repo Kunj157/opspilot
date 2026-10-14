@@ -16,7 +16,7 @@ DEMO_IMAGE := opspilot-demo:dev
 API := cd apps/api && uv run
 DEMO := cd demo/services && uv run
 
-.PHONY: db-upgrade db-downgrade db-revision keycloak-smoke token api-client web-dev dev build test-e2e test-lighthouse kind-create kind-delete docker-build deploy-local observability-up load-normal load-stop inject-failure reset-demo seed test-telemetry help infra-up infra-down stop secrets-scan install api-dev format lint typecheck test test-unit test-integration
+.PHONY: db-upgrade db-downgrade db-revision keycloak-smoke token api-client web-dev dev build test-e2e test-lighthouse kind-create kind-delete docker-build deploy-local observability-up load-normal load-stop inject-failure reset-demo seed seed-runbooks test-telemetry help infra-up infra-down stop secrets-scan install api-dev format lint typecheck test test-unit test-integration
 
 help: ## List available targets
 	@grep -hE '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | sort | \
@@ -149,6 +149,10 @@ reset-demo: ## Restore every demo service to its healthy release (keeps load run
 
 seed: ## Register the demo shop in the service catalog (API must be running)
 	cd apps/api && uv run python -m opspilot_api.demo_seed \
+		--api-url http://127.0.0.1:$${API_PORT:-8000} --token "$$(../../scripts/dev-token.sh admin)"
+
+seed-runbooks: ## Load docs/runbooks into the runbook library (API must be running)
+	cd apps/api && uv run python -m opspilot_api.runbook_seed \
 		--api-url http://127.0.0.1:$${API_PORT:-8000} --token "$$(../../scripts/dev-token.sh admin)"
 
 test-telemetry: ## Follow one request through traces, logs, and metrics on the kind cluster
