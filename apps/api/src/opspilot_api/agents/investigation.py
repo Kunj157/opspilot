@@ -23,6 +23,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from opspilot_api.agents import prompts
+from opspilot_api.agents.grounding import ground_summary
 from opspilot_api.agents.llm import LLM, LLMError, Usage, as_json
 from opspilot_api.agents.policy import (
     PROPOSAL_TTL,
@@ -301,7 +302,12 @@ class Investigator:
             h.model_dump() for h in sorted(grounded, key=lambda h: -h.confidence)
         ]
         state["unknowns"] = synthesis.unknowns
-        state["summary"] = synthesis.summary
+        grounded_summary = ground_summary(synthesis.summary, known)
+        state["summary"] = grounded_summary.summary
+        if grounded_summary.dropped:
+            state["notes"].append(
+                f"Dropped {grounded_summary.dropped} summary claim(s) citing unknown evidence"
+            )
         enough = synthesis.enough_evidence and bool(grounded)
         state["enough_evidence"] = enough
         if grounded:
