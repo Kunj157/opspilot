@@ -11,6 +11,7 @@ import asyncio
 import uuid
 from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
+from typing import Any
 
 import structlog
 from sqlalchemy import select, update
@@ -120,7 +121,7 @@ class InvestigationRunner:
         return True
 
     async def _keep_lease(
-        self, investigation_id: uuid.UUID, attempt: int, work: "asyncio.Future[object]"
+        self, investigation_id: uuid.UUID, attempt: int, work: "asyncio.Future[Any]"
     ) -> None:
         """Renew the lease every third of its length while this attempt still owns the job."""
         lease = LEASE

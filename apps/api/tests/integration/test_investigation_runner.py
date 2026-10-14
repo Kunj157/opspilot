@@ -172,7 +172,7 @@ class SlowLLM(ScriptedLLM):
         super().__init__(model)  # type: ignore[arg-type]
         self.delay = delay
 
-    async def complete_json(self, system: str, prompt: str, schema: Any) -> Any:  # type: ignore[override]
+    async def complete_json(self, system: str, prompt: str, schema: Any) -> Any:
         await asyncio.sleep(self.delay)
         return await super().complete_json(system, prompt, schema)
 
