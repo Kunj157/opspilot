@@ -129,7 +129,14 @@ make load-normal           # steady synthetic traffic
 make inject-failure SCENARIO=checkout-http-500   # ship a faulty release
 make reset-demo            # back to the healthy release
 make test-telemetry        # follow one request through traces, logs, and metrics
+make test-detection        # one sustained failure → exactly one incident (needs make dev)
 ```
+
+With `PROMETHEUS_URL` set, `make dev` also runs the **detection worker**. Every
+15 s it evaluates each catalog service's error rate. A sustained breach opens
+one incident on the failing service. Callers that fail because of it are
+noted as affected on that incident instead of getting incidents of their own.
+Recovery is recorded on the timeline.
 
 The cluster uses its own kubeconfig (`.kube/config`), so other clusters are
 never touched. It publishes fixed localhost ports: Grafana
