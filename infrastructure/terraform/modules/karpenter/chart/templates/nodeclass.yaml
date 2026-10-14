@@ -1,0 +1,30 @@
+apiVersion: karpenter.k8s.aws/v1
+kind: EC2NodeClass
+metadata:
+  name: default
+spec:
+  role: {{ .Values.nodeRole | quote }}
+  amiSelectorTerms:
+    - alias: {{ .Values.amiAlias | quote }}
+  subnetSelectorTerms:
+    {{- range .Values.subnetIds }}
+    - id: {{ . | quote }}
+    {{- end }}
+  securityGroupSelectorTerms:
+    {{- range .Values.securityGroupIds }}
+    - id: {{ . | quote }}
+    {{- end }}
+  # IMDSv2 only, and pods cannot reach the node's credentials.
+  metadataOptions:
+    httpEndpoint: enabled
+    httpTokens: required
+    httpPutResponseHopLimit: 1
+  blockDeviceMappings:
+    - deviceName: /dev/xvda
+      ebs:
+        volumeSize: {{ printf "%dGi" (int .Values.diskGi) }}
+        volumeType: gp3
+        encrypted: true
+        kmsKeyID: {{ .Values.kmsKeyId | quote }}
+  tags:
+    eks:eks-cluster-name: {{ .Values.clusterName | quote }}

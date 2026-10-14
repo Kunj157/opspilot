@@ -39,6 +39,15 @@ variable "node_groups" {
   }))
 }
 
+variable "karpenter" {
+  description = "Application capacity launched by Karpenter (the node groups run system add-ons)"
+  type = object({
+    capacity_types      = list(string)
+    cpu_limit           = number
+    controller_replicas = optional(number, 2)
+  })
+}
+
 variable "db_instance_class" {
   type    = string
   default = "db.t4g.micro"
@@ -102,7 +111,7 @@ variable "monthly_budget_usd" {
 }
 
 variable "office_hours" {
-  description = "Scale the nodes to zero outside these hours (null keeps them running)"
+  description = "Scale the node groups to zero outside these hours (null keeps them running). Only for environments without Karpenter nodes to clean up: Karpenter runs on these groups."
   type = object({
     time_zone  = string
     start_cron = string

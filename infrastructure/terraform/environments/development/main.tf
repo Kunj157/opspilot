@@ -9,6 +9,10 @@ terraform {
       source  = "hashicorp/tls"
       version = "~> 4.0"
     }
+    helm = {
+      source  = "hashicorp/helm"
+      version = "~> 3.0"
+    }
   }
   # Partial configuration: `terraform init -backend-config=../backend.hcl`
   # supplies the bucket created by ../../bootstrap.
@@ -23,6 +27,20 @@ provider "aws" {
   region = var.region
   default_tags {
     tags = { project = "opspilot", environment = "development", managed-by = "terraform" }
+  }
+}
+
+# Cluster add-ons are Helm releases; the token comes from the caller's AWS
+# credentials, so nothing long-lived is stored.
+provider "helm" {
+  kubernetes = {
+    host                   = module.environment.cluster_endpoint
+    cluster_ca_certificate = base64decode(module.environment.cluster_certificate_authority)
+    exec = {
+      api_version = "client.authentication.k8s.io/v1beta1"
+      command     = "aws"
+      args        = ["eks", "get-token", "--cluster-name", module.environment.cluster_name, "--region", var.region]
+    }
   }
 }
 
@@ -52,7 +70,8 @@ module "environment" {
   azs                         = ["${var.region}a", "${var.region}b", "${var.region}c"]
   single_nat_gateway          = true
   eks_public_endpoint_cidrs   = var.eks_public_endpoint_cidrs
-  node_groups                 = { default = { instance_types = ["t4g.medium"], capacity_type = "SPOT", min = 1, max = 3, desired = 2 } }
+  node_groups                 = { system = { instance_types = ["t4g.medium"], capacity_type = "ON_DEMAND", min = 1, max = 2, desired = 1 } }
+  karpenter                   = { capacity_types = ["spot", "on-demand"], cpu_limit = 8, controller_replicas = 1 }
   db_instance_class           = "db.t4g.micro"
   db_multi_az                 = false
   db_backup_retention_days    = 3
@@ -63,13 +82,7 @@ module "environment" {
   log_retention_days          = 30
   create_github_oidc_provider = true
   monthly_budget_usd          = 250
-  office_hours = {
-    time_zone  = "Europe/Berlin"
-    start_cron = "0 7 * * MON-FRI"
-    stop_cron  = "0 20 * * MON-FRI"
-    min        = 1
-    max        = 3
-  }
+  office_hours                = null
 }
 
 output "environment" {
