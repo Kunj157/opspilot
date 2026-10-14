@@ -25,6 +25,10 @@ from opspilot_api.agents.postmortem import pending as pending_postmortems
 from opspilot_api.agents.runner import InvestigationRunner, context_factory
 from opspilot_api.config import Settings, get_settings
 from opspilot_api.detection.worker import DetectionWorker
+from opspilot_api.events.consumer import EventProcessor, KafkaConsumerLoop
+from opspilot_api.events.handlers import investigation_requester
+from opspilot_api.events.producer import KafkaProducer
+from opspilot_api.events.relay import OutboxRelay
 from opspilot_api.kube import KubernetesWriter
 from opspilot_api.logging import configure_logging
 from opspilot_api.ml.shadow import ShadowScorer
@@ -73,7 +77,9 @@ async def run(settings: Settings) -> None:
             sessions,
             metrics,
             lag=timedelta(seconds=settings.detection_lag_seconds),
-            auto_investigate=settings.auto_investigate,
+            # With event-driven investigations the consumer queues them instead.
+            auto_investigate=settings.auto_investigate
+            and not (settings.kafka_bootstrap_servers and settings.event_driven_investigations),
         )
 
         async def detect() -> bool:
@@ -150,6 +156,30 @@ async def run(settings: Settings) -> None:
 
     loops.append(_loop(stop, "verification", verify_recovery, 10.0))
 
+    producer: KafkaProducer | None = None
+    if settings.kafka_bootstrap_servers:
+        producer = KafkaProducer(settings.kafka_bootstrap_servers)
+        relay = OutboxRelay(sessions, producer)
+
+        async def publish() -> bool:
+            """Publish the incident timeline; a broker outage just retries next time."""
+            return bool(await relay.publish_once())
+
+        loops.append(_loop(stop, "events-relay", publish, 1.0))
+        processor = EventProcessor(
+            "investigations",
+            sessions,
+            investigation_requester(
+                authoritative=settings.event_driven_investigations and settings.auto_investigate
+            ),
+            producer,
+        )
+        loops.append(
+            KafkaConsumerLoop(
+                processor, settings.kafka_bootstrap_servers, ["incident.created.v1"]
+            ).run(stop)
+        )
+
     log.info(
         "worker started", detection=bool(settings.prometheus_url), llm=f"{llm.provider}:{llm.model}"
     )
@@ -159,6 +189,8 @@ async def run(settings: Settings) -> None:
         for backend in (metrics, logs, traces):
             await backend.aclose()
         await llm.aclose()
+        if producer:
+            await producer.aclose()
         await engine.dispose()
         log.info("worker stopped")
 
