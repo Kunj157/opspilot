@@ -83,7 +83,12 @@ variable "domain" {
 }
 
 variable "alert_emails" {
-  type = list(string)
+  description = "Alarm and budget recipients; the first is also the Let's Encrypt contact"
+  type        = list(string)
+  validation {
+    condition     = length(var.alert_emails) > 0
+    error_message = "List at least one alert e-mail."
+  }
 }
 
 variable "log_retention_days" {

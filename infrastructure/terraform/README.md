@@ -9,6 +9,7 @@ bootstrap/                 state bucket (once per AWS account, local state)
 modules/                   network, eks, rds, redis, ecr, s3, secrets, iam, dns, observability
 modules/irsa/              one IAM role for named Kubernetes service accounts
 modules/karpenter/         node autoscaling: IAM, interruption queue, chart, default NodePool
+modules/addons/            load balancer controller, cert-manager, External Secrets, issuers, secret store
 modules/environment/       one environment composed from the modules, plus budgets and schedules
 environments/<name>/       development, staging, production: separate state and settings
 ```
@@ -79,6 +80,24 @@ Karpenter launches for it:
   tagged for its own cluster, and pass only the Karpenter node role.
 
 Chart versions are pinned in `modules/karpenter/variables.tf`.
+
+## Cluster add-ons
+
+Installed by Terraform as Helm releases with pinned chart versions
+(`modules/addons/variables.tf`). Each has its own IRSA role:
+
+| Add-on | Chart | What it may do in AWS |
+|---|---|---|
+| AWS Load Balancer Controller | eks-charts `aws-load-balancer-controller` 3.6.0 | Manage ALBs, target groups, and their security groups (upstream policy, `modules/addons/lbc-policy.json`) |
+| cert-manager | jetstack `cert-manager` v1.21.2 | Write `_acme-challenge` TXT records in the environment's zone only |
+| External Secrets Operator | `external-secrets` 2.12.0 | Read `opspilot-<env>/*` secrets and decrypt them through Secrets Manager |
+
+Public traffic enters through an ALB (`ingressClassName: alb`) with the
+environment's ACM certificate. ingress-nginx was retired in March 2026, so
+it is not used; see [ADR-005](../../docs/adr/005-ingress-with-aws-load-balancer-controller.md).
+cert-manager provides the `letsencrypt` and `letsencrypt-staging`
+ClusterIssuers (Route53 DNS-01) for certificates that live in the cluster.
+External Secrets provides the `aws-secrets-manager` ClusterSecretStore.
 
 ## Cost controls
 
