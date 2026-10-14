@@ -11,6 +11,16 @@ approves, verifies recovery, and writes the postmortem.
 > interface. Terraform for AWS is validated but has not been applied. See
 > [known limitations](#known-limitations).
 
+![OpsPilot walkthrough: command center, camera fly-to, and a faulty release detected](docs/media/walkthrough.gif)
+
+| | |
+|---|---|
+| ![Agent investigation with a grounded rollback proposal](docs/media/investigation.png) | ![3D service topology focused on Checkout](docs/media/topology-focus.png) |
+| ![Evaluations dashboard](docs/media/evaluations.png) | ![ML detector in shadow mode against the baseline](docs/media/ml-detector.png) |
+
+Recorded on the live demo with the local model; `make demo-record` and
+`make demo-render` reproduce it.
+
 ## Contents
 
 [What it does](#what-it-does) · [Architecture](#architecture) ·
