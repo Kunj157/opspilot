@@ -221,6 +221,7 @@ async def _finish(
         execution.error_message = error
         execution.completed_at = datetime.now(UTC)
         execution.lease_until = None
+        execution.verification_status = "pending" if ok else None
         proposal.status = ProposalStatus.EXECUTED if ok else ProposalStatus.FAILED
 
         actor = incidents.Actor(ActorType.SYSTEM, ACTOR_ID, incident.organization_id)

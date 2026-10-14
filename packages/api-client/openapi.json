@@ -2908,6 +2908,34 @@
               }
             ],
             "title": "Error Message"
+          },
+          "verification_status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Verification Status"
+          },
+          "verification": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Verification"
+          },
+          "verified_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Verified At"
           }
         },
         "type": "object",
@@ -2918,7 +2946,10 @@
           "started_at",
           "completed_at",
           "output",
-          "error_message"
+          "error_message",
+          "verification_status",
+          "verification",
+          "verified_at"
         ],
         "title": "ExecutionOut"
       },

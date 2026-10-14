@@ -861,6 +861,14 @@ export interface components {
             };
             /** Error Message */
             error_message: string | null;
+            /** Verification Status */
+            verification_status: string | null;
+            /** Verification */
+            verification: {
+                [key: string]: unknown;
+            };
+            /** Verified At */
+            verified_at: string | null;
         };
         /**
          * ExecutionStatus
