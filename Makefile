@@ -76,8 +76,8 @@ test-unit: ## Unit tests
 test-integration: ## Integration tests against real containers (needs Docker)
 	$(API) pytest tests/integration
 
-test-agent: ## Agent and retrieval evals (tests/agent-evals); results in test-results/agent-evals
-	$(API) pytest tests/evals -s
+test-agent: ## Agent and retrieval evals (tests/agent-evals); LLM=ollama|anthropic for a real model
+	cd apps/api && EVAL_LLM=$(or $(LLM),scripted) uv run pytest tests/evals -s
 
 api-client: ## Regenerate the typed API client from the API's OpenAPI schema
 	cd apps/api && uv run python -c "import json; from opspilot_api.config import Settings; \
