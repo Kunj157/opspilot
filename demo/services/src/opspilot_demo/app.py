@@ -41,7 +41,7 @@ def create_app(
     rng: random.Random | None = None,
 ) -> FastAPI:
     provider = tracer_provider(settings, span_exporter)
-    metrics = Metrics()
+    metrics = Metrics(settings.service_name)
     chance = rng or random.Random()  # noqa: S311 - fault injection, not security
     client = httpx.AsyncClient(transport=transport, timeout=settings.request_timeout_seconds)
     HTTPXClientInstrumentor().instrument_client(client, tracer_provider=provider)
@@ -86,7 +86,9 @@ def create_app(
         if response.status_code >= 500:
             metrics.errors.labels(settings.service_name, route).inc()
             level = logging.ERROR
-            span.set_attribute("error.type", "InjectedFault" if injected else status)
+            # error.type is the status code (set by the instrumentation, per the HTTP
+            # semantic conventions); an injected fault is marked separately.
+            span.set_attribute("fault.injected", injected)
             span.set_status(Status(StatusCode.ERROR, "injected fault" if injected else None))
         logger.log(
             level,

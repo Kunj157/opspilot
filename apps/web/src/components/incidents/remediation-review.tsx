@@ -5,6 +5,7 @@ import type { components } from "@opspilot/api-client/schema";
 import { useId, useState } from "react";
 
 import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/input";
 import { useToast } from "@/components/ui/toast";
 
 export type Proposal = components["schemas"]["ProposalOut"];
@@ -20,6 +21,8 @@ export function describeProposal(p: Proposal): string {
       return `Restart ${target}`;
     case "SCALE_DEPLOYMENT":
       return `Scale ${target} to ${String(p.parameters.replicas)} replicas`;
+    case "PAUSE_ROLLOUT":
+      return `Pause the rollout of ${target}`;
     default:
       return "No action";
   }
@@ -36,7 +39,8 @@ function verificationPlan(plan: Record<string, unknown>): string {
   if (typeof plan.max_error_rate === "number") parts.push(`error rate ≤ ${Math.round(plan.max_error_rate * 100)}%`);
   if (typeof plan.max_p95_ratio_to_baseline === "number") parts.push(`p95 ≤ ${plan.max_p95_ratio_to_baseline}× baseline`);
   const window = typeof plan.window_minutes === "number" ? ` over ${plan.window_minutes} min` : "";
-  return parts.length ? `Then verify ${parts.join(", ")}${window} after the rollout.` : "";
+  const after = plan.require_paused === true ? "once the rollout is paused" : "after the rollout";
+  return parts.length ? `Then verify ${parts.join(", ")}${window} ${after}.` : "";
 }
 
 function expiry(expiresAt: string | null | undefined, now: number): string | null {
@@ -179,13 +183,12 @@ export function RemediationReview({
           <label htmlFor={commentId} className="text-xs text-fg-secondary">
             Comment (recorded with your decision)
           </label>
-          <textarea
+          <Textarea
             id={commentId}
             rows={2}
             maxLength={1000}
             value={comment}
             onChange={(e) => setComment(e.target.value)}
-            className="w-full rounded-sm border border-border bg-surface-1 px-2.5 py-2 text-sm placeholder:text-fg-muted focus:border-accent focus:outline-none"
           />
           <div className="flex gap-2">
             <Button size="sm" disabled={busy} onClick={() => void decide("approve")}>

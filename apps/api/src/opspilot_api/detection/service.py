@@ -167,6 +167,22 @@ async def apply_decision(
     if decision.outcome in {Outcome.TRIGGERED, Outcome.ONGOING}:
         incident = await _open_or_create(session, service, rule, decision, actor)
         score = decision.score or 0.0
+        if decision.outcome is Outcome.TRIGGERED:
+            # Published as telemetry.anomaly.detected.v1: identifiers and numbers only.
+            await note(
+                session,
+                incident,
+                actor,
+                event_type="incident.anomaly_detected",
+                title=f"Anomaly detected on {service.name} ({rule.failure_category})",
+                metadata={
+                    "service_id": str(service.id),
+                    "detector": rule.name,
+                    "failure_category": rule.failure_category,
+                    "score": decision.score,
+                    "threshold": decision.threshold,
+                },
+            )
         service.health_status = HealthStatus.CRITICAL if score >= 6 else HealthStatus.DEGRADED
     else:
         incident = await _open_incident(session, service, dedup_key(service, rule))

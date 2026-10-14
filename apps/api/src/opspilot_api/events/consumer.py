@@ -7,6 +7,11 @@ backoff; a message that keeps failing, or that cannot be parsed or has an
 unknown version (a poison message), is parked on `<topic>.dlq` with the
 error, and the consumer moves on. Offsets are committed only after a message
 is handled or parked.
+
+Each message continues the W3C trace context its producer put in the
+headers (traceparent, tracestate): handling runs in a consumer span that is
+a child of the publishing span, the trace id is bound to every log line,
+and a parked message keeps the headers so a replay continues the trace.
 """
 
 import asyncio
@@ -15,6 +20,8 @@ from dataclasses import dataclass
 
 import structlog
 from aiokafka import AIOKafkaConsumer, ConsumerRecord, TopicPartition
+from opentelemetry import propagate, trace
+from opentelemetry.trace import SpanKind
 from prometheus_client import Counter, Gauge
 from pydantic import ValidationError
 from sqlalchemy import update
@@ -36,6 +43,21 @@ LAG = Gauge(
 )
 
 Handler = Callable[[AsyncSession, Envelope], Awaitable[str]]
+Headers = list[tuple[str, bytes]]
+TRACE_HEADERS = {"traceparent", "tracestate", "baggage"}
+tracer = trace.get_tracer("opspilot.events.consumer")
+
+
+def trace_carrier(headers: Headers | None) -> dict[str, str]:
+    """The W3C trace context fields of a message's headers."""
+    carrier: dict[str, str] = {}
+    for key, value in headers or []:
+        if key.lower() in TRACE_HEADERS and value:
+            try:
+                carrier[key.lower()] = value.decode()
+            except UnicodeDecodeError:
+                continue
+    return carrier
 
 
 class PermanentError(Exception):
@@ -68,12 +90,18 @@ class EventProcessor:
         self.attempts = attempts
         self.backoff = backoff
 
-    async def _park(self, topic: str, key: bytes | None, value: bytes, error: str) -> Result:
+    async def _park(
+        self, topic: str, key: bytes | None, value: bytes, error: str, carrier: dict[str, str]
+    ) -> Result:
         await self.producer.send(
             dead_letter(topic),
             key=key or b"",
             value=value,
-            headers=[("error", error[:500].encode()), ("consumer", self.name.encode())],
+            headers=[
+                ("error", error[:500].encode()),
+                ("consumer", self.name.encode()),
+                *((k, v.encode()) for k, v in carrier.items()),
+            ],
         )
         HANDLED.labels(self.name, "dead_lettered").inc()
         log.warning("event dead-lettered", consumer=self.name, topic=topic, error=error)
@@ -101,21 +129,47 @@ class EventProcessor:
             await session.commit()
             return Result("handled", outcome)
 
-    async def process(self, topic: str, key: bytes | None, value: bytes) -> Result:
+    async def process(
+        self, topic: str, key: bytes | None, value: bytes, headers: Headers | None = None
+    ) -> Result:
+        carrier = trace_carrier(headers)
+        with tracer.start_as_current_span(
+            f"{topic.removesuffix('.dlq')} process",
+            context=propagate.extract(carrier),
+            kind=SpanKind.CONSUMER,
+            attributes={
+                "messaging.system": "kafka",
+                "messaging.operation.type": "process",
+                "messaging.destination.name": topic,
+                "messaging.consumer.group.name": self.name,
+            },
+        ) as span:
+            context = span.get_span_context()
+            trace_id = format(context.trace_id, "032x") if context.is_valid else None
+            with structlog.contextvars.bound_contextvars(trace_id=trace_id):
+                return await self._process(topic, key, value, carrier)
+
+    async def _process(
+        self, topic: str, key: bytes | None, value: bytes, carrier: dict[str, str]
+    ) -> Result:
         try:
             envelope = Envelope.model_validate(decode(value))
         except (ValueError, ValidationError) as exc:
-            return await self._park(topic, key, value, f"poison message: {exc}")
+            return await self._park(topic, key, value, f"poison message: {exc}", carrier)
         if envelope.event_type != topic.removesuffix(".dlq"):
-            return await self._park(topic, key, value, f"{envelope.event_type} on topic {topic}")
+            return await self._park(
+                topic, key, value, f"{envelope.event_type} on topic {topic}", carrier
+            )
         for attempt in range(1, self.attempts + 1):
             try:
                 result = await self._once(envelope, topic)
             except PermanentError as exc:
-                return await self._park(topic, key, value, str(exc))
+                return await self._park(topic, key, value, str(exc), carrier)
             except Exception as exc:
                 if attempt == self.attempts:
-                    return await self._park(topic, key, value, f"failed {attempt} times: {exc}")
+                    return await self._park(
+                        topic, key, value, f"failed {attempt} times: {exc}", carrier
+                    )
                 await asyncio.sleep(self.backoff * 2 ** (attempt - 1))
                 continue
             HANDLED.labels(self.name, result.outcome).inc()
@@ -153,7 +207,9 @@ class KafkaConsumerLoop:
             await self.consumer.stop()
 
     async def _handle(self, record: ConsumerRecord[bytes, bytes]) -> None:
-        await self.processor.process(record.topic, record.key, record.value or b"")
+        await self.processor.process(
+            record.topic, record.key, record.value or b"", list(record.headers or [])
+        )
 
     async def _lag(self, partition: TopicPartition) -> None:
         end = self.consumer.highwater(partition)
