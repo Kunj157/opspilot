@@ -26,6 +26,7 @@ from opspilot_api.routes import (
     services,
     topology,
 )
+from opspilot_api.runbooks.embeddings import build_embedder
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -62,6 +63,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 stack.push_async_callback(redis.aclose)
                 checks["redis"] = readiness.redis_check(redis)
 
+            app.state.embedder = build_embedder(
+                settings.embedding_model, settings.embedding_cache_dir
+            )
             app.state.settings = settings
             app.state.readiness_checks = checks
             app.state.session_factory = session_factory

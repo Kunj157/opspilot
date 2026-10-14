@@ -27,6 +27,10 @@ class Settings(BaseSettings):
     tempo_url: str | None = None
     telemetry_timeout_seconds: float = 5.0
 
+    # Runbook embeddings: a fastembed model name, or "hashing" (deterministic, for tests).
+    embedding_model: str = "BAAI/bge-small-en-v1.5"
+    embedding_cache_dir: str | None = None
+
     readiness_timeout_seconds: float = 2.0
     sse_heartbeat_seconds: float = 15.0
 

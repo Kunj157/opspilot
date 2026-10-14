@@ -6,7 +6,7 @@ import uuid
 from datetime import datetime
 from typing import Annotated, Literal
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from pydantic import AnyHttpUrl, BaseModel, ConfigDict, Field
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
@@ -19,6 +19,8 @@ from opspilot_api.auth.tenancy import get_owned_or_404, scoped
 from opspilot_api.db.models import Runbook, RunbookStatus
 from opspilot_api.db.session import get_session
 from opspilot_api.runbooks.document import RunbookDocument, RunbookDocumentError, parse
+from opspilot_api.runbooks.embeddings import Embedder
+from opspilot_api.runbooks.ingest import ingest
 
 router = APIRouter(prefix="/api/v1", tags=["runbooks"])
 
@@ -79,6 +81,16 @@ class RunbookList(BaseModel):
     items: list[RunbookSummary]
 
 
+class ReindexResult(BaseModel):
+    reindexed: int
+    chunks: int
+
+
+def get_embedder(request: Request) -> Embedder:
+    embedder: Embedder = request.app.state.embedder
+    return embedder
+
+
 def _document(content: str) -> RunbookDocument:
     try:
         return parse(content)
@@ -115,6 +127,7 @@ async def create_runbook(
     body: RunbookCreate,
     principal: Annotated[Principal, Depends(require(Permission.MANAGE_RUNBOOKS))],
     session: Annotated[AsyncSession, Depends(get_session)],
+    embedder: Annotated[Embedder, Depends(get_embedder)],
 ) -> RunbookOut:
     doc = _document(body.content)
     runbook = Runbook(
@@ -136,6 +149,7 @@ async def create_runbook(
         raise HTTPException(
             status.HTTP_409_CONFLICT, "A runbook with this slug already exists"
         ) from exc
+    await ingest(session, runbook, embedder)
     await record(
         session,
         principal=principal,
@@ -147,6 +161,34 @@ async def create_runbook(
     await session.commit()
     await session.refresh(runbook)
     return RunbookOut.of(runbook)
+
+
+@router.post("/runbooks/reindex", response_model=ReindexResult)
+async def reindex_runbooks(
+    principal: Annotated[Principal, Depends(require(Permission.MANAGE_RUNBOOKS))],
+    session: Annotated[AsyncSession, Depends(get_session)],
+    embedder: Annotated[Embedder, Depends(get_embedder)],
+) -> ReindexResult:
+    """Re-embed every active runbook, e.g. after changing the embedding model."""
+    runbooks = list(
+        await session.scalars(
+            scoped(select(Runbook), Runbook, principal).where(
+                Runbook.status == RunbookStatus.ACTIVE
+            )
+        )
+    )
+    total = 0
+    for runbook in runbooks:
+        total += await ingest(session, runbook, embedder)
+    await record(
+        session,
+        principal=principal,
+        action="runbook.reindexed",
+        resource_type="runbook",
+        metadata={"runbooks": len(runbooks), "chunks": total},
+    )
+    await session.commit()
+    return ReindexResult(reindexed=len(runbooks), chunks=total)
 
 
 @router.get("/runbooks/{runbook_id}", response_model=RunbookOut)
@@ -164,6 +206,7 @@ async def update_runbook(
     body: RunbookWrite,
     principal: Annotated[Principal, Depends(require(Permission.MANAGE_RUNBOOKS))],
     session: Annotated[AsyncSession, Depends(get_session)],
+    embedder: Annotated[Embedder, Depends(get_embedder)],
 ) -> RunbookOut:
     """Replace the content; a change creates the next version, an identical text changes nothing."""
     runbook = await get_owned_or_404(session, Runbook, runbook_id, principal)
@@ -179,6 +222,7 @@ async def update_runbook(
     runbook.status = RunbookStatus.ACTIVE
     if body.source_url:
         runbook.source_url = str(body.source_url)
+    await ingest(session, runbook, embedder)
     await record(
         session,
         principal=principal,
