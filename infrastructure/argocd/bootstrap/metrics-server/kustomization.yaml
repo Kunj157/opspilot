@@ -1,0 +1,12 @@
+# metrics-server for HPAs on kind (EKS installs it as a managed add-on).
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - https://github.com/kubernetes-sigs/metrics-server/releases/download/v0.9.0/components.yaml
+patches:
+  # kind's kubelets use self-signed serving certificates.
+  - target: { kind: Deployment, name: metrics-server }
+    patch: |
+      - op: add
+        path: /spec/template/spec/containers/0/args/-
+        value: --kubelet-insecure-tls

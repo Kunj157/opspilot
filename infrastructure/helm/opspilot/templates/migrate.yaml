@@ -1,6 +1,15 @@
 # Database migrations for each image: a new tag means a new Job. Argo CD runs
 # it after the databases and before the workloads (sync waves); the API stays
 # unready until its database is reachable.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: opspilot-migrate
+  labels: {{- include "opspilot.labels" . | nindent 4 }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "-3"
+automountServiceAccountToken: false
+---
 apiVersion: batch/v1
 kind: Job
 metadata:
@@ -16,7 +25,7 @@ spec:
       labels: {{- include "opspilot.selector" "opspilot-migrate" | nindent 8 }}
     spec:
       restartPolicy: Never
-      serviceAccountName: opspilot-api
+      serviceAccountName: opspilot-migrate
       automountServiceAccountToken: false
       securityContext: {{- include "opspilot.podSecurity" . | nindent 8 }}
       containers:

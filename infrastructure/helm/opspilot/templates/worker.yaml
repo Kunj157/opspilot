@@ -75,6 +75,7 @@ spec:
           {{- include "opspilot.env" . | nindent 10 }}
           env:
             - { name: WORKER_METRICS_PORT, value: "9100" }
+            - { name: WORKER_METRICS_HOST, value: "0.0.0.0" }
           ports:
             - { name: metrics, containerPort: 9100 }
           livenessProbe:

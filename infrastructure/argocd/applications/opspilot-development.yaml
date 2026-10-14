@@ -1,0 +1,33 @@
+# The development environment follows main. Every main commit is deployed
+# with the images CI built from that same commit (tag = commit SHA), so
+# what runs is always traceable to a reviewed, merged commit.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: opspilot-development
+  namespace: argocd
+  finalizers: [resources-finalizer.argocd.argoproj.io]
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/Kunj157/opspilot.git
+    targetRevision: main
+    path: infrastructure/helm/opspilot
+    helm:
+      valueFiles: [../../environments/development/values.yaml]
+      parameters:
+        - { name: image.api.tag, value: $ARGOCD_APP_REVISION }
+        - { name: image.web.tag, value: $ARGOCD_APP_REVISION }
+  # The HPAs own the replica counts.
+  ignoreDifferences:
+    - { group: argoproj.io, kind: Rollout, jsonPointers: [/spec/replicas] }
+    - { group: apps, kind: Deployment, jsonPointers: [/spec/replicas] }
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: opspilot
+  syncPolicy:
+    automated: { prune: true, selfHeal: true }
+    syncOptions: [CreateNamespace=true, ServerSideApply=true, RespectIgnoreDifferences=true]
+    retry:
+      limit: 5
+      backoff: { duration: 30s, factor: 2, maxDuration: 5m }

@@ -28,6 +28,11 @@ spec:
   replicas: {{ .Values.api.replicas }}
   {{- end }}
   revisionHistoryLimit: 5
+  progressDeadlineSeconds: 180
+  {{- if .Values.rollouts.enabled }}
+  # A canary that never becomes ready is aborted, and the stable version stays.
+  progressDeadlineAbort: true
+  {{- end }}
   selector:
     matchLabels: {{- include "opspilot.selector" $name | nindent 6 }}
   {{- if .Values.rollouts.enabled }}

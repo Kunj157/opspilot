@@ -7,12 +7,13 @@ from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 
-from opspilot_api import readiness
+from opspilot_api import http_metrics, readiness
 from opspilot_api.audit.middleware import AuditMiddleware
 from opspilot_api.auth.tokens import TokenVerifier, discovered_key_resolver
 from opspilot_api.config import Settings, get_settings
 from opspilot_api.db.session import SessionFactory
 from opspilot_api.events.broker import EventBroker
+from opspilot_api.http_metrics import MetricsMiddleware
 from opspilot_api.logging import configure_logging
 from opspilot_api.request_context import RequestContextMiddleware
 from opspilot_api.routes import (
@@ -80,6 +81,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     # Last added runs first: request context wraps auditing, so audit
     # records carry the request ID and client IP.
     app.add_middleware(AuditMiddleware)
+    app.add_middleware(MetricsMiddleware)
     app.add_middleware(RequestContextMiddleware)
     # Outermost: take the client address from X-Forwarded-For only when the
     # connection comes from a trusted proxy, so direct callers cannot spoof it.
@@ -89,6 +91,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             host.strip() for host in settings.trusted_proxies.split(",") if host.strip()
         ],
     )
+    app.add_route("/metrics", http_metrics.metrics, include_in_schema=False)
     app.include_router(readiness.router)
     app.include_router(me.router)
     app.include_router(audit_logs.router)
