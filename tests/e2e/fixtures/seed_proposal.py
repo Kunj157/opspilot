@@ -35,7 +35,9 @@ def main(incident_id: str) -> None:
                 json.dumps(
                     {
                         "namespace": "demo",
-                        "deployment": "checkout",
+                        # A deployment that does not exist: a live worker sharing this
+                        # database must never act on test data.
+                        "deployment": "e2e-fixture-target",
                         "to_revision": 6,
                         "from_version": "1.4.2",
                         "to_version": "1.0.0",
