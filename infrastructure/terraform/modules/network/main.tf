@@ -110,6 +110,7 @@ resource "aws_route_table_association" "database" {
 }
 
 resource "aws_cloudwatch_log_group" "flow_logs" {
+  #checkov:skip=CKV_AWS_338: retention is per environment: one year in production, shorter outside it to save cost
   name              = "/opspilot/${var.name}/vpc-flow-logs"
   retention_in_days = var.flow_log_retention_days
   kms_key_id        = var.log_kms_key_arn

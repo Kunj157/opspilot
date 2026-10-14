@@ -6,3 +6,6 @@ crash.log
 # Modules are not root configurations; only environments pin providers.
 modules/**/.terraform.lock.hcl
 bootstrap/.terraform.lock.hcl
+environments/backend.hcl
+*.tfvars
+!*.tfvars.example
