@@ -5,6 +5,7 @@ import uuid
 from datetime import datetime
 from typing import Any
 
+from pgvector.sqlalchemy import Vector
 from sqlalchemy import (
     BigInteger,
     CheckConstraint,
@@ -19,6 +20,7 @@ from sqlalchemy import (
     SmallInteger,
     String,
     Table,
+    Text,
     UniqueConstraint,
     func,
     text,
@@ -59,6 +61,15 @@ class IncidentStatus(enum.StrEnum):
     MONITORING = "MONITORING"
     RESOLVED = "RESOLVED"
     REJECTED = "REJECTED"
+
+
+class RunbookStatus(enum.StrEnum):
+    ACTIVE = "active"
+    ARCHIVED = "archived"
+
+
+# Dimensions of the runbook embedding model (bge-small-en-v1.5).
+EMBEDDING_DIMENSIONS = 384
 
 
 class ActorType(enum.StrEnum):
@@ -277,6 +288,57 @@ class DetectorCheckpoint(Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
+
+
+class Runbook(UUIDPrimaryKey, Timestamps, OrganizationScoped, Base):
+    """A versioned operational procedure; `content` is the latest version's markdown."""
+
+    __tablename__ = "runbooks"
+    __table_args__ = (UniqueConstraint("organization_id", "slug"),)
+
+    organization_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("organizations.id", ondelete="RESTRICT")
+    )
+    slug: Mapped[str] = mapped_column(String(63))
+    title: Mapped[str] = mapped_column(String(200))
+    # Slugs of the catalog services the runbook applies to (from its front matter).
+    services: Mapped[list[str]] = mapped_column(JSONB, server_default="[]")
+    owner: Mapped[str | None] = mapped_column(String(100))
+    content: Mapped[str] = mapped_column(Text)
+    content_hash: Mapped[str] = mapped_column(String(64))
+    version: Mapped[int] = mapped_column(Integer)
+    source_url: Mapped[str | None] = mapped_column(String(500))
+    status: Mapped[RunbookStatus] = mapped_column(
+        _enum(RunbookStatus, "runbook_status"), server_default=RunbookStatus.ACTIVE.value
+    )
+
+
+class RunbookChunk(UUIDPrimaryKey, Base):
+    """One section of a runbook version with its embedding, for retrieval."""
+
+    __tablename__ = "runbook_chunks"
+    __table_args__ = (
+        Index(
+            "ix_runbook_chunks_embedding",
+            "embedding",
+            postgresql_using="hnsw",
+            postgresql_ops={"embedding": "vector_cosine_ops"},
+        ),
+    )
+
+    runbook_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("runbooks.id", ondelete="CASCADE"), index=True
+    )
+    organization_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("organizations.id", ondelete="RESTRICT"), index=True
+    )
+    version: Mapped[int] = mapped_column(Integer)
+    ordinal: Mapped[int] = mapped_column(Integer)
+    heading: Mapped[str] = mapped_column(String(200))
+    content: Mapped[str] = mapped_column(Text)
+    embedding: Mapped[list[float]] = mapped_column(Vector(EMBEDDING_DIMENSIONS))
+    # Text that reads like instructions to a model (prompt injection), kept but marked.
+    flagged: Mapped[bool] = mapped_column(server_default=text("false"))
 
 
 class IdempotencyKey(Base):
