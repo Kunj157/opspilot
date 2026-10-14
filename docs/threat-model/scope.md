@@ -1,8 +1,8 @@
 # Threat Model — Scope
 
-This document fixes **what** the threat model covers. The full model
-(STRIDE per element, attack trees, mitigations mapped to tests) is built up
-phase by phase and published before the final demo.
+This document fixes **what** the threat model covers. The consolidated
+model, with mitigations mapped to tests and the open risks, is
+[`threat-model.md`](threat-model.md).
 
 ## Method
 
@@ -73,4 +73,4 @@ phase by phase and published before the final demo.
 | 8 | Agent tool-misuse, leakage, and cost threats + eval cases |
 | 9 | Remediation and approval threats + replay/idempotency tests |
 | 12–13 | Cloud, IAM, and supply-chain threats + scanner gates |
-| Pre-demo | Consolidated `threat-model.md`, open risks, residual-risk sign-off |
+| 14–16 | Consolidated [`threat-model.md`](threat-model.md) with open risks |
