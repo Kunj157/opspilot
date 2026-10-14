@@ -18,6 +18,9 @@ from opspilot_api.runbooks.embeddings import Embedder, embed_query
 
 # How much a runbook written for the queried service is preferred.
 SERVICE_BOOST = 0.05
+# Flagged (instruction-like) sections are pushed down so they cannot crowd out
+# real procedures; they stay visible, marked, for reviewers.
+FLAGGED_PENALTY = 0.2
 
 _INJECTION = [
     r"\b(ignore|disregard|forget|override)\b[^.\n]{0,40}\b(previous|prior|above|earlier|all|system)\b[^.\n]{0,20}\b(instructions?|prompts?|rules?)\b",
