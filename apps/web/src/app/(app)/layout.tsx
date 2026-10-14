@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Suspense } from "react";
 
 import { AppMobileNav, AppNav, AppNavSkeleton } from "@/components/app-nav";
+import { ProgressiveBlur } from "@/components/motion/progressive-blur";
 import { Breadcrumbs } from "@/components/shell/breadcrumbs";
 import { CommandPaletteProvider, CommandPaletteTrigger } from "@/components/shell/command-palette-context";
 import { UserMenu, UserMenuSkeleton } from "@/components/user-menu";
@@ -48,6 +49,8 @@ export default function AppLayout({ children }: LayoutProps<"/">) {
                 </Suspense>
               </span>
             </div>
+            {/* Content dissolves under the bar instead of meeting a hard edge. */}
+            <ProgressiveBlur side="top" placement="top-full" className="h-6" />
             <div className="flex items-center gap-2">
               <CommandPaletteTrigger />
               <span className="md:hidden">
