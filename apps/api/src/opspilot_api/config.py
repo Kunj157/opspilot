@@ -38,6 +38,9 @@ class Settings(BaseSettings):
     worker_metrics_port: int | None = None
     # 0.0.0.0 in containers, so the cluster's probes and Prometheus can reach it.
     worker_metrics_host: str = "127.0.0.1"
+    # Touched while the database is reachable; the readiness probe checks its age.
+    worker_heartbeat_file: str | None = None
+    worker_heartbeat_seconds: float = 10.0
     # Queue an agent investigation for every new detector incident.
     auto_investigate: bool = True
     investigation_poll_seconds: float = 2.0
