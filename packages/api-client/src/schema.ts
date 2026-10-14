@@ -304,6 +304,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/incidents/{incident_id}/detections": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Detections */
+        get: operations["list_detections_api_v1_incidents__incident_id__detections_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -392,6 +409,55 @@ export interface components {
         DependenciesUpdate: {
             /** Target Ids */
             target_ids: string[];
+        };
+        /** DetectionList */
+        DetectionList: {
+            /** Items */
+            items: components["schemas"]["DetectionOut"][];
+        };
+        /** DetectionOut */
+        DetectionOut: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Service Id
+             * Format: uuid
+             */
+            service_id: string;
+            /** Detector */
+            detector: string;
+            /** Failure Category */
+            failure_category: string;
+            /** Outcome */
+            outcome: string;
+            /** Score */
+            score: number | null;
+            /** Threshold */
+            threshold: number | null;
+            /** Features */
+            features: {
+                [key: string]: unknown;
+            };
+            /** Model Version */
+            model_version: string | null;
+            /**
+             * Window Start
+             * Format: date-time
+             */
+            window_start: string;
+            /**
+             * Window End
+             * Format: date-time
+             */
+            window_end: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
         };
         /** EventList */
         EventList: {
@@ -1429,6 +1495,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["IncidentMetrics"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_detections_api_v1_incidents__incident_id__detections_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                incident_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DetectionList"];
                 };
             };
             /** @description Validation Error */

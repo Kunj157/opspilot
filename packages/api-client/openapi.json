@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "OpsPilot API",
-    "version": "0.5.0"
+    "version": "0.6.0"
   },
   "paths": {
     "/api/v1/health": {
@@ -1289,6 +1289,54 @@
           }
         }
       }
+    },
+    "/api/v1/incidents/{incident_id}/detections": {
+      "get": {
+        "tags": [
+          "incidents"
+        ],
+        "summary": "List Detections",
+        "operationId": "list_detections_api_v1_incidents__incident_id__detections_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "incident_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Incident Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DetectionList"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -1491,6 +1539,117 @@
           "target_ids"
         ],
         "title": "DependenciesUpdate"
+      },
+      "DetectionList": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/DetectionOut"
+            },
+            "type": "array",
+            "title": "Items"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "title": "DetectionList"
+      },
+      "DetectionOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "service_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Service Id"
+          },
+          "detector": {
+            "type": "string",
+            "title": "Detector"
+          },
+          "failure_category": {
+            "type": "string",
+            "title": "Failure Category"
+          },
+          "outcome": {
+            "type": "string",
+            "title": "Outcome"
+          },
+          "score": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Score"
+          },
+          "threshold": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Threshold"
+          },
+          "features": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Features"
+          },
+          "model_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model Version"
+          },
+          "window_start": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Window Start"
+          },
+          "window_end": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Window End"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "service_id",
+          "detector",
+          "failure_category",
+          "outcome",
+          "score",
+          "threshold",
+          "features",
+          "model_version",
+          "window_start",
+          "window_end",
+          "created_at"
+        ],
+        "title": "DetectionOut"
       },
       "EventList": {
         "properties": {

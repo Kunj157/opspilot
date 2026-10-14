@@ -71,7 +71,15 @@ metadata:
   name: {{ $name }}
   labels: {{- include "demo-shop.labels" $ctx | nindent 4 }}
 spec:
+  {{- if and (eq $name "storefront") $.Values.storefrontNodePort }}
+  type: NodePort
+  {{- end }}
   selector: {{- include "demo-shop.selector" $ctx | nindent 4 }}
   ports:
-    - { name: http, port: 80, targetPort: http }
+    - name: http
+      port: 80
+      targetPort: http
+      {{- if and (eq $name "storefront") $.Values.storefrontNodePort }}
+      nodePort: {{ $.Values.storefrontNodePort }}
+      {{- end }}
 {{- end }}

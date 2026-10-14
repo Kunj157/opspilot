@@ -1,6 +1,6 @@
 [project]
 name = "opspilot-api"
-version = "0.5.0"
+version = "0.6.0"
 description = "OpsPilot API service"
 
 authors = [
@@ -11,6 +11,7 @@ dependencies = [
     "alembic>=1.20.0",
     "fastapi>=0.143.0",
     "httpx>=0.28.1",
+    "prometheus-client>=0.26.0",
     "psycopg[binary]>=3.3.6",
     "pydantic-settings>=2.15.0",
     "pyjwt[crypto]>=2.15.1",
@@ -22,6 +23,7 @@ dependencies = [
 
 [project.scripts]
 opspilot-api = "opspilot_api.__main__:run"
+opspilot-worker = "opspilot_api.detection.worker:main"
 
 [build-system]
 requires = ["uv_build>=0.11.12,<0.12.0"]

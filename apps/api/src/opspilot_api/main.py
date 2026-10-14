@@ -17,6 +17,7 @@ from opspilot_api.logging import configure_logging
 from opspilot_api.request_context import RequestContextMiddleware
 from opspilot_api.routes import (
     audit_logs,
+    detections,
     incident_metrics,
     incident_streams,
     incidents,
@@ -89,4 +90,5 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(incident_streams.router)
     app.include_router(incidents.router)
     app.include_router(incident_metrics.router)
+    app.include_router(detections.router)
     return app
