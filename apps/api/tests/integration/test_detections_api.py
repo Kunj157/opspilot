@@ -81,6 +81,10 @@ async def test_viewer_reads_detections_newest_first(
     assert items[1]["score"] == pytest.approx(6.0)
     assert items[1]["features"] == {"error_rate": 0.3}
     assert items[1]["detector"] == "error-rate"
+    incident = (
+        await client.get(f"/api/v1/incidents/{incident_id}", headers=operator.headers)
+    ).json()
+    assert {i["service_id"] for i in items} == {incident["service_id"]}
 
 
 async def test_detector_incidents_are_listed_with_their_source(
