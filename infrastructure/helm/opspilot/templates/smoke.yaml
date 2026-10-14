@@ -1,0 +1,73 @@
+{{- if .Values.smokeTest.enabled }}
+# Smoke tests after every sync (Argo CD PostSync hook) and inside every canary
+# (Argo Rollouts job analysis): health, readiness, and the web root must answer.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: opspilot-smoke
+  labels: {{- include "opspilot.labels" . | nindent 4 }}
+data:
+  smoke.py: {{ .Files.Get "files/smoke.py" | quote }}
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: opspilot-smoke
+  labels: {{- include "opspilot.labels" . | nindent 4 }}
+automountServiceAccountToken: false
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: opspilot-smoke
+  labels: {{- include "opspilot.labels" . | nindent 4 }}
+  annotations:
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+    helm.sh/hook: post-install,post-upgrade
+    helm.sh/hook-delete-policy: before-hook-creation
+spec:
+  {{- include "opspilot.smokeJob" (dict "root" . "urls" (printf "http://opspilot-api:8000/api/v1/health http://opspilot-api:8000/api/v1/ready http://opspilot-web:3000/")) | nindent 2 }}
+{{- if .Values.rollouts.enabled }}
+---
+# One smoke run against the canary pods only (the -canary Services); a
+# failure aborts the rollout and the stable version keeps serving.
+apiVersion: argoproj.io/v1alpha1
+kind: AnalysisTemplate
+metadata:
+  name: opspilot-smoke
+  labels: {{- include "opspilot.labels" . | nindent 4 }}
+spec:
+  args:
+    - name: urls
+  metrics:
+    - name: smoke
+      failureLimit: 0
+      provider:
+        job:
+          metadata:
+            labels: {{- include "opspilot.labels" . | nindent 14 }}
+          spec:
+            {{- include "opspilot.smokeJob" (dict "root" . "urls" "{{args.urls}}") | nindent 12 }}
+---
+# The web canary's availability, checked every 30 s for the whole rollout.
+apiVersion: argoproj.io/v1alpha1
+kind: AnalysisTemplate
+metadata:
+  name: opspilot-web-availability
+  labels: {{- include "opspilot.labels" . | nindent 4 }}
+spec:
+  args:
+    - name: urls
+  metrics:
+    - name: availability
+      interval: 30s
+      failureLimit: 1
+      provider:
+        job:
+          metadata:
+            labels: {{- include "opspilot.labels" . | nindent 14 }}
+          spec:
+            {{- include "opspilot.smokeJob" (dict "root" . "urls" "{{args.urls}}" "deadline" "20") | nindent 12 }}
+{{- end }}
+{{- end }}
