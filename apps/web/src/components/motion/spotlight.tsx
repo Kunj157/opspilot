@@ -6,6 +6,8 @@ import { type PointerEvent, type ReactNode, useState } from "react";
 import { spring } from "@/lib/motion";
 import { useReducedMotion } from "@/lib/use-reduced-motion";
 
+import { MotionScope } from "./motion-provider";
+
 /**
  * A soft Iris light that follows the pointer across a surface (Spotlight, after
  * Motion Primitives). Only for fine pointers; nothing renders under reduced
@@ -28,17 +30,20 @@ export function Spotlight({ children, className, size = 320 }: { children: React
 
   return (
     <div className={`relative ${className ?? ""}`} onPointerMove={move} onPointerLeave={() => setActive(false)}>
-      {active && (
-        <m.div
-          aria-hidden
-          data-testid="spotlight"
-          className="pointer-events-none absolute inset-0 rounded-[inherit]"
-          style={{ background }}
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-        />
-      )}
       {children}
+      {/* Above the content, so the light washes over opaque surfaces too. */}
+      {active && (
+        <MotionScope>
+          <m.div
+            aria-hidden
+            data-testid="spotlight"
+            className="pointer-events-none absolute inset-0 z-10 rounded-[inherit]"
+            style={{ background }}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+          />
+        </MotionScope>
+      )}
     </div>
   );
 }
