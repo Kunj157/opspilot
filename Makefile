@@ -211,6 +211,16 @@ seed-runbooks: ## Load docs/runbooks into the runbook library (API must be runni
 test-detection: ## One sustained failure → exactly one incident, with detection delay (needs make dev and the kind stack)
 	cd demo/services && uv run python -u ../../tests/telemetry/detection_smoke.py
 
+.PHONY: load-seed test-load
+load-seed: ## Seed demo services and SEED_INCIDENTS (default 500) incidents for the load tests (API running)
+	$(MAKE) --no-print-directory seed
+	k6 run -q tests/performance/k6/seed.js
+
+test-load: ## k6 load tests against the running API on API_PORT (K6_TESTS="reads writes sse mixed"); summaries in test-results/k6
+	@mkdir -p test-results/k6
+	@status=0; for t in $${K6_TESTS:-reads writes sse mixed}; do \
+		K6_ENABLE_COMMUNITY_EXTENSIONS=true k6 run tests/performance/k6/$$t.js || status=1; done; exit $$status
+
 test-alerts: ## Check and unit-test the alert rules (promtool), the Alertmanager config, and the Helm copy
 	promtool check rules observability/k8s/rules/opspilot-alerts.yaml
 	promtool test rules observability/k8s/rules/tests/*.test.yaml
