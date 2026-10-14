@@ -1,5 +1,12 @@
 {{- if .Values.loadgen.enabled }}
 {{- $ctx := dict "name" "loadgen" "root" $ }}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: loadgen
+  labels: {{- include "demo-shop.labels" $ctx | nindent 4 }}
+automountServiceAccountToken: false
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -13,6 +20,7 @@ spec:
     metadata:
       labels: {{- include "demo-shop.labels" $ctx | nindent 8 }}
     spec:
+      serviceAccountName: loadgen
       automountServiceAccountToken: false
       terminationGracePeriodSeconds: 5
       securityContext:
