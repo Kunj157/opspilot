@@ -92,7 +92,8 @@ describe("ModelComparison", () => {
     renderIt(false);
 
     await screen.findByRole("table", { name: "Detector comparison" });
-    expect(screen.queryByRole("button")).not.toBeInTheDocument();
+    // Column sort buttons remain; no version actions.
+    expect(screen.queryByRole("button", { name: /roll back|shadow mode/i })).not.toBeInTheDocument();
   });
 
   it("explains how to get a first model", async () => {

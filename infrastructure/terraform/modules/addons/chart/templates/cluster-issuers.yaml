@@ -1,0 +1,22 @@
+{{- /* Staging first: try a new host against it to avoid production rate limits. */}}
+{{- $servers := dict "staging" "https://acme-staging-v02.api.letsencrypt.org/directory" "production" "https://acme-v02.api.letsencrypt.org/directory" }}
+{{- range $env, $server := $servers }}
+---
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: {{ if eq $env "production" }}{{ $.Values.issuerName }}{{ else }}{{ $.Values.issuerName }}-staging{{ end }}
+spec:
+  acme:
+    server: {{ $server }}
+    email: {{ $.Values.acmeEmail | quote }}
+    privateKeySecretRef:
+      name: {{ $.Values.issuerName }}-{{ $env }}-account
+    solvers:
+      - selector:
+          dnsZones: [{{ $.Values.domain | quote }}]
+        dns01:
+          route53:
+            region: {{ $.Values.region | quote }}
+            hostedZoneID: {{ $.Values.zoneId | quote }}
+{{- end }}
