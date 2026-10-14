@@ -1,0 +1,4 @@
+out/
+.next/
+public/media/
+next-env.d.ts
