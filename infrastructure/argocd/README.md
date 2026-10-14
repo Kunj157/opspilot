@@ -16,6 +16,17 @@ merge to main → CI builds, scans, signs, and pushes images tagged with the com
 - The chart's canary analysis aborts on a 5xx rate above 5 % or a p95 above
   500 ms. A canary that never becomes ready is aborted at its progress
   deadline (3 minutes). In both cases the stable version keeps serving.
+- Every canary gets its own Service (`opspilot-api-canary`,
+  `opspilot-web-canary`). Right after the first weight, an `opspilot-smoke`
+  analysis Job calls the canary pods only (API `/api/v1/health` and
+  `/api/v1/ready`; web `/` and `/login`); a failure aborts the rollout before
+  more traffic shifts. The web canary is additionally checked for
+  availability every 30 s for the rest of the rollout
+  (`opspilot-web-availability`, one failure tolerated).
+- After every sync, an Argo CD PostSync hook Job (`opspilot-smoke`) runs the
+  same smoke test against the stable Services; a failure marks the sync
+  failed in Argo CD. The smoke Jobs run from the API image as a non-root user
+  with a read-only root filesystem and no service account token.
 - Migrations run as a Job per image between the databases and the workloads
   (sync waves).
 
