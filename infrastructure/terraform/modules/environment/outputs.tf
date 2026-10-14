@@ -57,3 +57,20 @@ output "name_servers" {
 output "certificate_arn" {
   value = module.dns.certificate_arn
 }
+
+# Annotate the chart's service accounts with these (eks.amazonaws.com/role-arn).
+output "app_role_arns" {
+  value = { for name, role in module.app_roles : name => role.arn }
+}
+
+output "app_secret_name" {
+  value = "${local.name}/app"
+}
+
+output "redis_app_user" {
+  value = module.redis.app_user_name
+}
+
+output "buckets" {
+  value = { backups = module.backups.name, ml_models = module.ml_models.name }
+}
