@@ -7,6 +7,7 @@ import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { type Column, DataTable } from "@/components/ui/table";
 import { useToast } from "@/components/ui/toast";
 
 type Model = components["schemas"]["ModelOut"];
@@ -104,43 +105,33 @@ function Comparison({ model }: { model: Model }) {
 
 type Shadow = components["schemas"]["ShadowSummary"];
 
+type ShadowRow = Shadow["services"][number];
+
+const number = (value: (row: ShadowRow) => number, muted = false): Column<ShadowRow> => ({
+  id: "",
+  header: "",
+  cell: (row) => <span className={`font-mono tabular-nums ${muted ? "text-fg-secondary" : ""}`}>{value(row)}</span>,
+  sortValue: value,
+  className: "text-right",
+});
+
+const SHADOW_COLUMNS: Column<ShadowRow>[] = [
+  { id: "service", header: "Service", cell: (row) => row.service, sortValue: (row) => row.service.toLowerCase() },
+  { ...number((row) => row.shadow_windows, true), id: "windows", header: "Windows scored" },
+  { ...number((row) => row.shadow_alerts), id: "alerts", header: "Model alerts" },
+  { ...number((row) => row.rule_triggers), id: "rules", header: "Rule triggers" },
+  { ...number((row) => row.incidents), id: "incidents", header: "Incidents" },
+];
+
 function ShadowTable({ shadow }: { shadow: Shadow }) {
   if (!shadow.model) return <p className="text-sm text-fg-muted">No model is running in shadow mode.</p>;
   return (
-    <table aria-label="Shadow predictions by service" className="w-full text-sm">
-      <thead>
-        <tr className="border-b border-border text-xs text-fg-muted">
-          <th scope="col" className="px-3 py-2 text-left font-medium">
-            Service
-          </th>
-          <th scope="col" className="px-3 py-2 text-right font-medium">
-            Windows scored
-          </th>
-          <th scope="col" className="px-3 py-2 text-right font-medium">
-            Model alerts
-          </th>
-          <th scope="col" className="px-3 py-2 text-right font-medium">
-            Rule triggers
-          </th>
-          <th scope="col" className="px-3 py-2 text-right font-medium">
-            Incidents
-          </th>
-        </tr>
-      </thead>
-      <tbody className="divide-y divide-border">
-        {shadow.services.map((s) => (
-          <tr key={s.service_id}>
-            <th scope="row" className="px-3 py-2 text-left font-normal">
-              {s.service}
-            </th>
-            <td className="px-3 py-2 text-right font-mono tabular-nums text-fg-secondary">{s.shadow_windows}</td>
-            <td className="px-3 py-2 text-right font-mono tabular-nums">{s.shadow_alerts}</td>
-            <td className="px-3 py-2 text-right font-mono tabular-nums">{s.rule_triggers}</td>
-            <td className="px-3 py-2 text-right font-mono tabular-nums">{s.incidents}</td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
+    <DataTable
+      caption="Shadow predictions by service"
+      columns={SHADOW_COLUMNS}
+      rows={shadow.services}
+      rowKey={(row) => row.service_id}
+    />
   );
 }
 
@@ -178,7 +169,7 @@ export function ModelComparison({ canManage }: { canManage: boolean }) {
     void queryClient.invalidateQueries({ queryKey: KEY });
   }
 
-  if (models.isPending) return <div aria-hidden className="h-64 animate-pulse rounded-card bg-surface-2" />;
+  if (models.isPending) return <div aria-hidden className="h-64 skeleton rounded-card" />;
   if (models.isError)
     return (
       <p role="alert" className="rounded-card border border-border bg-surface-2 p-5 text-sm text-critical">
@@ -218,7 +209,7 @@ export function ModelComparison({ canManage }: { canManage: boolean }) {
           <h2 className="text-sm font-medium text-fg-secondary">Shadow mode, last 24 hours</h2>
           <span className="text-xs text-fg-muted">The model only observes; the error-rate rule still decides.</span>
         </div>
-        {shadow.data ? <ShadowTable shadow={shadow.data} /> : <div aria-hidden className="h-24 animate-pulse rounded-sm bg-surface-3" />}
+        {shadow.data ? <ShadowTable shadow={shadow.data} /> : <div aria-hidden className="h-24 skeleton rounded-sm" />}
       </Card>
 
       <Card as="section" aria-label="Model versions" className="flex flex-col gap-3 p-5">

@@ -45,7 +45,7 @@ export function MobileNav({ items, footer }: { items: NavItem[]; footer: ReactNo
               <icons.close width={18} height={18} />
             </button>
           </div>
-          <SidebarNav items={items} onNavigate={close} />
+          <SidebarNav items={items} onNavigate={close} highlightId="mobile-nav-highlight" />
           <div className="mt-auto">{footer}</div>
         </div>
         )}

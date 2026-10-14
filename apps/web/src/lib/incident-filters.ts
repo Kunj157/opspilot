@@ -32,11 +32,13 @@ export type IncidentFilters = {
   source: Source | null;
   since: string | null;
   until: string | null;
-  mine: boolean;
+  /** "me" for the signed-in user, another user's id, or anyone. */
+  assignee: "me" | string | null;
 };
 
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 const ID = /^[0-9a-f-]{1,36}$/i;
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 function oneOf<T extends string>(values: readonly T[], value: string | null): T | null {
   return values.includes(value as T) ? (value as T) : null;
@@ -49,6 +51,7 @@ function date(value: string | null): string | null {
 export function parseFilters(params: URLSearchParams): IncidentFilters {
   const status = params.get("status");
   const service = params.get("service");
+  const assignee = params.get("assignee");
   return {
     status: status === "all" ? "all" : (oneOf(STATUSES, status) ?? "active"),
     severity: SEVERITIES.filter((s) => params.getAll("severity").includes(s)),
@@ -56,7 +59,8 @@ export function parseFilters(params: URLSearchParams): IncidentFilters {
     source: oneOf(SOURCES, params.get("source")),
     since: date(params.get("since")),
     until: date(params.get("until")),
-    mine: params.get("mine") === "1",
+    // ?mine=1 predates the assignee filter and still means "assigned to me".
+    assignee: params.get("mine") === "1" ? "me" : assignee && UUID.test(assignee) ? assignee : null,
   };
 }
 
@@ -68,7 +72,8 @@ export function filtersToSearch(filters: IncidentFilters): string {
   if (filters.source) params.set("source", filters.source);
   if (filters.since) params.set("since", filters.since);
   if (filters.until) params.set("until", filters.until);
-  if (filters.mine) params.set("mine", "1");
+  if (filters.assignee === "me") params.set("mine", "1");
+  else if (filters.assignee) params.set("assignee", filters.assignee);
   const search = params.toString();
   return search ? `?${search}` : "";
 }
@@ -90,6 +95,6 @@ export function toApiQuery(filters: IncidentFilters, currentUserId: string): Lis
   if (filters.source) query.source = filters.source;
   if (filters.since) query.since = dayStart(filters.since);
   if (filters.until) query.until = dayStart(filters.until, 1);
-  if (filters.mine) query.assigned_user_id = currentUserId;
+  if (filters.assignee) query.assigned_user_id = filters.assignee === "me" ? currentUserId : filters.assignee;
   return query;
 }

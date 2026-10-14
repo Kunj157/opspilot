@@ -1,0 +1,5 @@
+domain       = "loadtest.opspilot.example.com"
+alert_emails = ["oncall@example.com"]
+# At most a few days ahead; the teardown workflow destroys the environment after this.
+expires_at = "2026-10-20T18:00:00Z"
+# eks_public_endpoint_cidrs = ["203.0.113.0/24"]

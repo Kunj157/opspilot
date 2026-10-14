@@ -24,3 +24,8 @@ web:
 # Leases and idempotency keys make concurrent workers safe.
 worker:
   replicas: 2
+
+# Kyverno signature verification: only CI-signed images run.
+imageVerification:
+  enabled: true
+  failureAction: Enforce

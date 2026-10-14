@@ -1,0 +1,5 @@
+{
+  "$comment": "Gzipped JS budgets for scripts/check-bundle-size.mjs; measured 206 KiB max initial JS per page and 546 KiB of client chunks on 2026-10-14. Raise deliberately.",
+  "pageInitialJsGzipKiB": 240,
+  "totalJsGzipKiB": 640
+}

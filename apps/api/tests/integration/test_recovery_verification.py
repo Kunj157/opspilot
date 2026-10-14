@@ -8,6 +8,7 @@ import pytest
 import sqlalchemy as sa
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
+from opspilot_api.agents.policy import verification_plan
 from opspilot_api.db.models import (
     AuditLog,
     ExecutionStatus,
@@ -85,8 +86,11 @@ async def sessions(migrated_database_url: str) -> AsyncIterator[async_sessionmak
     await engine.dispose()
 
 
-async def executed(sessions: async_sessionmaker[AsyncSession]) -> uuid.UUID:
-    """An incident in VERIFYING after a successful rollback; returns the execution ID."""
+async def executed(
+    sessions: async_sessionmaker[AsyncSession],
+    action: RemediationAction = RemediationAction.ROLLBACK_DEPLOYMENT,
+) -> uuid.UUID:
+    """An incident in VERIFYING after a successful remediation; returns the execution ID."""
     async with sessions() as session:
         org = Organization(name="Acme", slug=f"org-{uuid.uuid4().hex[:10]}")
         session.add(org)
@@ -104,11 +108,11 @@ async def executed(sessions: async_sessionmaker[AsyncSession]) -> uuid.UUID:
         proposal = RemediationProposal(
             organization_id=org.id,
             incident_id=incident.id,
-            action_type=RemediationAction.ROLLBACK_DEPLOYMENT,
+            action_type=action,
             description="Roll back checkout",
             parameters={"namespace": "demo", "deployment": "checkout", "to_revision": 6},
             risk_level="medium",
-            verification_plan={"window_minutes": 3, "max_error_rate": 0.02},
+            verification_plan=verification_plan(action) | {"window_minutes": 3},
             status=ProposalStatus.EXECUTED,
         )
         session.add(proposal)
@@ -288,3 +292,53 @@ async def test_unavailable_telemetry_waits_then_fails_safe(
     assert "manual review" in verdict.reason
     _, incident, *_ = await snapshot(sessions, execution_id)
     assert incident.status is IncidentStatus.INVESTIGATING
+
+
+PAUSED = RolloutStatus(4, 2, 2, 4, False, ["Progressing=Unknown (DeploymentPaused)"])
+
+
+async def test_a_paused_rollout_that_contained_the_errors_resolves_the_incident(
+    sessions: async_sessionmaker[AsyncSession],
+) -> None:
+    execution_id = await executed(sessions, RemediationAction.PAUSE_ROLLOUT)
+
+    await run_to_verdict(sessions, execution_id, Kube(PAUSED), Metrics(error_rate=0.01))
+
+    execution, incident, events, audit, _ = await snapshot(sessions, execution_id)
+    assert execution.verification_status == "passed"
+    assert execution.verification["rollout"] == {
+        "ready": 2,
+        "desired": 4,
+        "complete": False,
+        "paused": True,
+    }
+    assert incident.status is IncidentStatus.RESOLVED
+    assert "incident.verification_passed" in events
+    assert "remediation.verified" in audit
+
+
+async def test_a_pause_that_left_errors_reopens_the_investigation(
+    sessions: async_sessionmaker[AsyncSession],
+) -> None:
+    execution_id = await executed(sessions, RemediationAction.PAUSE_ROLLOUT)
+
+    await run_to_verdict(sessions, execution_id, Kube(PAUSED), Metrics(error_rate=0.2))
+
+    execution, incident, *_ = await snapshot(sessions, execution_id)
+    assert execution.verification_status == "failed"
+    assert incident.status is IncidentStatus.INVESTIGATING
+
+
+async def test_a_rollout_that_never_reports_paused_times_out(
+    sessions: async_sessionmaker[AsyncSession],
+) -> None:
+    execution_id = await executed(sessions, RemediationAction.PAUSE_ROLLOUT)
+    still_rolling = Kube(RolloutStatus(4, 3, 3, 4, False, ["Progressing=True (ReplicaSetUpdated)"]))
+
+    assert await verify(sessions, still_rolling, Metrics(), execution_id) is None
+    later = datetime.now(UTC) + timedelta(minutes=6)
+    verdict = await verify(sessions, still_rolling, Metrics(), execution_id, now=later)
+
+    assert verdict is not None
+    assert verdict.passed is False
+    assert verdict.reason == "the rollout did not pause in time"
