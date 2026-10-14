@@ -103,6 +103,11 @@ rollouts:
   maxErrorRate: "0.05"
   maxP95Seconds: "0.5"
 
+# Smoke tests (health, readiness, web root) after every Argo CD sync and,
+# with rollouts, against each canary before its traffic grows.
+smokeTest:
+  enabled: true
+
 # Development only: in-cluster PostgreSQL and Redis instead of managed ones.
 devDatabases:
   enabled: false
