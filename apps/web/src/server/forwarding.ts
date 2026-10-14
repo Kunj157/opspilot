@@ -33,11 +33,7 @@ export function clientAddress(forwardedFor: string | null, trustedHops: number):
  * (never its cookies or Authorization), the session's bearer token, and the
  * client's address when it can be trusted.
  */
-export function upstreamHeaders(
-  incoming: Headers,
-  accessToken: string | null,
-  trustedHops: number,
-): Headers {
+export function upstreamHeaders(incoming: Headers, accessToken: string | null, trustedHops: number): Headers {
   const headers = new Headers();
   for (const name of FORWARDED_REQUEST_HEADERS) {
     const value = incoming.get(name);

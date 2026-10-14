@@ -13,7 +13,15 @@ import { Modal } from "@/components/ui/modal";
 import { HealthBadge } from "./health-badge";
 import { SERVICES_KEY } from "./service-catalog";
 
-const ACTIVE = ["DETECTED", "INVESTIGATING", "AWAITING_APPROVAL", "REMEDIATING", "VERIFYING", "MONITORING", "REJECTED"] as const;
+const ACTIVE = [
+  "DETECTED",
+  "INVESTIGATING",
+  "AWAITING_APPROVAL",
+  "REMEDIATING",
+  "VERIFYING",
+  "MONITORING",
+  "REJECTED",
+] as const;
 
 function Fact({ label, value }: { label: string; value: string | null | undefined }) {
   return (

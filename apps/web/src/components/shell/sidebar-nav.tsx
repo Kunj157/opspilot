@@ -1,13 +1,34 @@
 "use client";
 
+import { createApiClient } from "@opspilot/api-client";
+import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 import { icons } from "@/components/icons";
 import { ActiveHighlight } from "@/components/motion/animated-background";
 import { MotionScope } from "@/components/motion/motion-provider";
+import { SlidingNumber } from "@/components/motion/sliding-number";
 
 import { isActive, type NavItem } from "./nav-items";
+
+/** Open incidents across the organization, for the badge beside "Incidents". */
+function useOpenIncidents(enabled: boolean): number | null {
+  const metrics = useQuery({
+    queryKey: ["incidents", "open-count"],
+    enabled,
+    queryFn: async ({ signal }) => {
+      const { data } = await createApiClient(window.location.origin).GET("/api/v1/incident-metrics", {
+        params: { query: { days: 1 } },
+        signal,
+      });
+      if (!data) throw new Error("metrics unavailable");
+      return Object.values(data.active_by_severity).reduce((sum, n) => sum + n, 0);
+    },
+    refetchInterval: 30_000,
+  });
+  return metrics.data ?? null;
+}
 
 export function SidebarNav({
   items,
@@ -20,6 +41,7 @@ export function SidebarNav({
   highlightId?: string;
 }) {
   const pathname = usePathname();
+  const open = useOpenIncidents(items.some((item) => item.href === "/incidents"));
   return (
     <MotionScope>
       <nav aria-label="Main">
@@ -44,10 +66,24 @@ export function SidebarNav({
                     />
                   )}
                   {active && (
-                    <span aria-hidden className="absolute top-2 bottom-2 -left-4 w-0.5 rounded-full bg-accent shadow-glow-accent" />
+                    <span
+                      aria-hidden
+                      className="absolute top-2 bottom-2 -left-4 w-0.5 rounded-full bg-accent shadow-glow-accent"
+                    />
                   )}
-                  <Icon className={active ? "text-accent" : "text-fg-muted transition-colors group-hover:text-fg-secondary"} />
+                  <Icon
+                    className={active ? "text-accent" : "text-fg-muted transition-colors group-hover:text-fg-secondary"}
+                  />
                   {item.label}
+                  {/* Visual only: the incidents page states the count in words. */}
+                  {item.href === "/incidents" && open !== null && open > 0 && (
+                    <span
+                      aria-hidden
+                      className="ml-auto inline-flex h-5 items-center rounded-full border border-border bg-surface-1 px-1.5 font-mono text-[11px] leading-4 text-fg-secondary"
+                    >
+                      <SlidingNumber value={open} />
+                    </span>
+                  )}
                 </Link>
               </li>
             );

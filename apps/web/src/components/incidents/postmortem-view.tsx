@@ -142,7 +142,9 @@ export function PostmortemView({ incidentId, canManage }: { incidentId: string; 
             </div>
           )}
           <details>
-            <summary className="cursor-pointer text-xs text-fg-muted">Timeline ({content.timeline.length} events)</summary>
+            <summary className="cursor-pointer text-xs text-fg-muted">
+              Timeline ({content.timeline.length} events)
+            </summary>
             <ol className="mt-2 flex flex-col gap-1 font-mono text-xs text-fg-secondary">
               {content.timeline.map((t) => (
                 <li key={`${t.at}-${t.event}`}>

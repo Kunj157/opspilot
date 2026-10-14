@@ -129,7 +129,10 @@ describe("CommandCenter", () => {
   });
 
   it("shows an error when the summary cannot load", async () => {
-    vi.stubGlobal("fetch", vi.fn(async () => new Response("boom", { status: 500 })));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response("boom", { status: 500 })),
+    );
 
     renderIt();
 

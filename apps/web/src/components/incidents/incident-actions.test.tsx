@@ -42,7 +42,11 @@ describe("availableActions", () => {
   });
 
   it("follows the allowed transitions", () => {
-    const investigating = incident({ status: "INVESTIGATING", acknowledged_at: "x", allowed_transitions: ["AWAITING_APPROVAL", "MONITORING"] });
+    const investigating = incident({
+      status: "INVESTIGATING",
+      acknowledged_at: "x",
+      allowed_transitions: ["AWAITING_APPROVAL", "MONITORING"],
+    });
     const monitoring = incident({ status: "MONITORING", acknowledged_at: "x", allowed_transitions: ["RESOLVED"] });
 
     expect(keys(investigating)).toEqual(["monitor"]);

@@ -1,0 +1,16 @@
+{{- if .Values.monitoring.prometheusRule.enabled }}
+# The OpsPilot alert and recording rules for the Prometheus Operator.
+# files/prometheus-rules.yaml is a copy of observability/k8s/rules/opspilot-alerts.yaml
+# (make test-alerts fails if they differ).
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: opspilot
+  labels:
+    {{- include "opspilot.labels" . | nindent 4 }}
+    {{- with .Values.monitoring.prometheusRule.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  {{- .Files.Get "files/prometheus-rules.yaml" | fromYaml | toYaml | nindent 2 }}
+{{- end }}

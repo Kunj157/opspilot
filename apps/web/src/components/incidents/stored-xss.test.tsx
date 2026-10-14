@@ -163,7 +163,9 @@ describe("runbook source links", () => {
       version: 1,
       status: "active",
       content: "# Checkout errors\n\n## Safe actions\n\nRoll back. <script>window.__xss = 1</script>",
-      sections: [{ heading: "Safe actions <img src=x onerror=alert(1)>", body: "Roll back. <script>window.__xss = 1</script>" }],
+      sections: [
+        { heading: "Safe actions <img src=x onerror=alert(1)>", body: "Roll back. <script>window.__xss = 1</script>" },
+      ],
       source_url: sourceUrl,
       created_at: "2026-10-14T01:00:00Z",
       updated_at: "2026-10-14T01:00:00Z",

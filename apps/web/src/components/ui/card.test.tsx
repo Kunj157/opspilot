@@ -24,7 +24,11 @@ afterEach(() => {
 describe("Card", () => {
   it("tilts toward the pointer by at most four degrees and resets on leave", () => {
     mockReducedMotion(false);
-    render(<Card tilt data-testid="card">Body</Card>);
+    render(
+      <Card tilt data-testid="card">
+        Body
+      </Card>,
+    );
     const card = screen.getByTestId("card");
 
     pointAt(card, 200, 0);
@@ -36,7 +40,11 @@ describe("Card", () => {
 
   it("does not tilt when the user prefers reduced motion", () => {
     mockReducedMotion(true);
-    render(<Card tilt data-testid="card">Body</Card>);
+    render(
+      <Card tilt data-testid="card">
+        Body
+      </Card>,
+    );
     const card = screen.getByTestId("card");
 
     pointAt(card, 200, 0);

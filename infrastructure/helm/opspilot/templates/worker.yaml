@@ -31,6 +31,10 @@ rules:
   - apiGroups: [""]
     resources: ["pods"]
     verbs: ["get", "list"]
+  # ConfigMap metadata for configuration-change evidence. Secrets are never readable.
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    verbs: ["get"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
@@ -64,7 +68,7 @@ spec:
       annotations:
         prometheus.io/scrape: "true"
         prometheus.io/port: "9100"
-        checksum/config: {{ toJson .Values.config | sha256sum | trunc 16 }}
+        checksum/config: {{ toJson (list .Values.config .Values.redpanda.enabled) | sha256sum | trunc 16 }}
     spec:
       serviceAccountName: {{ $name }}
       # Leases and idempotency keys make a stopped worker's jobs safe to retry.

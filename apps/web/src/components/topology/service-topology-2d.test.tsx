@@ -9,7 +9,14 @@ import { ServiceTopology2D } from "./service-topology-2d";
 const topology: Topology = {
   nodes: [
     { id: "g", name: "Gateway", slug: "gateway", health_status: "healthy", active_incidents: 0, investigating: false },
-    { id: "c", name: "Checkout", slug: "checkout", health_status: "degraded", active_incidents: 0, investigating: false },
+    {
+      id: "c",
+      name: "Checkout",
+      slug: "checkout",
+      health_status: "degraded",
+      active_incidents: 0,
+      investigating: false,
+    },
     { id: "p", name: "Payment", slug: "payment", health_status: "critical", active_incidents: 2, investigating: true },
   ],
   edges: [
@@ -52,7 +59,11 @@ describe("ServiceTopology2D", () => {
     await user.keyboard("{ArrowUp}{ArrowLeft}");
     expect(node(/^Gateway/)).toHaveFocus();
 
-    expect(within(map()).getAllByRole("button").filter((b) => b.tabIndex === 0)).toHaveLength(1);
+    expect(
+      within(map())
+        .getAllByRole("button")
+        .filter((b) => b.tabIndex === 0),
+    ).toHaveLength(1);
   });
 
   it("highlights the selected service's dependencies", async () => {
