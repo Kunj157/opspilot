@@ -38,6 +38,11 @@ anyone's behalf.
 - The chart's canary analysis aborts on a 5xx rate above 5 % or a p95 above
   500 ms. A canary that never becomes ready is aborted at its progress
   deadline (3 minutes). In both cases the stable version keeps serving.
+- The event stream is optional in-cluster: `redpanda.enabled: true` in the
+  environment values adds a single-node Redpanda (development only, like
+  `devDatabases`) and points the API and worker at it
+  (`KAFKA_BOOTSTRAP_SERVERS`); set `config.EVENT_DRIVEN_INVESTIGATIONS` to
+  let the consumer queue investigations.
 - Migrations run as a Job per image between the databases and the workloads
   (sync waves).
 

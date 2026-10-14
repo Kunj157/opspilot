@@ -50,7 +50,7 @@ spec:
         prometheus.io/scrape: "true"
         prometheus.io/port: "8000"
         prometheus.io/path: /metrics
-        checksum/config: {{ toJson .Values.config | sha256sum | trunc 16 }}
+        checksum/config: {{ toJson (list .Values.config .Values.redpanda.enabled) | sha256sum | trunc 16 }}
     spec:
       serviceAccountName: {{ $name }}
       automountServiceAccountToken: false

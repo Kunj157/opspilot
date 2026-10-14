@@ -58,3 +58,13 @@ rollouts:
 devDatabases:
   enabled: false
   postgresPassword: opspilot-dev
+
+# Development only: in-cluster Redpanda for the event stream; sets
+# KAFKA_BOOTSTRAP_SERVERS for the API and the worker.
+redpanda:
+  enabled: false
+  image: docker.redpanda.com/redpandadata/redpanda:v24.2.18
+  memory: 1G
+  resources:
+    requests: { cpu: 100m, memory: 1Gi }
+    limits: { cpu: "1", memory: 1536Mi }
