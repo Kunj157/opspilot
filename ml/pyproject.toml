@@ -1,0 +1,40 @@
+[project]
+name = "opspilot-ml"
+version = "0.1.0"
+description = "Labelled failure data, anomaly detectors, and their evaluation for OpsPilot"
+requires-python = ">=3.12"
+# Inference needs only these; the API imports the detectors with them.
+dependencies = [
+    "httpx>=0.28",
+    "joblib>=1.4",
+    "numpy>=2.1",
+    "pandas>=2.2",
+    "scikit-learn>=1.5",
+]
+
+[project.optional-dependencies]
+train = ["mlflow>=3.0"]
+
+[dependency-groups]
+dev = ["mypy>=1.13", "pandas-stubs>=2.2", "pytest>=8.3", "ruff>=0.8"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["opspilot_ml"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "SIM", "RUF", "PT"]
+
+[tool.mypy]
+strict = true
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

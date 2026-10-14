@@ -52,6 +52,12 @@ class Settings(BaseSettings):
     kubernetes_context: str | None = None
     kubeconfig: str | None = None
 
+    # Event broker (Redpanda). Unset: no events are published or consumed.
+    kafka_bootstrap_servers: str | None = None
+    # When true, detector incidents are investigated from incident.created
+    # events instead of the direct call (which is then skipped).
+    event_driven_investigations: bool = False
+
     readiness_timeout_seconds: float = 2.0
     sse_heartbeat_seconds: float = 15.0
 

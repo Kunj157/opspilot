@@ -80,6 +80,24 @@ services:
       timeout: 5s
       retries: 30
 
+  # Event broker for phase 11 (make events-up). Optional: the "events" profile.
+  redpanda:
+    image: docker.redpanda.com/redpandadata/redpanda:v24.2.18
+    profiles: [events]
+    command:
+      - redpanda start
+      - --mode dev-container
+      - --smp 1
+      - --kafka-addr internal://0.0.0.0:9092,external://0.0.0.0:19092
+      - --advertise-kafka-addr internal://redpanda:9092,external://localhost:${KAFKA_PORT:-19092}
+    ports:
+      - "127.0.0.1:${KAFKA_PORT:-19092}:19092"
+    healthcheck:
+      test: ["CMD", "rpk", "cluster", "health", "--exit-when-healthy"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
 volumes:
   postgres-data:
   ollama-models:

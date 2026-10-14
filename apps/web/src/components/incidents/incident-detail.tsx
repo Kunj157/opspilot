@@ -5,14 +5,16 @@ import type { components } from "@opspilot/api-client/schema";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { useEffect, useState } from "react";
 
 import { SERVICES_KEY } from "@/components/services/service-catalog";
 import { formatSeconds } from "@/lib/durations";
 import { type StreamedEvent, useIncidentStream } from "@/lib/use-incident-stream";
+import { useNow } from "@/lib/use-now";
 
 import { SeverityBadge, StatusBadge } from "./badges";
+import { AgentInvestigation, investigationKeys } from "./agent-investigation";
 import { DetectionEvidence } from "./detection-evidence";
+import { PostmortemView } from "./postmortem-view";
 import { IncidentActions } from "./incident-actions";
 import { INCIDENTS_KEY } from "./incident-list";
 import { IncidentTimeline } from "./incident-timeline";
@@ -28,15 +30,6 @@ export function formatDuration(fromIso: string, to: Date): string {
   return seconds < 60 ? "0m" : formatSeconds(seconds);
 }
 
-function useNow(intervalMs: number) {
-  const [now, setNow] = useState(() => new Date());
-  useEffect(() => {
-    const timer = setInterval(() => setNow(new Date()), intervalMs);
-    return () => clearInterval(timer);
-  }, [intervalMs]);
-  return now;
-}
-
 function Fact({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
@@ -46,7 +39,11 @@ function Fact({ label, children }: { label: string; children: React.ReactNode })
   );
 }
 
-export function IncidentDetail({ permissions }: { permissions: { manage: boolean; investigate: boolean } }) {
+export function IncidentDetail({
+  permissions,
+}: {
+  permissions: { manage: boolean; investigate: boolean; approve: boolean };
+}) {
   const { incidentId } = useParams<{ incidentId: string }>();
   const queryClient = useQueryClient();
   const now = useNow(30_000);
@@ -95,6 +92,9 @@ export function IncidentDetail({ permissions }: { permissions: { manage: boolean
     queryClient.setQueryData<Event[]>(eventsKey, (current = []) =>
       current.some((e) => e.sequence === event.sequence) ? current : [...current, event as Event],
     );
+    if (/^incident\.(agent_update|remediation_\w+|investigation_finished|verification_\w+)$/.test(event.event_type)) {
+      void queryClient.invalidateQueries({ queryKey: investigationKeys(incidentId).all });
+    }
   });
 
   if (incident.isPending) return <div aria-hidden className="h-96 animate-pulse rounded-card bg-surface-2" />;
@@ -157,6 +157,8 @@ export function IncidentDetail({ permissions }: { permissions: { manage: boolean
         />
       </header>
 
+      {i.status === "RESOLVED" && <PostmortemView incidentId={i.id} canManage={permissions.manage} />}
+
       {i.source === "detector" && (
         <DetectionEvidence
           incidentId={i.id}
@@ -165,18 +167,21 @@ export function IncidentDetail({ permissions }: { permissions: { manage: boolean
         />
       )}
 
-      <section aria-labelledby="timeline-heading" className="rounded-card border border-border bg-surface-1 shadow-3">
-        <h2 id="timeline-heading" className="border-b border-border px-5 py-4 text-sm font-medium text-fg-secondary">
-          Timeline
-        </h2>
-        {events.isPending && <div aria-hidden className="m-5 h-24 animate-pulse rounded-card bg-surface-2" />}
-        {events.isError && (
-          <p role="alert" className="px-5 py-8 text-center text-sm text-critical">
-            The timeline could not be loaded.
-          </p>
-        )}
-        {events.isSuccess && <IncidentTimeline events={events.data} />}
-      </section>
+      <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
+        <section aria-labelledby="timeline-heading" className="rounded-card border border-border bg-surface-1 shadow-3">
+          <h2 id="timeline-heading" className="border-b border-border px-5 py-4 text-sm font-medium text-fg-secondary">
+            Timeline
+          </h2>
+          {events.isPending && <div aria-hidden className="m-5 h-24 animate-pulse rounded-card bg-surface-2" />}
+          {events.isError && (
+            <p role="alert" className="px-5 py-8 text-center text-sm text-critical">
+              The timeline could not be loaded.
+            </p>
+          )}
+          {events.isSuccess && <IncidentTimeline events={events.data} />}
+        </section>
+        <AgentInvestigation incidentId={i.id} canInvestigate={permissions.investigate} canApprove={permissions.approve} />
+      </div>
     </div>
   );
 }

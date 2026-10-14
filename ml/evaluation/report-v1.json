@@ -1,0 +1,89 @@
+{
+  "generated_at": "2026-10-14T03:40:10+00:00",
+  "schema_version": "v1",
+  "python": "3.12.3",
+  "scikit_learn": "1.9.1",
+  "train": {
+    "runs": [
+      0,
+      1,
+      2,
+      3,
+      4
+    ],
+    "windows": 1270
+  },
+  "test": {
+    "runs": [
+      5,
+      6
+    ],
+    "windows": 515,
+    "scenarios": [
+      "checkout-http-500",
+      "checkout-latency"
+    ]
+  },
+  "rolling-zscore": {
+    "detector": "rolling-zscore",
+    "rows": 515,
+    "incidents": 2,
+    "precision": 1.0,
+    "recall": 0.943,
+    "f1": 0.971,
+    "false_alerts_per_hour": 0.0,
+    "median_detection_delay_s": 23.0,
+    "p95_detection_delay_s": 23.0,
+    "missed_incidents": 0,
+    "inference_ms_per_window": 0.45
+  },
+  "isolation-forest": {
+    "detector": "isolation-forest",
+    "rows": 515,
+    "incidents": 2,
+    "precision": 0.941,
+    "recall": 0.457,
+    "f1": 0.615,
+    "false_alerts_per_hour": 2.33,
+    "median_detection_delay_s": 23.0,
+    "p95_detection_delay_s": 23.0,
+    "missed_incidents": 1,
+    "inference_ms_per_window": 0.439
+  },
+  "promotion": {
+    "promotable": false,
+    "reason": "2.33 false alerts per hour",
+    "registered_model": "opspilot-anomaly",
+    "registered_version": 3,
+    "mlflow_run_id": "a983f7b9296c4578834c87f3f0dfd0fe",
+    "artifact": "models/isolation-forest-v1.joblib",
+    "detector": {
+      "name": "isolation-forest",
+      "schema_version": "v1",
+      "features": [
+        "request_rate",
+        "error_rate",
+        "p50_seconds",
+        "p95_seconds",
+        "p99_seconds",
+        "restarts_5m",
+        "availability"
+      ],
+      "inputs": [
+        "z_error_rate",
+        "z_p50_seconds",
+        "z_p95_seconds",
+        "z_p99_seconds",
+        "z_restarts_5m",
+        "z_availability",
+        "error_rate",
+        "availability"
+      ],
+      "threshold": 0.7622286827543471,
+      "persistence": 2,
+      "min_traffic": 0.5,
+      "trailing_rows": 40,
+      "seed": 7
+    }
+  }
+}

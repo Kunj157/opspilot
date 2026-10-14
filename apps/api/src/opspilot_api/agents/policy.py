@@ -16,7 +16,6 @@ RISK = {
     RemediationAction.ROLLBACK_DEPLOYMENT: "medium",
     RemediationAction.RESTART_DEPLOYMENT: "medium",
     RemediationAction.SCALE_DEPLOYMENT: "medium",
-    RemediationAction.PAUSE_ROLLOUT: "low",
 }
 MAX_REPLICAS = 6
 # A rollback must undo a release that introduced the errors: low before it, high after.
@@ -24,10 +23,11 @@ HEALTHY_ERROR_RATE = 0.02
 FAILING_ERROR_RATE = 0.05
 PROPOSAL_TTL = timedelta(minutes=30)
 VERIFICATION_PLAN: dict[str, Any] = {
-    "window_minutes": 5,
+    "require_rollout_complete": True,
+    "rollout_timeout_minutes": 5,
+    "window_minutes": 3,
     "max_error_rate": 0.02,
     "max_p95_ratio_to_baseline": 1.5,
-    "require_rollout_complete": True,
 }
 
 
