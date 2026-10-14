@@ -23,7 +23,7 @@ test("an incident commander approves a rollback and follows it", async ({ page, 
   await page.goto(`/incidents/${id}`);
 
   const card = page.getByRole("region", { name: "Proposed remediation" });
-  await expect(card).toContainText("Roll back checkout to revision 6");
+  await expect(card).toContainText("Roll back e2e-fixture-target to revision 6");
   await expect(card).toContainText("Awaiting your decision");
   await card.getByLabel("Comment (recorded with your decision)").fill("Errors began with 1.4.2");
   await card.getByRole("button", { name: "Approve and run" }).click();
