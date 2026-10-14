@@ -19,6 +19,8 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from opspilot_api.agents.investigation import Investigator
 from opspilot_api.agents.llm import build_llm
+from opspilot_api.agents.postmortem import generate as generate_postmortem
+from opspilot_api.agents.postmortem import pending as pending_postmortems
 from opspilot_api.agents.runner import InvestigationRunner, context_factory
 from opspilot_api.config import Settings, get_settings
 from opspilot_api.detection.worker import DetectionWorker
@@ -99,6 +101,15 @@ async def run(settings: Settings) -> None:
     loops.append(
         _loop(stop, "investigations", runner.run_once, settings.investigation_poll_seconds)
     )
+
+    async def postmortems() -> bool:
+        """Draft postmortems for resolved incidents that lack one or asked for a redraft."""
+        incident_ids = await pending_postmortems(sessions)
+        for incident_id in incident_ids:
+            await generate_postmortem(sessions, llm, incident_id)
+        return bool(incident_ids)
+
+    loops.append(_loop(stop, "postmortems", postmortems, 15.0))
 
     log.info(
         "worker started", detection=bool(settings.prometheus_url), llm=f"{llm.provider}:{llm.model}"

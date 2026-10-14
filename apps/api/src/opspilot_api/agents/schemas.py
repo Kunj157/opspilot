@@ -96,3 +96,25 @@ class ProposalDraft(Strict):
     replicas: int | None = Field(default=None, ge=1, le=20)
 
     _refs = field_validator("evidence", mode="before")(lambda cls, v: evidence_refs(v))
+
+
+class Finding(Strict):
+    statement: str = Field(max_length=500)
+    # confirmed: shown directly by evidence; strong/weak: hypotheses; unknown: open question.
+    certainty: Literal["confirmed", "strong_hypothesis", "weak_hypothesis", "unknown"]
+    evidence: list[str] = Field(
+        default_factory=list,
+        max_length=10,
+        description="References of the evidence this statement relies on, e.g. ['E4', 'E7']",
+    )
+
+    _refs = field_validator("evidence", mode="before")(lambda cls, v: evidence_refs(v))
+
+
+class PostmortemDraft(Strict):
+    summary: str = Field(max_length=1200)
+    impact: str = Field(max_length=800)
+    root_cause: Finding
+    findings: list[Finding] = Field(max_length=8)
+    resolution: str = Field(max_length=800)
+    follow_ups: list[str] = Field(max_length=6)
