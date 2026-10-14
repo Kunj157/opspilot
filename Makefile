@@ -16,7 +16,7 @@ DEMO_IMAGE := opspilot-demo:dev
 API := cd apps/api && uv run
 DEMO := cd demo/services && uv run
 
-.PHONY: db-upgrade db-downgrade db-revision keycloak-smoke token api-client web-dev dev build test-e2e test-lighthouse kind-create kind-delete docker-build deploy-local observability-up load-normal load-stop inject-failure reset-demo seed seed-runbooks test-telemetry test-detection worker help infra-up infra-down stop secrets-scan install api-dev format lint typecheck test test-unit test-integration test-agent test-ml ml-scenarios ml-dataset
+.PHONY: db-upgrade db-downgrade db-revision keycloak-smoke token api-client web-dev dev build test-e2e test-lighthouse kind-create kind-delete docker-build deploy-local observability-up load-normal load-stop inject-failure reset-demo seed seed-runbooks test-telemetry test-detection worker help infra-up infra-down stop secrets-scan install api-dev format lint typecheck test test-unit test-integration test-agent test-ml ml-scenarios ml-dataset ml-train
 
 help: ## List available targets
 	@grep -hE '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | sort | \
@@ -83,6 +83,9 @@ ml-scenarios: ## Record labelled failure runs on the demo cluster (~13 min per r
 
 ml-dataset: ## Read the labelled runs back from Prometheus into feature windows
 	cd ml && uv run python pipelines/build_dataset.py
+
+ml-train: ## Train and evaluate the detectors, track them in MLflow, write the report
+	cd ml && uv run python training/train.py
 
 api-client: ## Regenerate the typed API client from the API's OpenAPI schema
 	cd apps/api && uv run python -c "import json; from opspilot_api.config import Settings; \
