@@ -239,3 +239,12 @@ def test_agent_schemas_accept_percentages_and_cited_lines() -> None:
     assert synthesis.hypotheses[0].confidence == 0.8
     assert synthesis.hypotheses[0].supporting_evidence == ["E4", "E2"]
     assert draft.evidence == ["E1"]
+
+
+def test_build_llm_applies_the_configured_timeout() -> None:
+    from opspilot_api.agents.llm import build_llm
+
+    llm = build_llm("ollama", "qwen2.5:7b-instruct", "http://ollama:11434", None, timeout=7.0)
+
+    assert isinstance(llm, OllamaLLM)
+    assert llm.client.timeout.read == 7.0

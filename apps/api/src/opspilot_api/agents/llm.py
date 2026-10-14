@@ -330,13 +330,20 @@ class ScriptedLLM:
         raise AssertionError("unreachable")
 
 
-def build_llm(provider: str, model: str, base_url: str | None, api_key: str | None) -> LLM:
+def build_llm(
+    provider: str,
+    model: str,
+    base_url: str | None,
+    api_key: str | None,
+    *,
+    timeout: float = 120.0,
+) -> LLM:
     if provider == "anthropic":
         if not api_key:
             raise ValueError("LLM_PROVIDER=anthropic needs LLM_API_KEY")
-        return AnthropicLLM(api_key, model)
+        return AnthropicLLM(api_key, model, timeout=timeout)
     if provider == "ollama":
-        return OllamaLLM(base_url or "http://localhost:11434", model)
+        return OllamaLLM(base_url or "http://localhost:11434", model, timeout=timeout)
     raise ValueError(f"unknown LLM provider {provider!r}")
 
 

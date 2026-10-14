@@ -1,8 +1,10 @@
 """Worker loop: detector incidents are investigated automatically; crashes are retried."""
 
+import asyncio
 import uuid
 from collections.abc import AsyncIterator
 from datetime import UTC, datetime, timedelta
+from typing import Any
 
 import pytest
 import sqlalchemy as sa
@@ -161,3 +163,104 @@ async def test_a_crashed_investigation_is_retried_after_its_lease(
     assert inv.attempts == 2
     assert runs("crashed") == crashed + 1
     assert runs("completed") == completed + 1
+
+
+class SlowLLM(ScriptedLLM):
+    """Answers like the scripted model, after an await (so the event loop keeps running)."""
+
+    def __init__(self, model: object, delay: float) -> None:
+        super().__init__(model)  # type: ignore[arg-type]
+        self.delay = delay
+
+    async def complete_json(self, system: str, prompt: str, schema: Any) -> Any:
+        await asyncio.sleep(self.delay)
+        return await super().complete_json(system, prompt, schema)
+
+
+async def only_this_job(sessions: async_sessionmaker[AsyncSession]) -> None:
+    """Other tests share the database: park their unfinished investigations."""
+    async with sessions() as session:
+        await session.execute(
+            sa.update(Investigation)
+            .where(
+                Investigation.status.in_([InvestigationStatus.QUEUED, InvestigationStatus.RUNNING])
+            )
+            .values(status=InvestigationStatus.FAILED)
+        )
+        await session.commit()
+
+
+async def test_a_running_worker_keeps_its_lease(
+    sessions: async_sessionmaker[AsyncSession], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from opspilot_api.agents import runner as runner_module
+    from tests.integration.test_investigation import setup
+
+    monkeypatch.setattr(runner_module, "LEASE", timedelta(seconds=0.9))
+    await only_this_job(sessions)
+    investigation_id = await setup(sessions)
+    make = context_factory(
+        sessions,
+        metrics=Metrics(),
+        logs=Logs(),
+        traces=Traces(),
+        kube=Kube(),
+        embedder=None,
+        allowed_namespaces=frozenset({"demo"}),
+    )
+    slow = InvestigationRunner(
+        sessions, lambda: Investigator(sessions, SlowLLM(happy_model(), 0.7), make)
+    )
+    other = runner(sessions, happy_model())
+
+    working = asyncio.create_task(slow.run_once())
+    await asyncio.sleep(0.2)  # let it claim first
+    stolen = 0
+    while not working.done():
+        stolen += await other.run_once()
+        await asyncio.sleep(0.1)
+    await working
+
+    async with sessions() as session:
+        inv = await session.get_one(Investigation, investigation_id)
+    assert stolen == 0
+    assert inv.status is InvestigationStatus.COMPLETED
+    assert inv.attempts == 1
+
+
+async def test_a_worker_that_lost_its_lease_stops(
+    sessions: async_sessionmaker[AsyncSession], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from opspilot_api.agents import runner as runner_module
+    from tests.integration.test_investigation import setup
+
+    monkeypatch.setattr(runner_module, "LEASE", timedelta(seconds=0.6))
+    await only_this_job(sessions)
+    investigation_id = await setup(sessions)
+    make = context_factory(
+        sessions,
+        metrics=Metrics(),
+        logs=Logs(),
+        traces=Traces(),
+        kube=Kube(),
+        embedder=None,
+        allowed_namespaces=frozenset({"demo"}),
+    )
+    slow = InvestigationRunner(
+        sessions, lambda: Investigator(sessions, SlowLLM(happy_model(), 0.5), make)
+    )
+    working = asyncio.create_task(slow.run_once())
+    await asyncio.sleep(0.3)
+    # Another worker took the job over (e.g. this one was partitioned away).
+    async with sessions() as session:
+        await session.execute(
+            sa.update(Investigation)
+            .where(Investigation.id == investigation_id)
+            .values(attempts=Investigation.attempts + 1)
+        )
+        await session.commit()
+
+    assert await asyncio.wait_for(working, 10) is True
+    async with sessions() as session:
+        inv = await session.get_one(Investigation, investigation_id)
+    assert inv.status is InvestigationStatus.RUNNING, "the stale worker did not finish the job"
