@@ -144,6 +144,10 @@ jobs:
           helm template ci infrastructure/helm/opspilot --namespace opspilot \
             --set rollouts.enabled=true --set devDatabases.enabled=true \
             | ./kubeconform -strict -summary -kubernetes-version 1.34.0 -ignore-missing-schemas
+          helm template ci infrastructure/helm/opspilot --namespace opspilot \
+            --set ingress.enabled=true --set ingress.className=alb --set 'ingress.hosts={opspilot.example.com}' \
+            --set externalSecrets.enabled=true --set externalSecrets.remoteKey=opspilot-production/app \
+            | ./kubeconform -strict -summary -kubernetes-version 1.34.0 -ignore-missing-schemas
 
   web:
     name: Web · lint, types, tests, build
