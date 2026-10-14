@@ -15,6 +15,9 @@ data:
         backend: local
         local: { path: /var/tempo/traces }
         wal: { path: /var/tempo/wal }
+    # Cut blocks often so steady demo traffic does not pile up in memory.
+    ingester:
+      max_block_duration: 5m
     compactor:
       compaction: { block_retention: 48h }
 ---
@@ -43,8 +46,9 @@ spec:
             httpGet: { path: /ready, port: http }
             initialDelaySeconds: 10
           resources:
-            requests: { cpu: 50m, memory: 128Mi }
-            limits: { cpu: "1", memory: 512Mi }
+            # 512Mi was OOM-killed after about 80 minutes of 5 rps demo load.
+            requests: { cpu: 100m, memory: 512Mi }
+            limits: { cpu: "1", memory: 2Gi }
           securityContext:
             readOnlyRootFilesystem: true
             allowPrivilegeEscalation: false
