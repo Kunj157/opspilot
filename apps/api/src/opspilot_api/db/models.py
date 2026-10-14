@@ -521,6 +521,31 @@ class RemediationProposal(UUIDPrimaryKey, Timestamps, OrganizationScoped, Base):
     version: Mapped[int] = mapped_column(Integer, server_default="1")
 
 
+class Approval(UUIDPrimaryKey, OrganizationScoped, Base):
+    """A reviewer's decision on one version of a remediation proposal (append-only)."""
+
+    __tablename__ = "approvals"
+
+    organization_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("organizations.id", ondelete="RESTRICT")
+    )
+    # One decision per proposal: a changed proposal is a new proposal version, reviewed anew.
+    proposal_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("remediation_proposals.id", ondelete="CASCADE"), unique=True
+    )
+    proposal_version: Mapped[int] = mapped_column(Integer)
+    requested_by: Mapped[str] = mapped_column(String(100))
+    requested_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    reviewed_by: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="RESTRICT"))
+    reviewer_name: Mapped[str] = mapped_column(String(200))
+    decision: Mapped[str] = mapped_column(String(20))
+    comment: Mapped[str | None] = mapped_column(String(1000))
+    request_id: Mapped[str | None] = mapped_column(String(100))
+    reviewed_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+
 class Postmortem(UUIDPrimaryKey, Timestamps, OrganizationScoped, Base):
     """A drafted postmortem for a resolved incident; regenerated on request."""
 
