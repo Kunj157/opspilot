@@ -1,5 +1,5 @@
 {
-  "$comment": "Gzipped JS budgets for scripts/check-bundle-size.mjs; measured 206 KiB max initial JS per page and 546 KiB of client chunks on 2026-10-14. Raise deliberately.",
-  "pageInitialJsGzipKiB": 240,
-  "totalJsGzipKiB": 640
+  "$comment": "Gzipped JS budgets for scripts/check-bundle-size.mjs. Measured 206 KiB max initial JS per page and 546 KiB of client chunks on 2026-10-14 before the interface v2 shell (motion, command palette, toasts); 257 KiB and 678 KiB after it, with motion features and the palette lazy-loaded. Lighthouse budgets remain the user-facing check. Raise deliberately.",
+  "pageInitialJsGzipKiB": 270,
+  "totalJsGzipKiB": 720
 }
