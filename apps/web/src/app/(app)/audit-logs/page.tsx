@@ -2,6 +2,7 @@ import { Suspense } from "react";
 
 import { AuditLogExplorer } from "@/components/audit/audit-log-explorer";
 import { getCurrentUser } from "@/server/current-user";
+import { PageHeader } from "@/components/ui/page-header";
 
 export const metadata = { title: "Audit log · OpsPilot" };
 
@@ -23,15 +24,14 @@ async function AuditLogGate() {
 
 export default function AuditLogPage() {
   return (
-    <main className="w-full max-w-5xl flex-1 px-4 py-10 sm:px-8 sm:py-12">
-      <p className="font-mono text-xs uppercase tracking-[0.18em] text-accent">Governance</p>
-      <h1 className="mt-3 text-3xl font-semibold tracking-tight sm:text-4xl">Audit log</h1>
-      <p className="mt-3 max-w-xl text-fg-secondary">
-        Every change made by people, agents, and the system in your organization. Records cannot
-        be edited or deleted.
-      </p>
+    <main className="w-full max-w-6xl flex-1 px-4 py-10 sm:px-8 sm:py-12">
+      <PageHeader
+        eyebrow="Governance"
+        title="Audit log"
+        description="Every change made by people, agents, and the system in your organization. Records cannot be edited or deleted."
+      />
       <div className="mt-10">
-        <Suspense fallback={<div className="h-64 animate-pulse rounded-card bg-surface-2" />}>
+        <Suspense fallback={<div className="skeleton h-64 rounded-card" />}>
           <AuditLogGate />
         </Suspense>
       </div>

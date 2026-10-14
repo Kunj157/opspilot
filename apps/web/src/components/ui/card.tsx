@@ -56,7 +56,7 @@ export function Card<T extends ElementType = "div">({
       ref={ref}
       onPointerMove={move}
       onPointerLeave={leave}
-      className={`rounded-card border border-border bg-surface-2 shadow-2 ${
+      className={`surface-raised rounded-card border border-border ${
         tilting ? "transition-transform duration-base will-change-transform" : ""
       } ${className}`}
       {...props}

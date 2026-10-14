@@ -5,6 +5,8 @@ from typing import Any
 
 import pytest
 import sqlalchemy as sa
+from opentelemetry import trace
+from opentelemetry.trace import NonRecordingSpan, SpanContext, TraceFlags
 from prometheus_client import REGISTRY
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
@@ -12,11 +14,14 @@ from opspilot_api.db.models import ProcessedEvent
 from opspilot_api.events.consumer import EventProcessor
 from opspilot_api.events.envelope import Envelope
 from opspilot_api.events.handlers import investigation_requester
+from opspilot_api.events.relay import OutboxRelay
 from tests.support.events import (
+    LATER,
     Recorder,
     created_event,
     detector_incident,
     investigations,
+    reset_relay,
 )
 
 pytestmark = pytest.mark.integration
@@ -148,3 +153,68 @@ async def test_transient_failures_are_retried_then_parked(
             )
             == 0
         ), "a failed attempt leaves no idempotency record behind"
+
+
+TRACE_ID = "4bf92f3577b34da6a3ce929d0e0e4736"
+TRACEPARENT = f"00-{TRACE_ID}-00f067aa0ba902b7-01".encode()
+
+
+async def test_handling_continues_the_producers_trace(
+    sessions: async_sessionmaker[AsyncSession],
+) -> None:
+    incident = await detector_incident(sessions)
+    seen: list[str] = []
+
+    async def handler(session: AsyncSession, envelope: Envelope) -> str:
+        seen.append(format(trace.get_current_span().get_span_context().trace_id, "032x"))
+        return "ok"
+
+    p = EventProcessor("traced", sessions, handler, Recorder())
+    headers = [("event_type", b"incident.created.v1"), ("traceparent", TRACEPARENT)]
+
+    result = await p.process("incident.created.v1", b"k", created_event(incident), headers)
+
+    assert result.outcome == "handled"
+    assert seen == [TRACE_ID]
+
+
+async def test_a_parked_message_keeps_its_trace_context(
+    sessions: async_sessionmaker[AsyncSession],
+) -> None:
+    recorder = Recorder()
+
+    await processor(sessions, recorder).process(
+        "incident.created.v1", b"k", b"not json", [("traceparent", TRACEPARENT)]
+    )
+
+    [(_, _, _, headers)] = recorder.sent
+    assert dict(headers)["traceparent"] == TRACEPARENT
+
+
+async def test_messages_without_trace_headers_are_still_handled(
+    sessions: async_sessionmaker[AsyncSession],
+) -> None:
+    incident = await detector_incident(sessions)
+
+    result = await processor(sessions, Recorder()).process(
+        "incident.created.v1", b"k", created_event(incident), [("traceparent", b"garbage")]
+    )
+
+    assert (result.outcome, result.detail) == ("handled", "queued")
+
+
+async def test_the_relay_puts_the_active_trace_in_the_headers(
+    sessions: async_sessionmaker[AsyncSession],
+) -> None:
+    await reset_relay(sessions)
+    await detector_incident(sessions)
+    recorder = Recorder()
+    parent = NonRecordingSpan(
+        SpanContext(int(TRACE_ID, 16), 0x00F067AA0BA902B7, False, TraceFlags(1))
+    )
+
+    with trace.use_span(parent):
+        await OutboxRelay(sessions, recorder).publish_once(LATER)
+
+    [(_, _, _, headers)] = recorder.sent
+    assert TRACE_ID in dict(headers)["traceparent"].decode()

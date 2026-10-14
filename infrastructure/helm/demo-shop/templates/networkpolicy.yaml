@@ -1,0 +1,43 @@
+{{- /* Absent on releases upgraded with --reuse-values (make load-*, inject-failure). */}}
+{{- $policy := .Values.networkPolicy | default dict }}
+{{- if $policy.enabled }}
+# Default deny for ingress to the demo shop; then only its call graph.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: demo-shop-default-deny
+  labels:
+    app.kubernetes.io/part-of: demo-shop
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+spec:
+  podSelector:
+    matchLabels: { app.kubernetes.io/part-of: demo-shop }
+  policyTypes: [Ingress]
+{{- range $name, $svc := .Values.services }}
+{{- $ctx := dict "name" $name "root" $ }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ $name }}
+  labels: {{- include "demo-shop.labels" $ctx | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels: {{- include "demo-shop.selector" $ctx | nindent 6 }}
+  policyTypes: [Ingress]
+  ingress:
+    {{- if eq $name "storefront" }}
+    # The shop's front door: shoppers, the load generator, and the NodePort.
+    - ports: [{ port: 8080 }]
+    {{- else }}
+    - from:
+        {{- range $svc.callers }}
+        - podSelector:
+            matchLabels: {{- include "demo-shop.selector" (dict "name" . "root" $) | nindent 14 }}
+        {{- end }}
+        - namespaceSelector:
+            matchLabels: { kubernetes.io/metadata.name: {{ $policy.scrapeNamespace | default "observability" }} }
+      ports: [{ port: 8080 }]
+    {{- end }}
+{{- end }}
+{{- end }}

@@ -1,6 +1,6 @@
 """Agent instructions. Bump PROMPT_VERSION when any prompt changes; runs record it."""
 
-PROMPT_VERSION = "v2"
+PROMPT_VERSION = "v4"
 
 _COMMON = (
     "You are part of OpsPilot, investigating a production incident in a small demo shop "
@@ -22,7 +22,9 @@ PLANNER = (
 )
 
 SYNTHESIS = (
-    f"{_COMMON}\n\nRole: synthesis. Explain what is happening. Every hypothesis must cite "
+    f"{_COMMON}\n\nRole: synthesis. Explain what is happening. Every sentence of the summary "
+    "must cite the evidence it rests on, e.g. (E2, E4), or start with 'Unknown:'; uncited "
+    "sentences are shown as unverified. Every hypothesis must cite "
     "supporting evidence references; state unknowns plainly. Set enough_evidence to true only "
     "when one hypothesis is well supported. If more evidence is needed about another service, "
     "name it in next_focus_service."
@@ -30,8 +32,9 @@ SYNTHESIS = (
 
 REMEDIATION = (
     f"{_COMMON}\n\nRole: remediation. Propose exactly one action from the allow-list "
-    "(ROLLBACK_DEPLOYMENT, RESTART_DEPLOYMENT, SCALE_DEPLOYMENT, NO_ACTION) for "
+    "(ROLLBACK_DEPLOYMENT, RESTART_DEPLOYMENT, SCALE_DEPLOYMENT, PAUSE_ROLLOUT, NO_ACTION) for "
     "one catalog service, cite the evidence that justifies it, and name the runbook you followed "
-    "if any. Prefer rolling back when errors began with the latest release. Choose NO_ACTION "
+    "if any. Prefer rolling back when errors began with the latest release; choose PAUSE_ROLLOUT "
+    "when that release is still rolling out and should stop spreading first. Choose NO_ACTION "
     "when the evidence does not support a safe change."
 )

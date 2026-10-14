@@ -108,6 +108,46 @@ async def test_transient_failures_are_retried_then_reported() -> None:
         await ollama(down).complete_json("s", "p", Finding)
 
 
+async def test_model_timeouts_are_retried_then_reported() -> None:
+    attempts: list[str] = []
+
+    def slow_then_ok(request: httpx.Request) -> httpx.Response:
+        attempts.append("try")
+        if len(attempts) < 3:
+            raise httpx.ReadTimeout("timed out", request=request)
+        return httpx.Response(
+            200, json={"message": {"content": '{"summary": "s", "confidence": 1}'}}
+        )
+
+    timeouts = {"n": 0}
+
+    def hangs(request: httpx.Request) -> httpx.Response:
+        timeouts["n"] += 1
+        raise httpx.ReadTimeout("timed out", request=request)
+
+    assert (await ollama(slow_then_ok).complete_json("s", "p", Finding)).value.summary == "s"
+    assert len(attempts) == 3
+    with pytest.raises(LLMError, match="ollama unavailable: ReadTimeout"):
+        await ollama(hangs).complete_json("s", "p", Finding)
+    assert timeouts["n"] == 3
+
+
+async def test_the_configured_timeout_is_applied_to_model_calls() -> None:
+    seen: list[dict[str, Any]] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(request.extensions["timeout"])
+        raise httpx.ReadTimeout("timed out", request=request)
+
+    llm = OllamaLLM(
+        "http://ollama:11434", "m", timeout=7.5, transport=httpx.MockTransport(handler), backoff=0
+    )
+    with pytest.raises(LLMError):
+        await llm.complete_json("s", "p", Finding)
+
+    assert seen[0]["read"] == 7.5
+
+
 async def test_client_errors_are_not_retried() -> None:
     calls = {"n": 0}
 

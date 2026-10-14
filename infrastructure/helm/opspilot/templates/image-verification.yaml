@@ -1,0 +1,44 @@
+{{- if .Values.imageVerification.enabled }}
+{{- $enforce := eq .Values.imageVerification.failureAction "Enforce" }}
+# Admission-time supply-chain check (Kyverno, infrastructure/argocd/bootstrap/
+# kyverno): an OpsPilot image runs only with a keyless signature made by the
+# images workflow on main. cosign v3 (images.yml) stores signatures as
+# Sigstore bundles (OCI referrers), hence type SigstoreBundle.
+# Audit reports violations (PolicyReports); Enforce rejects the Pod and, with
+# it, pins the image to the verified digest.
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: opspilot-verify-images
+  labels: {{- include "opspilot.labels" . | nindent 4 }}
+  annotations:
+    policies.kyverno.io/title: Verify OpsPilot image signatures
+    # Check Pods only: mutating Deployment/Rollout templates would show as
+    # drift in Argo CD.
+    pod-policies.kyverno.io/autogen-controllers: none
+    # The CRD comes from the Kyverno bootstrap, not from this chart.
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+spec:
+  background: false
+  webhookTimeoutSeconds: 30
+  rules:
+    - name: signed-by-the-images-workflow
+      match:
+        any:
+          - resources:
+              kinds: [Pod]
+      verifyImages:
+        - imageReferences: {{- toYaml .Values.imageVerification.images | nindent 12 }}
+          type: SigstoreBundle
+          failureAction: {{ .Values.imageVerification.failureAction }}
+          required: true
+          mutateDigest: {{ $enforce }}
+          verifyDigest: {{ $enforce }}
+          attestors:
+            - entries:
+                - keyless:
+                    issuer: {{ .Values.imageVerification.issuer }}
+                    subjectRegExp: {{ .Values.imageVerification.subjectRegExp | quote }}
+                    rekor:
+                      url: https://rekor.sigstore.dev
+{{- end }}
