@@ -79,6 +79,32 @@ tag vX.Y.Z on main → release.yml: images for that commit exist, signatures and
   compatible with the previous release (expand now, contract in a later
   release) so the older version runs against the newer schema.
 
+## Admission-time signature verification
+
+`bootstrap/kyverno` pins Kyverno (v1.19.1); install it on each environment
+cluster before the Application
+(`kubectl apply --server-side -k infrastructure/argocd/bootstrap/kyverno`).
+The chart's `imageVerification` values then add the ClusterPolicy
+`opspilot-verify-images`: a Pod using `ghcr.io/kunj157/opspilot-api*` or
+`-web*` must carry a keyless signature whose certificate was issued by
+`token.actions.githubusercontent.com` to
+`https://github.com/Kunj157/opspilot/.github/workflows/images.yml@refs/heads/main`
+(checked against the Rekor transparency log).
+
+| Environment | Mode | Effect |
+|---|---|---|
+| development | Audit | violations land in PolicyReports, nothing is blocked |
+| staging, production | Enforce | unsigned or foreign-signed Pods are rejected; images are pinned to the verified digest |
+
+- cosign v3 in `images.yml` stores signatures as Sigstore bundles (OCI
+  referrers), so the policy uses `type: SigstoreBundle`; if signing moves to
+  the legacy `.sig` tags, switch it to `type: Cosign`.
+- The policy applies to Pods only (`autogen-controllers: none`): mutating
+  Deployment or Rollout templates would show up as drift in Argo CD.
+- `kubectl get policyreports -A` shows the audit results.
+- On kind, `scripts/gitops-local.sh` disables the policy: local images are
+  unsigned and the cluster has no Kyverno.
+
 ## On the local kind cluster
 
 There is no registry or CI on a laptop, so `scripts/gitops-local.sh [branch]`
