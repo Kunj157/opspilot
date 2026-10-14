@@ -55,6 +55,20 @@ def deviations(frame: pd.DataFrame) -> pd.DataFrame:
     return pd.concat(out).reindex(frame.index)
 
 
+def harmful_deviations(frame: pd.DataFrame) -> pd.DataFrame:
+    """One-sided deviations that mean trouble: more errors, latency, and restarts, fewer
+    available replicas. Missing history counts as no deviation."""
+    z = deviations(frame).fillna(0.0)
+    return pd.concat(
+        [
+            z[["z_error_rate", "z_p50_seconds", "z_p95_seconds", "z_p99_seconds"]].clip(lower=0),
+            z[["z_restarts_5m"]].clip(lower=0),
+            (-z[["z_availability"]]).clip(lower=0),
+        ],
+        axis=1,
+    )
+
+
 def persist(raw: pd.Series, frame: pd.DataFrame, rows: int) -> pd.Series:
     """True once `raw` has held for `rows` consecutive rows of the same service."""
     held = pd.Series(False, index=frame.index)
@@ -109,13 +123,17 @@ class IsolationForestDetector:
     columns: list[str] = field(default_factory=list)
 
     def _inputs(self, frame: pd.DataFrame) -> pd.DataFrame:
-        z = deviations(frame).fillna(0.0).clip(-50, 50)
-        inputs = pd.concat([z, frame[["error_rate", "availability"]]], axis=1)
-        return inputs
+        # Only deviations that mean harm: a change in traffic alone is not a fault.
+        return pd.concat(
+            [harmful_deviations(frame).clip(upper=50), frame[["error_rate", "availability"]]],
+            axis=1,
+        )
 
     def fit(self, frame: pd.DataFrame) -> "IsolationForestDetector":
         inputs = self._inputs(frame)
-        normal = inputs[(frame["anomaly"] == 0) & (frame["request_rate"] >= self.min_traffic)]
+        # Train on clearly normal windows: no fault anywhere in the system at that time.
+        quiet = frame["fault_active"] == 0 if "fault_active" in frame else frame["anomaly"] == 0
+        normal = inputs[quiet & (frame["request_rate"] >= self.min_traffic)]
         self.columns = list(inputs.columns)
         self.model = IsolationForest(n_estimators=200, random_state=self.seed).fit(
             normal[self.columns].to_numpy()

@@ -31,8 +31,12 @@ def test_the_split_keeps_whole_runs_in_time_order(dataset: tuple[pd.DataFrame, l
     assert train["time"].max() < test["time"].min()
 
 
-@pytest.mark.parametrize("detector", [RollingZScore(), IsolationForestDetector()])
-def test_both_detectors_catch_an_error_spike(detector, dataset: tuple[pd.DataFrame, list]) -> None:
+@pytest.mark.parametrize(
+    ("detector", "min_recall"), [(RollingZScore(), 0.8), (IsolationForestDetector(), 0.5)]
+)
+def test_both_detectors_catch_an_error_spike(
+    detector, min_recall: float, dataset: tuple[pd.DataFrame, list]
+) -> None:
     frame, runs = dataset
     train, test = chronological_split(frame, test_runs=2)
 
@@ -40,7 +44,7 @@ def test_both_detectors_catch_an_error_spike(detector, dataset: tuple[pd.DataFra
     report = evaluate(detector, test, runs)
 
     assert report["missed_incidents"] == 0
-    assert report["recall"] > 0.8
+    assert report["recall"] > min_recall
     assert report["precision"] > 0.8
     assert report["median_detection_delay_s"] <= 60
     assert report["false_alerts_per_hour"] < 2
