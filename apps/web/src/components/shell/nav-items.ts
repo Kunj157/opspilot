@@ -10,6 +10,7 @@ export const NAV_ITEMS: (NavItem & { permission?: Permission })[] = [
   { href: "/services", label: "Services", icon: "services", permission: "view_services" },
   { href: "/runbooks", label: "Runbooks", icon: "runbooks", permission: "view_incidents" },
   { href: "/models", label: "ML detector", icon: "models", permission: "view_incidents" },
+  { href: "/evaluations", label: "Evaluations", icon: "evaluations", permission: "view_incidents" },
   { href: "/audit-logs", label: "Audit log", icon: "audit", permission: "view_audit_logs" },
   { href: "/status", label: "System status", icon: "status" },
 ];

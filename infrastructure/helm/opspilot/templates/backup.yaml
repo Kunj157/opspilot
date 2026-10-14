@@ -1,0 +1,128 @@
+{{- if .Values.backup.enabled }}
+{{- $b := .Values.backup }}
+{{- $pvc := eq $b.destination "pvc" }}
+# Nightly pg_dump (custom format) with checksum and verification, kept on a
+# PVC or uploaded to S3-compatible storage. Restore: scripts/restore-db.sh;
+# procedure and measured RTO/RPO: docs/operations/backup-restore-drill.md.
+# OpsPilotBackupStale/OpsPilotBackupFailed read this CronJob via kube-state-metrics.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: opspilot-db-backup
+  labels: {{- include "opspilot.labels" . | nindent 4 }}
+data:
+  backup.sh: {{ .Files.Get "files/backup.sh" | quote }}
+  publish.sh: {{ .Files.Get "files/publish.sh" | quote }}
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: opspilot-db-backup
+  labels: {{- include "opspilot.labels" . | nindent 4 }}
+  {{- with $b.serviceAccountAnnotations }}
+  annotations: {{- toYaml . | nindent 4 }}
+  {{- end }}
+automountServiceAccountToken: false
+{{- if and $pvc (not $b.pvc.existingClaim) }}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: opspilot-db-backup
+  labels: {{- include "opspilot.labels" . | nindent 4 }}
+spec:
+  accessModes: [ReadWriteOnce]
+  {{- with $b.pvc.storageClassName }}
+  storageClassName: {{ . }}
+  {{- end }}
+  resources:
+    requests: { storage: {{ $b.pvc.size }} }
+{{- end }}
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: opspilot-db-backup
+  labels: {{- include "opspilot.labels" . | nindent 4 }}
+spec:
+  schedule: {{ $b.schedule | quote }}
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      activeDeadlineSeconds: {{ $b.activeDeadlineSeconds }}
+      template:
+        metadata:
+          labels: {{- include "opspilot.selector" "opspilot-db-backup" | nindent 12 }}
+        spec:
+          restartPolicy: Never
+          serviceAccountName: opspilot-db-backup
+          automountServiceAccountToken: false
+          securityContext:
+            {{- include "opspilot.podSecurity" . | nindent 12 }}
+            fsGroup: 999
+          initContainers:
+            # Step 1: dump, verify, checksum, prune (same major version as the server).
+            - name: dump
+              image: {{ $b.image | quote }}
+              command: ["sh", "/scripts/backup.sh"]
+              env:
+                - name: DATABASE_URL
+                  valueFrom: { secretKeyRef: { name: {{ .Values.existingSecret }}, key: DATABASE_URL } }
+                - { name: BACKUP_DIR, value: /backup }
+                - { name: RETENTION_DAYS, value: {{ ternary $b.pvc.retentionDays 0 $pvc | quote }} }
+              resources: {{- toYaml $b.resources | nindent 16 }}
+              securityContext:
+                {{- include "opspilot.containerSecurity" . | nindent 16 }}
+                runAsUser: 999
+                runAsGroup: 999
+              volumeMounts:
+                - { name: scripts, mountPath: /scripts }
+                - { name: backup, mountPath: /backup }
+                - { name: tmp, mountPath: /tmp }
+          containers:
+            # Step 2: upload (S3) and report success.
+            - name: publish
+              image: {{ ternary $b.publishImage.pvc $b.publishImage.s3 $pvc | quote }}
+              command: ["sh", "/scripts/publish.sh"]
+              env:
+                - { name: BACKUP_DIR, value: /backup }
+                - { name: HOME, value: /tmp }
+                - { name: PUSHGATEWAY_URL, value: {{ $b.pushgatewayUrl | quote }} }
+                {{- if not $pvc }}
+                - { name: S3_BUCKET, value: {{ required "backup.s3.bucket is required for destination s3" $b.s3.bucket | quote }} }
+                - { name: S3_PREFIX, value: {{ $b.s3.prefix | quote }} }
+                - { name: S3_ENDPOINT, value: {{ $b.s3.endpoint | quote }} }
+                - { name: AWS_DEFAULT_REGION, value: {{ $b.s3.region | quote }} }
+                {{- with $b.s3.credentialsSecret }}
+                - name: AWS_ACCESS_KEY_ID
+                  valueFrom: { secretKeyRef: { name: {{ . }}, key: AWS_ACCESS_KEY_ID } }
+                - name: AWS_SECRET_ACCESS_KEY
+                  valueFrom: { secretKeyRef: { name: {{ . }}, key: AWS_SECRET_ACCESS_KEY } }
+                {{- end }}
+                {{- end }}
+              resources:
+                requests: { cpu: 10m, memory: 64Mi }
+                limits: { cpu: 500m, memory: 256Mi }
+              securityContext:
+                {{- include "opspilot.containerSecurity" . | nindent 16 }}
+                runAsUser: 65534
+                runAsGroup: 999
+              volumeMounts:
+                - { name: scripts, mountPath: /scripts }
+                - { name: backup, mountPath: /backup, readOnly: true }
+                - { name: tmp, mountPath: /tmp }
+          volumes:
+            - name: scripts
+              configMap: { name: opspilot-db-backup }
+            - name: tmp
+              emptyDir: {}
+            - name: backup
+              {{- if $pvc }}
+              persistentVolumeClaim: { claimName: {{ $b.pvc.existingClaim | default "opspilot-db-backup" }} }
+              {{- else }}
+              emptyDir: { sizeLimit: {{ $b.s3.stagingSize }} }
+              {{- end }}
+{{- end }}

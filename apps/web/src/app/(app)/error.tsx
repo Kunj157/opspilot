@@ -5,13 +5,7 @@ import { useEffect } from "react";
 import { Button } from "@/components/ui/button";
 
 /** Recoverable error boundary for signed-in pages. Never shows the raw error. */
-export default function ErrorBoundary({
-  error,
-  reset,
-}: {
-  error: Error & { digest?: string };
-  reset: () => void;
-}) {
+export default function ErrorBoundary({ error, reset }: { error: Error & { digest?: string }; reset: () => void }) {
   useEffect(() => {
     console.error("page error", error.digest ?? error.name);
   }, [error]);
@@ -28,9 +22,7 @@ export default function ErrorBoundary({
             This page could not be displayed. Your data is safe; try again in a moment.
           </p>
         </div>
-        <Button onClick={reset}>
-          Try again
-        </Button>
+        <Button onClick={reset}>Try again</Button>
       </div>
     </main>
   );

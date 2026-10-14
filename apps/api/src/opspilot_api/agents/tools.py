@@ -21,10 +21,11 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from opspilot_api.db.models import Incident, Service, ServiceDependency
+from opspilot_api.db.models import Incident, Runbook, RunbookStatus, Service, ServiceDependency
 from opspilot_api.kube import KubeReader, NamespaceNotAllowed
+from opspilot_api.runbooks.document import RunbookDocumentError, parse
 from opspilot_api.runbooks.embeddings import Embedder
-from opspilot_api.runbooks.retrieval import search, untrusted_context
+from opspilot_api.runbooks.retrieval import looks_like_injection, search, untrusted_context
 from opspilot_api.telemetry import (
     LogsProvider,
     MetricsProvider,
@@ -103,6 +104,18 @@ class RunbookArgs(BaseModel):
 
     query: str = Field(min_length=3, max_length=300)
     service: str | None = Field(default=None, max_length=63, pattern=r"^[a-z0-9-]+$")
+
+
+class GetRunbookArgs(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    # A slug (as cited by search_runbooks) or a runbook ID.
+    runbook: str = Field(min_length=2, max_length=63, pattern=r"^[a-z0-9-]+$")
+    version: int | None = Field(default=None, ge=1)
+
+
+# The full text handed to a model is bounded; sections are cut, never dropped silently.
+RUNBOOK_MAX_CHARS = 6000
 
 
 async def _target(ctx: ToolContext, slug: str, *, needs_workload: bool = True) -> ServiceTarget:
@@ -354,6 +367,140 @@ async def _errors_around(
     return before, after
 
 
+def _env_changes(before: dict[str, str], after: dict[str, str]) -> list[dict[str, Any]]:
+    changes: list[dict[str, Any]] = []
+    for name in sorted({*before, *after}):
+        old, new = before.get(name), after.get(name)
+        if old != new:
+            change = "added" if old is None else "removed" if new is None else "changed"
+            changes.append({"name": name, "change": change, "before": old, "after": new})
+    return changes
+
+
+async def get_recent_configuration_changes(ctx: ToolContext, args: ServiceArgs) -> ToolResult:
+    target = await _target(ctx, args.service)
+    namespace, deployment = target.namespace or "", target.deployment or ""
+    revisions = await ctx.kube.rollout_history(namespace, deployment)
+    if not revisions:
+        raise ToolFailure(f"no rollout history for {target.slug}")
+    latest = revisions[0]
+    previous = revisions[1] if len(revisions) > 1 else None
+    env = _env_changes(previous.env if previous else {}, latest.env) if previous else []
+    refs_added = sorted(set(latest.config_refs) - set(previous.config_refs if previous else ()))
+    refs_removed = sorted(set(previous.config_refs if previous else ()) - set(latest.config_refs))
+    # ConfigMaps can change without a new revision; Secrets are never read, only named.
+    names = [r.removeprefix("configmap/") for r in latest.config_refs if r.startswith("configmap/")]
+    since = ctx.now - timedelta(hours=24)
+    recent = [
+        cm
+        for cm in (await ctx.kube.config_maps(namespace, names) if names else [])
+        if cm.updated_at is not None and cm.updated_at >= since
+    ]
+    config_maps = [
+        {"name": cm.name, "updated_at": cm.updated_at.isoformat(), "keys": list(cm.keys)}
+        for cm in recent
+        if cm.updated_at is not None
+    ]
+    described = [
+        f"{c['name']} {c['before']} -> {c['after']}"
+        if c["change"] == "changed"
+        else f"{c['name']} {c['change']}"
+        for c in env
+    ]
+    parts = (
+        ([f"environment: {', '.join(described)}"] if described else [])
+        + ([f"now uses {', '.join(refs_added)}"] if refs_added else [])
+        + ([f"no longer uses {', '.join(refs_removed)}"] if refs_removed else [])
+        + [f"configmap {cm.name} updated {_ago(ctx.now, cm.updated_at)}" for cm in recent]
+    )
+    head = f"{target.name} revision {latest.revision}"
+    if previous:
+        head += f" vs {previous.revision}"
+    summary = f"{head}: " + ("; ".join(parts) if parts else "no configuration changes")
+    data = {
+        "revision": latest.revision,
+        "previous_revision": previous.revision if previous else None,
+        "env_changes": env,
+        "references_added": refs_added,
+        "references_removed": refs_removed,
+        "config_maps_updated": config_maps,
+    }
+    return ToolResult(
+        "get_recent_configuration_changes",
+        True,
+        summary,
+        data,
+        EvidenceDraft(
+            "configuration",
+            "kubernetes",
+            summary,
+            f"configuration of deployment/{deployment} revisions",
+            previous.created_at if previous else since,
+            ctx.now,
+            0.9,
+            data,
+        ),
+    )
+
+
+def _describe_commit(commit: dict[str, str]) -> str:
+    text = f"commit {commit.get('sha', 'unknown')[:12]}"
+    if commit.get("author"):
+        text += f" by {commit['author']}"
+    if commit.get("message"):
+        text += f": {commit['message'].splitlines()[0]!r}"
+    if commit.get("pull_request"):
+        text += f" ({commit['pull_request']})"
+    return text
+
+
+async def get_commit_metadata(ctx: ToolContext, args: ServiceArgs) -> ToolResult:
+    target = await _target(ctx, args.service)
+    revisions = await ctx.kube.rollout_history(target.namespace or "", target.deployment or "")
+    if not revisions:
+        raise ToolFailure(f"no rollout history for {target.slug}")
+    latest = revisions[0]
+    previous = revisions[1] if len(revisions) > 1 else None
+    if not latest.commit:
+        raise ToolFailure(
+            f"{target.slug} revision {latest.revision} has no commit metadata "
+            "(opspilot.io/commit-* pod template annotations)"
+        )
+    summary = (
+        f"{target.name} revision {latest.revision} ({latest.version}) was built from "
+        f"{_describe_commit(latest.commit)}"
+    )
+    if previous and previous.commit:
+        same = previous.commit.get("sha") == latest.commit.get("sha")
+        summary += (
+            f"; revision {previous.revision} ran the same commit (configuration-only change)"
+            if same
+            else f"; revision {previous.revision} ran {_describe_commit(previous.commit)}"
+        )
+    data = {
+        "revision": latest.revision,
+        "commit": latest.commit,
+        "previous_revision": previous.revision if previous else None,
+        "previous_commit": previous.commit if previous else None,
+    }
+    return ToolResult(
+        "get_commit_metadata",
+        True,
+        summary,
+        data,
+        EvidenceDraft(
+            "deployment",
+            "kubernetes",
+            summary,
+            f"commit annotations of deployment/{target.deployment} revisions",
+            latest.created_at,
+            ctx.now,
+            0.85,
+            data,
+        ),
+    )
+
+
 async def get_kubernetes_rollout_status(ctx: ToolContext, args: ServiceArgs) -> ToolResult:
     target = await _target(ctx, args.service)
     status = await ctx.kube.rollout_status(target.namespace or "", target.deployment or "")
@@ -488,6 +635,73 @@ async def search_runbooks(ctx: ToolContext, args: RunbookArgs) -> ToolResult:
     )
 
 
+async def get_runbook(ctx: ToolContext, args: GetRunbookArgs) -> ToolResult:
+    by_id: uuid.UUID | None = None
+    with contextlib.suppress(ValueError):
+        by_id = uuid.UUID(args.runbook)
+    async with _sessions(ctx)() as session:
+        runbook = await session.scalar(
+            select(Runbook).where(
+                Runbook.organization_id == ctx.organization_id,
+                Runbook.status == RunbookStatus.ACTIVE,
+                Runbook.id == by_id if by_id else Runbook.slug == args.runbook,
+            )
+        )
+    if runbook is None:
+        raise ToolFailure(f"no active runbook {args.runbook!r}")
+    if args.version is not None and args.version != runbook.version:
+        raise ToolFailure(
+            f"{runbook.slug} v{args.version} is not available; the current version is "
+            f"v{runbook.version}"
+        )
+    try:
+        sections = parse(runbook.content).sections
+    except RunbookDocumentError as exc:
+        raise ToolFailure(f"{runbook.slug} cannot be read: {exc}") from exc
+    budget = RUNBOOK_MAX_CHARS // max(len(sections), 1)
+    quoted = [
+        (runbook.slug, runbook.version, s.heading, s.body[:budget], looks_like_injection(s.body))
+        for s in sections
+    ]
+    flagged = [heading for _, _, heading, _, f in quoted if f]
+    summary = (
+        f"Runbook {runbook.title} v{runbook.version}: {len(sections)} sections ("
+        + ", ".join(s.heading for s in sections)
+        + ")"
+        + (f"; flagged sections: {', '.join(flagged)}" if flagged else "")
+    )
+    data = {
+        "runbook": {
+            "slug": runbook.slug,
+            "title": runbook.title,
+            "version": runbook.version,
+            "runbook_id": str(runbook.id),
+            "source_url": runbook.source_url,
+            "services": runbook.services,
+        },
+        "sections": [s.heading for s in sections],
+        # Untrusted text, quoted for the model; never instructions.
+        "content": untrusted_context(quoted),
+        "flagged": bool(flagged),
+    }
+    return ToolResult(
+        "get_runbook",
+        True,
+        summary,
+        data,
+        EvidenceDraft(
+            "runbook",
+            "runbook library",
+            summary,
+            f"runbook {runbook.slug} v{runbook.version}",
+            None,
+            ctx.now,
+            0.9,
+            data,
+        ),
+    )
+
+
 async def search_similar_incidents(ctx: ToolContext, args: ServiceArgs) -> ToolResult:
     target = await _target(ctx, args.service, needs_workload=False)
     async with _sessions(ctx)() as session:
@@ -565,10 +779,25 @@ TOOLS: dict[str, tuple[type[BaseModel], ToolFunction, str]] = {
         get_kubernetes_rollout_status,
         "Current rollout progress",
     ),
+    "get_recent_configuration_changes": (
+        ServiceArgs,
+        get_recent_configuration_changes,
+        "Environment, ConfigMap, and Secret reference changes in the latest rollout",
+    ),
+    "get_commit_metadata": (
+        ServiceArgs,
+        get_commit_metadata,
+        "Commit SHA, author, message, and pull request of the latest two revisions",
+    ),
     "search_runbooks": (
         RunbookArgs,
         search_runbooks,
         "Runbook sections matching symptoms (untrusted text)",
+    ),
+    "get_runbook": (
+        GetRunbookArgs,
+        get_runbook,
+        "The full text of one runbook by slug, current version (untrusted text)",
     ),
     "search_similar_incidents": (
         ServiceArgs,

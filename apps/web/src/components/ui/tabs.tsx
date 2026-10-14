@@ -62,7 +62,9 @@ export function Tabs({ label, items }: { label: string; items: TabItem[] }) {
               }`}
             >
               {/* The Iris underline slides to the selected tab. */}
-              {active && <ActiveHighlight layoutId={`${base}-indicator`} className="top-auto h-0.5 rounded-full bg-accent" />}
+              {active && (
+                <ActiveHighlight layoutId={`${base}-indicator`} className="top-auto h-0.5 rounded-full bg-accent" />
+              )}
               {item.label}
             </button>
           );
@@ -72,7 +74,13 @@ export function Tabs({ label, items }: { label: string; items: TabItem[] }) {
         .filter((item) => item.id === selected)
         .map((item) => (
           <TransitionPanel key="panel" activeKey={item.id} direction={direction}>
-            <div role="tabpanel" id={`${base}-panel-${item.id}`} aria-labelledby={`${base}-tab-${item.id}`} tabIndex={0} className="pt-4">
+            <div
+              role="tabpanel"
+              id={`${base}-panel-${item.id}`}
+              aria-labelledby={`${base}-tab-${item.id}`}
+              tabIndex={0}
+              className="pt-4"
+            >
               {item.content}
             </div>
           </TransitionPanel>

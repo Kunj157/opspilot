@@ -1,8 +1,6 @@
 import { createApiClient, type CheckResult, type ReadinessResponse } from "@opspilot/api-client";
 
-export type ReadinessResult =
-  | { reachable: true; readiness: ReadinessResponse }
-  | { reachable: false };
+export type ReadinessResult = { reachable: true; readiness: ReadinessResponse } | { reachable: false };
 
 export type Tone = "healthy" | "degraded" | "critical" | "unknown";
 

@@ -1,0 +1,273 @@
+# OpsPilot alerting and recording rules (Prometheus rule-file format).
+#
+# One source for two deployments: observability/k8s mounts this file into
+# Prometheus, and the Helm chart ships an identical copy as a PrometheusRule
+# (infrastructure/helm/opspilot/files/prometheus-rules.yaml; CI checks they
+# match). Unit tests: observability/k8s/rules/tests (`make test-alerts`).
+# Every alert links to its section in docs/operations/alerts.md.
+#
+# Severities: `page` wakes someone up; `ticket` is handled in working hours.
+groups:
+  - name: opspilot-slo-recording
+    interval: 30s
+    rules:
+      # SLO 1, API availability: share of 5xx responses.
+      - record: slo:api_errors:ratio_rate5m
+        expr: |
+          sum(rate(http_requests_total{service="opspilot-api",status=~"5.."}[5m]))
+            / sum(rate(http_requests_total{service="opspilot-api"}[5m]))
+      - record: slo:api_errors:ratio_rate30m
+        expr: |
+          sum(rate(http_requests_total{service="opspilot-api",status=~"5.."}[30m]))
+            / sum(rate(http_requests_total{service="opspilot-api"}[30m]))
+      - record: slo:api_errors:ratio_rate1h
+        expr: |
+          sum(rate(http_requests_total{service="opspilot-api",status=~"5.."}[1h]))
+            / sum(rate(http_requests_total{service="opspilot-api"}[1h]))
+      - record: slo:api_errors:ratio_rate6h
+        expr: |
+          sum(rate(http_requests_total{service="opspilot-api",status=~"5.."}[6h]))
+            / sum(rate(http_requests_total{service="opspilot-api"}[6h]))
+      # SLO 2, API latency: share of non-streaming requests slower than 500 ms.
+      - record: slo:api_slow_requests:ratio_rate5m
+        expr: |
+          1 - sum(rate(http_request_duration_seconds_bucket{service="opspilot-api",route!~".*/stream",le="0.5"}[5m]))
+            / sum(rate(http_request_duration_seconds_count{service="opspilot-api",route!~".*/stream"}[5m]))
+      - record: slo:api_slow_requests:ratio_rate30m
+        expr: |
+          1 - sum(rate(http_request_duration_seconds_bucket{service="opspilot-api",route!~".*/stream",le="0.5"}[30m]))
+            / sum(rate(http_request_duration_seconds_count{service="opspilot-api",route!~".*/stream"}[30m]))
+      - record: slo:api_slow_requests:ratio_rate1h
+        expr: |
+          1 - sum(rate(http_request_duration_seconds_bucket{service="opspilot-api",route!~".*/stream",le="0.5"}[1h]))
+            / sum(rate(http_request_duration_seconds_count{service="opspilot-api",route!~".*/stream"}[1h]))
+      - record: slo:api_slow_requests:ratio_rate6h
+        expr: |
+          1 - sum(rate(http_request_duration_seconds_bucket{service="opspilot-api",route!~".*/stream",le="0.5"}[6h]))
+            / sum(rate(http_request_duration_seconds_count{service="opspilot-api",route!~".*/stream"}[6h]))
+      # SLO 7, event processing: share of events not processed within 60 s.
+      - record: slo:event_slow:ratio_rate5m
+        expr: |
+          1 - sum(rate(opspilot_event_processing_delay_seconds_bucket{le="60"}[5m]))
+            / sum(rate(opspilot_event_processing_delay_seconds_count[5m]))
+      - record: slo:event_slow:ratio_rate1h
+        expr: |
+          1 - sum(rate(opspilot_event_processing_delay_seconds_bucket{le="60"}[1h]))
+            / sum(rate(opspilot_event_processing_delay_seconds_count[1h]))
+
+  # Multi-window burn-rate alerts (docs/architecture/slos.md). Error budgets:
+  # availability 0.5 %, latency 5 %, event processing 1 %.
+  - name: opspilot-slo-burn
+    rules:
+      - alert: OpsPilotAPIAvailabilityFastBurn
+        expr: |
+          slo:api_errors:ratio_rate1h > (14.4 * 0.005)
+            and slo:api_errors:ratio_rate5m > (14.4 * 0.005)
+        for: 2m
+        labels: { severity: page, slo: api-availability }
+        annotations:
+          summary: API availability error budget burning 14x too fast
+          description: "{{ $value | humanizePercentage }} of API requests fail (5xx); at this rate the 30-day budget is gone in about 2 days."
+          runbook_url: https://github.com/Kunj157/opspilot/blob/dev/docs/operations/alerts.md#opspilotapiavailabilityfastburn
+      - alert: OpsPilotAPIAvailabilitySlowBurn
+        expr: |
+          slo:api_errors:ratio_rate6h > (6 * 0.005)
+            and slo:api_errors:ratio_rate30m > (6 * 0.005)
+        for: 15m
+        labels: { severity: ticket, slo: api-availability }
+        annotations:
+          summary: API availability error budget burning 6x too fast
+          description: "{{ $value | humanizePercentage }} of API requests failed over 6 h."
+          runbook_url: https://github.com/Kunj157/opspilot/blob/dev/docs/operations/alerts.md#opspilotapiavailabilityslowburn
+      - alert: OpsPilotAPILatencyFastBurn
+        expr: |
+          slo:api_slow_requests:ratio_rate1h > (14.4 * 0.05)
+            and slo:api_slow_requests:ratio_rate5m > (14.4 * 0.05)
+        for: 2m
+        labels: { severity: page, slo: api-latency }
+        annotations:
+          summary: API latency error budget burning 14x too fast
+          description: "{{ $value | humanizePercentage }} of API requests take longer than 500 ms."
+          runbook_url: https://github.com/Kunj157/opspilot/blob/dev/docs/operations/alerts.md#opspilotapilatencyfastburn
+      - alert: OpsPilotAPILatencySlowBurn
+        expr: |
+          slo:api_slow_requests:ratio_rate6h > (6 * 0.05)
+            and slo:api_slow_requests:ratio_rate30m > (6 * 0.05)
+        for: 15m
+        labels: { severity: ticket, slo: api-latency }
+        annotations:
+          summary: API latency error budget burning 6x too fast
+          description: "{{ $value | humanizePercentage }} of API requests took longer than 500 ms over 6 h."
+          runbook_url: https://github.com/Kunj157/opspilot/blob/dev/docs/operations/alerts.md#opspilotapilatencyslowburn
+      - alert: OpsPilotEventProcessingBudgetBurn
+        expr: |
+          slo:event_slow:ratio_rate1h > (14.4 * 0.01)
+            and slo:event_slow:ratio_rate5m > (14.4 * 0.01)
+        for: 5m
+        labels: { severity: page, slo: event-processing }
+        annotations:
+          summary: Events are not processed within 60 s
+          description: "{{ $value | humanizePercentage }} of events took longer than 60 s to process."
+          runbook_url: https://github.com/Kunj157/opspilot/blob/dev/docs/operations/alerts.md#opspiloteventprocessingbudgetburn
+      - alert: OpsPilotRemediationWithoutApproval
+        expr: sum(increase(opspilot_remediation_blocked_total{reason="unapproved"}[10m])) > 0
+        labels: { severity: page, slo: remediation-safety }
+        annotations:
+          summary: A remediation reached the executor without an approval
+          description: The executor's recheck refused it, but something queued an unapproved action. Investigate before anything else runs.
+          runbook_url: https://github.com/Kunj157/opspilot/blob/dev/docs/operations/alerts.md#opspilotremediationwithoutapproval
+
+  # The required alerts of the reliability plan, one or more per signal.
+  - name: opspilot-alerts
+    rules:
+      - alert: OpsPilotAPIErrorRateHigh
+        expr: |
+          slo:api_errors:ratio_rate5m > 0.05
+            and on() sum(rate(http_requests_total{service="opspilot-api"}[5m])) > 0.1
+        for: 5m
+        labels: { severity: page }
+        annotations:
+          summary: More than 5 % of API requests fail
+          description: "{{ $value | humanizePercentage }} of API requests returned 5xx for 5 minutes."
+          runbook_url: https://github.com/Kunj157/opspilot/blob/dev/docs/operations/alerts.md#opspilotapierrorratehigh
+      - alert: OpsPilotAPILatencyHigh
+        expr: |
+          histogram_quantile(0.95,
+            sum by (le) (rate(http_request_duration_seconds_bucket{service="opspilot-api",route!~".*/stream"}[5m]))
+          ) > 0.5
+        for: 10m
+        labels: { severity: ticket }
+        annotations:
+          summary: API p95 latency above 500 ms
+          description: "p95 latency is {{ $value | humanizeDuration }} (target 500 ms)."
+          runbook_url: https://github.com/Kunj157/opspilot/blob/dev/docs/operations/alerts.md#opspilotapilatencyhigh
+      - alert: OpsPilotDatabasePoolExhausted
+        expr: |
+          opspilot_db_pool_connections_in_use / opspilot_db_pool_connections_max > 0.9
+        for: 5m
+        labels: { severity: page }
+        annotations:
+          summary: "Database pool {{ $labels.pool }} on {{ $labels.pod }} is nearly exhausted"
+          description: "{{ $value | humanizePercentage }} of the pool's connections are checked out; new requests will wait and then time out."
+          runbook_url: https://github.com/Kunj157/opspilot/blob/dev/docs/operations/alerts.md#opspilotdatabasepoolexhausted
+      - alert: OpsPilotWorkerQueueBacklog
+        expr: opspilot_queue_oldest_age_seconds{queue=~"investigations|remediations"} > 600
+        for: 5m
+        labels: { severity: page }
+        annotations:
+          summary: "The {{ $labels.queue }} queue is not draining"
+          description: "The oldest waiting job is {{ $value | humanizeDuration }} old."
+          runbook_url: https://github.com/Kunj157/opspilot/blob/dev/docs/operations/alerts.md#opspilotworkerqueuebacklog
+      - alert: OpsPilotConsumerLagHigh
+        expr: sum by (group, topic) (opspilot_consumer_lag) > 500
+        for: 10m
+        labels: { severity: ticket }
+        annotations:
+          summary: "Consumer {{ $labels.group }} is {{ $value }} messages behind on {{ $labels.topic }}"
+          description: The event consumer is not keeping up with the topic.
+          runbook_url: https://github.com/Kunj157/opspilot/blob/dev/docs/operations/alerts.md#opspilotconsumerlaghigh
+      - alert: OpsPilotEventOutboxBacklog
+        expr: max(opspilot_queue_depth{queue="event_outbox"}) > 1000
+        for: 10m
+        labels: { severity: ticket }
+        annotations:
+          summary: "{{ $value }} timeline events are waiting to be published"
+          description: The outbox relay is not publishing; the broker may be down. Nothing is lost, but consumers are behind.
+          runbook_url: https://github.com/Kunj157/opspilot/blob/dev/docs/operations/alerts.md#opspiloteventoutboxbacklog
+      - alert: OpsPilotDeadLetterMessages
+        expr: sum by (consumer) (increase(opspilot_events_handled_total{outcome="dead_lettered"}[10m])) > 0
+        labels: { severity: ticket }
+        annotations:
+          summary: "Consumer {{ $labels.consumer }} dead-lettered messages"
+          description: "{{ $value }} messages were parked on a .dlq topic in the last 10 minutes."
+          runbook_url: https://github.com/Kunj157/opspilot/blob/dev/docs/operations/alerts.md#opspilotdeadlettermessages
+      - alert: OpsPilotAgentFailureRateHigh
+        expr: |
+          sum(increase(opspilot_agent_runs_total{agent="investigation",outcome=~"failed|crashed"}[1h]))
+            / sum(increase(opspilot_agent_runs_total{agent="investigation"}[1h])) > 0.25
+            and on() sum(increase(opspilot_agent_runs_total{agent="investigation"}[1h])) >= 4
+        for: 5m
+        labels: { severity: ticket }
+        annotations:
+          summary: More than 25 % of investigations fail
+          description: "{{ $value | humanizePercentage }} of investigation runs crashed or gave up in the last hour."
+          runbook_url: https://github.com/Kunj157/opspilot/blob/dev/docs/operations/alerts.md#opspilotagentfailureratehigh
+      - alert: OpsPilotLLMCostBudgetBreach
+        expr: |
+          sum(increase(opspilot_llm_cost_usd_total[24h])) > scalar(max(opspilot_llm_daily_budget_usd))
+        labels: { severity: page }
+        annotations:
+          summary: LLM spend exceeded the 24-hour budget
+          description: "Estimated spend in the last 24 h is ${{ $value | printf \"%.2f\" }}."
+          runbook_url: https://github.com/Kunj157/opspilot/blob/dev/docs/operations/alerts.md#opspilotllmcostbudgetbreach
+      - alert: OpsPilotLLMCostBudgetNearlySpent
+        expr: |
+          sum(increase(opspilot_llm_cost_usd_total[24h])) > 0.8 * scalar(max(opspilot_llm_daily_budget_usd))
+        labels: { severity: ticket }
+        annotations:
+          summary: LLM spend passed 80 % of the 24-hour budget
+          description: "Estimated spend in the last 24 h is ${{ $value | printf \"%.2f\" }}."
+          runbook_url: https://github.com/Kunj157/opspilot/blob/dev/docs/operations/alerts.md#opspilotllmcostbudgetbreach
+      - alert: OpsPilotDetectionWorkerStopped
+        expr: |
+          sum(increase(opspilot_detection_cycles_total[5m])) == 0
+            or absent(opspilot_detection_cycles_total)
+        for: 5m
+        labels: { severity: page }
+        annotations:
+          summary: The detection worker has not run a cycle for 10 minutes
+          description: No failures are being detected. Check the worker pod and its Prometheus connection.
+          runbook_url: https://github.com/Kunj157/opspilot/blob/dev/docs/operations/alerts.md#opspilotdetectionworkerstopped
+      - alert: OpsPilotDetectionTelemetryUnavailable
+        expr: |
+          sum(rate(opspilot_detection_cycles_total{outcome="telemetry_unavailable"}[10m]))
+            / sum(rate(opspilot_detection_cycles_total[10m])) > 0.5
+        for: 10m
+        labels: { severity: page }
+        annotations:
+          summary: Most detection cycles cannot read telemetry
+          description: "{{ $value | humanizePercentage }} of detection cycles found Prometheus unavailable."
+          runbook_url: https://github.com/Kunj157/opspilot/blob/dev/docs/operations/alerts.md#opspilotdetectionworkerstopped
+      - alert: OpsPilotRemediationFailed
+        expr: sum by (action) (increase(opspilot_remediation_executions_total{outcome="failed"}[15m])) > 0
+        labels: { severity: page }
+        annotations:
+          summary: "A {{ $labels.action }} remediation failed"
+          description: The incident was reopened for investigation; the service may still be degraded.
+          runbook_url: https://github.com/Kunj157/opspilot/blob/dev/docs/operations/alerts.md#opspilotremediationfailed
+      - alert: OpsPilotBackupStale
+        expr: |
+          time() - max(
+            max(opspilot_backup_last_success_timestamp_seconds)
+              or max(kube_cronjob_status_last_successful_time{cronjob=~".*db-backup"})
+          ) > 26 * 3600
+        labels: { severity: page }
+        annotations:
+          summary: No successful database backup for more than 26 hours
+          description: "The last successful backup finished {{ $value | humanizeDuration }} ago (RPO target 24 h)."
+          runbook_url: https://github.com/Kunj157/opspilot/blob/dev/docs/operations/alerts.md#opspilotbackupfailed
+      - alert: OpsPilotBackupFailed
+        expr: max by (namespace, job_name) (kube_job_status_failed{job_name=~".*db-backup.*"}) > 0
+        labels: { severity: ticket }
+        annotations:
+          summary: "Backup job {{ $labels.job_name }} failed"
+          description: Read the job's logs; the next scheduled run retries.
+          runbook_url: https://github.com/Kunj157/opspilot/blob/dev/docs/operations/alerts.md#opspilotbackupfailed
+      - alert: OpsPilotCertificateExpiringSoon
+        expr: |
+          min by (namespace, name) (certmanager_certificate_expiration_timestamp_seconds) - time() < 14 * 86400
+            or min by (instance) (probe_ssl_earliest_cert_expiry) - time() < 14 * 86400
+        labels: { severity: ticket }
+        annotations:
+          summary: "A certificate expires in {{ $value | humanizeDuration }}"
+          description: Renewal should have happened already; check cert-manager.
+          runbook_url: https://github.com/Kunj157/opspilot/blob/dev/docs/operations/alerts.md#opspilotcertificateexpiringsoon
+      - alert: OpsPilotCertificateExpiryImminent
+        expr: |
+          min by (namespace, name) (certmanager_certificate_expiration_timestamp_seconds) - time() < 3 * 86400
+            or min by (instance) (probe_ssl_earliest_cert_expiry) - time() < 3 * 86400
+        labels: { severity: page }
+        annotations:
+          summary: "A certificate expires in {{ $value | humanizeDuration }}"
+          description: Users will see TLS errors when it expires.
+          runbook_url: https://github.com/Kunj157/opspilot/blob/dev/docs/operations/alerts.md#opspilotcertificateexpiringsoon

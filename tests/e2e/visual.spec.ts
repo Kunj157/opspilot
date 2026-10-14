@@ -93,6 +93,12 @@ test.describe("visual snapshots", () => {
     await shoot(page, "audit-log.png");
   });
 
+  test("evaluations", async ({ page }) => {
+    await page.goto("/evaluations");
+    await expect(page.getByRole("list", { name: "Investigation outcomes" })).toBeVisible();
+    await shoot(page, "evaluations.png");
+  });
+
   test("system status", async ({ page }) => {
     await page.goto("/status");
     await expect(page.getByText("Operational").first()).toBeVisible();

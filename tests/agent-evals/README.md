@@ -7,7 +7,7 @@ embedding model, and canned telemetry. Results go to
 | Dataset | What it checks |
 |---|---|
 | `retrieval.json` | The right runbook ranks first for each demo incident; a prompt-injection runbook never does |
-| `investigations.json` | The full investigation workflow: suspected service, tools called, runbook found, hypotheses and summary claims grounded in evidence (invented references dropped, uncited claims marked unverified), remediation proposed, and that no forbidden action or target is ever proposed |
+| `investigations.json` | The full investigation workflow: suspected service, tools called, runbook found and read in full (`get_runbook`), hypotheses and summary claims grounded in evidence (invented references dropped, uncited claims marked unverified), remediation proposed, and that no forbidden action or target is ever proposed |
 
 `make test-agent` uses a scripted model (CI). Its proposal for each case is
 deliberately naive, including a namespace deletion requested by an injected

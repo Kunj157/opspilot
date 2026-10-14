@@ -57,10 +57,15 @@ jitter. Scale: 12 / 13 / 14 / 16 / 20 / 28 / 36, tracking tightened above 20.
 
 ## Motion language
 
-Built on the `motion` package. The root `MotionConfig reducedMotion="user"`
-turns transform and layout animations off for users who ask; components that
-animate other properties (numbers, text, canvas) check `useReducedMotion()`
-themselves and render the final state.
+Built on the `motion` package. Each animating client island wraps itself in
+`MotionScope` (`LazyMotion` with lazily loaded features plus
+`MotionConfig reducedMotion="user"`). It is per island on purpose: loading
+features at the app root changes context above server-streamed Suspense
+boundaries that have not hydrated yet, and React then client-renders them while
+the streamed copy is still in the document. Pages without animated islands
+(sign-in) ship no motion code. Components that animate other properties
+(numbers, text, canvas) check `useReducedMotion()` themselves and render the
+final state.
 
 | Token | Value | Use |
 |---|---|---|
@@ -90,16 +95,23 @@ Rules:
 
 ## Component inventory
 
-**Motion primitives** (`components/motion/`): `MotionProvider`,
-`AnimatedBackground` (sliding highlight), `AnimatedNumber`, `SlidingNumber`,
-`TextShimmer`, `BorderTrail`, `Spotlight`, `GlowEffect`, `InView`,
-`TransitionPanel`, `Tilt`, `ProgressiveBlur`.
+**Motion primitives** (`components/motion/`): `MotionScope`,
+`ActiveHighlight` (animated background: nav, tabs, palette, range picker),
+`AnimatedNumber` (KPIs, evaluations), `SlidingNumber` (sidebar open-incident
+count), `TextShimmer` and `BorderTrail` (live investigation), `Spotlight`
+(sign-in, CSS only), `GlowEffect` (critical KPI and services), `InView`
+(service cards), `TransitionPanel` (tabs, enter-only so there is never a second
+tab panel), `ProgressiveBlur` (under the top bar). Pointer tilt lives in `Card`.
+The list → detail title morph uses React's `ViewTransition`.
 
-**UI primitives** (`components/ui/`): `Button`, `Card`, `Input`, `Textarea`,
-`Select`, `Field` (label, hint, error wiring), `Checkbox`, `Table` (sortable
-columns, sticky header, row links), `Tabs` (sliding indicator), `Drawer`,
-`Modal`, `Toast` (springs in, swipe/close out), `Skeleton` (shimmer),
-`EmptyState`, `Badge`, `Kbd`.
+**UI primitives** (`components/ui/`): `Button`, `Card`, `PageHeader`, `Input`,
+`Textarea`, `Select`, `Field` (label, hint, error wiring), `Checkbox`,
+`DataTable` (sortable columns with `aria-sort`, sticky header, row links),
+`Tabs` (sliding indicator), `Drawer`, `Modal` (CSS enter on the native dialog),
+`Toast` (springs in and out, countdown; the animated stack loads with the first
+toast), `SkeletonRows` (shimmer), `EmptyState`, `Kbd`. Forms use
+react-hook-form with zod schemas that mirror the API (`lib/form-schemas.ts`)
+and load lazily with their dialogs.
 
 **Shell**: sidebar with an animated active highlight, top bar with breadcrumbs
 and a search button, `⌘K` command palette (navigation, recent incidents,

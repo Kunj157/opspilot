@@ -12,11 +12,7 @@ const MESSAGES: Record<string, { text: string; tone: "critical" | "healthy" }> =
 export function LoginPanel() {
   const params = useSearchParams();
   const returnTo = params.get("returnTo") ?? "/";
-  const message = params.get("error")
-    ? MESSAGES.callback
-    : params.get("signed_out")
-      ? MESSAGES.signed_out
-      : null;
+  const message = params.get("error") ? MESSAGES.callback : params.get("signed_out") ? MESSAGES.signed_out : null;
 
   return (
     <>

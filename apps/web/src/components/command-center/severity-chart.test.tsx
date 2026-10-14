@@ -26,12 +26,11 @@ describe("SeverityChart", () => {
     render(<SeverityChart daily={daily} />);
 
     const legend = screen.getByRole("list", { name: "Legend" });
-    expect(within(legend).getAllByRole("listitem").map((li) => li.textContent)).toEqual([
-      "Critical",
-      "High",
-      "Medium",
-      "Low",
-    ]);
+    expect(
+      within(legend)
+        .getAllByRole("listitem")
+        .map((li) => li.textContent),
+    ).toEqual(["Critical", "High", "Medium", "Low"]);
   });
 
   it("draws one stacked column per day with a segment per non-zero severity", () => {

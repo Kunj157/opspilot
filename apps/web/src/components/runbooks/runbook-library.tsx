@@ -35,12 +35,20 @@ function SearchResults({ query }: { query: string }) {
   const results = useQuery({
     queryKey: ["runbook-search", query],
     queryFn: async ({ signal }) => {
-      const { data } = await api().GET("/api/v1/runbooks/search", { params: { query: { q: query, limit: 10 } }, signal });
+      const { data } = await api().GET("/api/v1/runbooks/search", {
+        params: { query: { q: query, limit: 10 } },
+        signal,
+      });
       if (!data) throw new Error("search failed");
       return data.items;
     },
   });
-  if (results.isPending) return <p role="status" className="py-8 text-center text-sm text-fg-muted">Searching…</p>;
+  if (results.isPending)
+    return (
+      <p role="status" className="py-8 text-center text-sm text-fg-muted">
+        Searching…
+      </p>
+    );
   if (results.isError)
     return (
       <p role="alert" className="py-8 text-center text-sm text-critical">
@@ -137,9 +145,15 @@ export function RunbookLibrary({ canManage }: { canManage: boolean }) {
             </p>
           )}
           {runbooks.isSuccess && runbooks.data.length > 0 && (
-            <ul aria-label="Runbooks" className="surface-raised divide-y divide-border rounded-card border border-border">
+            <ul
+              aria-label="Runbooks"
+              className="surface-raised divide-y divide-border rounded-card border border-border"
+            >
               {runbooks.data.map((rb) => (
-                <li key={rb.id} className="flex flex-col gap-1.5 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+                <li
+                  key={rb.id}
+                  className="flex flex-col gap-1.5 px-5 py-4 sm:flex-row sm:items-center sm:justify-between"
+                >
                   <Link href={`/runbooks/${rb.id}`} className="font-medium hover:text-accent">
                     {rb.title}
                   </Link>

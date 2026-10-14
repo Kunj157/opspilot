@@ -39,6 +39,7 @@ from opspilot_api.heartbeat import beat_if_healthy
 from opspilot_api.kube import KubernetesWriter
 from opspilot_api.logging import configure_logging
 from opspilot_api.ml.shadow import ShadowScorer
+from opspilot_api.ops_metrics import LLM_DAILY_BUDGET, POOLS, sample_queues
 from opspilot_api.remediation.executor import claim as claim_execution
 from opspilot_api.remediation.executor import execute
 from opspilot_api.remediation.verification import pending as pending_verifications
@@ -73,6 +74,8 @@ async def run(settings: Settings) -> None:
         raise SystemExit("DATABASE_URL is required")
     engine = create_async_engine(settings.database_url, pool_pre_ping=True)
     sessions = async_sessionmaker(engine, expire_on_commit=False)
+    POOLS.track("worker", engine)
+    LLM_DAILY_BUDGET.set(settings.llm_daily_budget_usd)
     timeout = settings.telemetry_timeout_seconds
     metrics = PrometheusMetrics(settings.prometheus_url or "http://localhost:9090", timeout=timeout)
     logs = LokiLogs(settings.loki_url or "http://localhost:3100", timeout=timeout)
@@ -103,8 +106,7 @@ async def run(settings: Settings) -> None:
             metrics,
             lag=timedelta(seconds=settings.detection_lag_seconds),
             # With event-driven investigations the consumer queues them instead.
-            auto_investigate=settings.auto_investigate
-            and not (settings.kafka_bootstrap_servers and settings.event_driven_investigations),
+            auto_investigate=settings.auto_investigate and not settings.investigations_by_event,
         )
 
         async def detect() -> bool:
@@ -132,7 +134,11 @@ async def run(settings: Settings) -> None:
         request_timeout=settings.kubernetes_request_timeout_seconds,
     )
     llm = build_llm(
-        settings.llm_provider, settings.llm_model, settings.llm_base_url, settings.llm_api_key
+        settings.llm_provider,
+        settings.llm_model,
+        settings.llm_base_url,
+        settings.llm_api_key,
+        timeout=settings.llm_timeout_seconds,
     )
     make_context = context_factory(
         sessions,
@@ -163,9 +169,8 @@ async def run(settings: Settings) -> None:
 
     loops.append(_loop(stop, "postmortems", postmortems, 15.0))
 
-    kafka = bool(settings.kafka_bootstrap_servers)
-    remediation_by_event = kafka and settings.event_driven_remediation
-    verification_by_event = kafka and settings.event_driven_verification
+    remediation_by_event = settings.remediation_by_event
+    verification_by_event = settings.verification_by_event
 
     async def remediate() -> bool:
         """Run one approved remediation; when event-driven, only ones their event missed."""
@@ -197,6 +202,13 @@ async def run(settings: Settings) -> None:
 
     loops.append(_loop(stop, "verification", verify_recovery, 10.0))
 
+    async def queue_metrics() -> bool:
+        """Refresh the backlog gauges the queue alerts read."""
+        await sample_queues(sessions, outbox=bool(settings.kafka_bootstrap_servers))
+        return False
+
+    loops.append(_loop(stop, "queue-metrics", queue_metrics, settings.queue_metrics_seconds))
+
     producer: KafkaProducer | None = None
     if settings.kafka_bootstrap_servers:
         producer = KafkaProducer(settings.kafka_bootstrap_servers)
@@ -211,7 +223,7 @@ async def run(settings: Settings) -> None:
             "investigations",
             sessions,
             investigation_requester(
-                authoritative=settings.event_driven_investigations and settings.auto_investigate
+                authoritative=settings.investigations_by_event and settings.auto_investigate
             ),
             producer,
         )

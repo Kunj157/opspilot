@@ -257,8 +257,7 @@ scripts/            Development helpers
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) and
-[DEVELOPMENT_WORKFLOW.md](DEVELOPMENT_WORKFLOW.md).
+See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## License
 

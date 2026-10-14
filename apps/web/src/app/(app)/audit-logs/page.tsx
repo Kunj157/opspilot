@@ -14,8 +14,7 @@ async function AuditLogGate() {
         role="alert"
         className="rounded-card border border-border bg-surface-2 px-5 py-10 text-center text-sm text-fg-secondary shadow-3"
       >
-        You don&apos;t have access to the audit log. It is available to incident commanders and
-        administrators.
+        You don&apos;t have access to the audit log. It is available to incident commanders and administrators.
       </p>
     );
   }

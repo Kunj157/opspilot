@@ -41,9 +41,7 @@ export function sessionFromTokens(
     idToken: tokens.id_token ?? previous?.idToken ?? null,
     accessTokenExpiresAt: nowSeconds() + (tokens.expiresIn() ?? 60),
     sessionExpiresAt:
-      refreshExpiresIn > 0
-        ? nowSeconds() + refreshExpiresIn
-        : (previous?.sessionExpiresAt ?? nowSeconds() + 8 * 3600),
+      refreshExpiresIn > 0 ? nowSeconds() + refreshExpiresIn : (previous?.sessionExpiresAt ?? nowSeconds() + 8 * 3600),
   };
 }
 

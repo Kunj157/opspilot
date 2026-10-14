@@ -47,9 +47,20 @@ function Sparkline({ values }: { values: number[] }) {
   const step = 100 / (values.length - 1);
   const points = values.map((v, i) => `${(i * step).toFixed(1)},${(28 - (v / max) * 24).toFixed(1)}`);
   return (
-    <svg aria-hidden viewBox="0 0 100 30" preserveAspectRatio="none" className="absolute right-5 bottom-5 h-8 w-24 overflow-visible">
+    <svg
+      aria-hidden
+      viewBox="0 0 100 30"
+      preserveAspectRatio="none"
+      className="absolute right-5 bottom-5 h-8 w-24 overflow-visible"
+    >
       <polyline points={`0,30 ${points.join(" ")} 100,30`} className="fill-accent-subtle stroke-none" />
-      <polyline points={points.join(" ")} fill="none" vectorEffect="non-scaling-stroke" className="stroke-chart-1" strokeWidth={1.5} />
+      <polyline
+        points={points.join(" ")}
+        fill="none"
+        vectorEffect="non-scaling-stroke"
+        className="stroke-chart-1"
+        strokeWidth={1.5}
+      />
     </svg>
   );
 }

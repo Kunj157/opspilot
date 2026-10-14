@@ -182,6 +182,16 @@ export const ready = {
   },
 };
 
+export const evaluations = {
+  range_start: minutesAgo(30 * 24 * 60),
+  range_end: NOW.toISOString(),
+  detection: { incidents: 14, delay_p50_seconds: 95, delay_p95_seconds: 210 },
+  investigations: { total: 22, succeeded: 17, partial: 3, failed: 2 },
+  agents: { runs: 96, success_rate: 0.94, tool_calls: 412, tool_error_rate: 0.03, input_tokens: 1_840_000, output_tokens: 212_000, cost_usd: 3.87 },
+  remediation: { decisions: 11, approval_rate: 0.82 },
+  response: { mtta_seconds: 252, mttr_seconds: 3120 },
+};
+
 /** Request path → body. Anything else the pages ask for gets an empty 404. */
 export const RESPONSES: Record<string, unknown> = {
   "/api/v1/services": services,
@@ -193,4 +203,5 @@ export const RESPONSES: Record<string, unknown> = {
   "/api/v1/ml/shadow": shadow,
   "/api/v1/audit-logs": audit,
   "/api/v1/ready": ready,
+  "/api/v1/evaluations": evaluations,
 };

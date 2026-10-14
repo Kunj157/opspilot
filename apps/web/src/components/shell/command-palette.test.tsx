@@ -10,7 +10,9 @@ vi.mock("next/navigation", () => ({ useRouter: () => ({ push }) }));
 
 const RESPONSES: Record<string, unknown> = {
   "/api/v1/me": { permissions: ["view_incidents", "view_services", "manage_incidents"] },
-  "/api/v1/incidents": { items: [{ id: "i1", title: "Checkout latency spike", severity: "critical", status: "DETECTED" }] },
+  "/api/v1/incidents": {
+    items: [{ id: "i1", title: "Checkout latency spike", severity: "critical", status: "DETECTED" }],
+  },
   "/api/v1/services": { items: [{ id: "s1", name: "Payments", slug: "payments", health_status: "degraded" }] },
 };
 

@@ -8,6 +8,7 @@ from typing import Any
 
 import pytest
 import sqlalchemy as sa
+from prometheus_client import REGISTRY
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from opspilot_api.db.models import (
@@ -199,9 +200,14 @@ async def test_an_approved_rollback_runs_once_and_moves_to_verifying(
 ) -> None:
     proposal_id = await approved(sessions)
     writer = FakeWriter()
+    succeeded = {"action": "rollback_deployment", "outcome": "succeeded"}
+    before = REGISTRY.get_sample_value("opspilot_remediation_executions_total", succeeded) or 0
 
     assert await run_once(sessions, writer) is ExecutionStatus.SUCCEEDED
     assert await run_once(sessions, writer) is None
+    assert (
+        REGISTRY.get_sample_value("opspilot_remediation_executions_total", succeeded) == before + 1
+    )
 
     proposal, incident, [execution], events, audit, _ = await snapshot(sessions, proposal_id)
     assert writer.calls == [("rollback", "demo", "checkout", 6)]
@@ -270,8 +276,11 @@ async def test_an_expired_proposal_does_not_run_and_reopens_the_investigation(
 ) -> None:
     proposal_id = await approved(sessions, expires_in=-timedelta(seconds=1))
     writer = FakeWriter()
+    expired = {"reason": "expired"}
+    before = REGISTRY.get_sample_value("opspilot_remediation_blocked_total", expired) or 0
 
     assert await run_once(sessions, writer) is ExecutionStatus.FAILED
+    assert REGISTRY.get_sample_value("opspilot_remediation_blocked_total", expired) == before + 1
 
     proposal, incident, [execution], events, audit, investigations = await snapshot(
         sessions, proposal_id
