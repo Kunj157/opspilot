@@ -195,6 +195,16 @@ body {
   }
 }
 
+@keyframes glow-breathe {
+  0%,
+  100% {
+    opacity: 0.45;
+  }
+  50% {
+    opacity: 0.9;
+  }
+}
+
 /* Metrics never jitter while digits change. */
 .tabular {
   font-variant-numeric: tabular-nums;
