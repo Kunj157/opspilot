@@ -27,7 +27,7 @@
 - [ ] Authorization tested for new or changed endpoints
 - [ ] Sensitive actions write audit records; logs and metrics emitted
 - [ ] No console errors, React warnings, or 5xx responses in the test run
-- [ ] Local gate green (`DEVELOPMENT_WORKFLOW.md` §5)
+- [ ] Local gate green (`make format lint typecheck test test-integration build`)
 - [ ] Docs / README / ADRs updated
 - [ ] No secrets, debug output, or untracked TODOs
 - [ ] Commits follow Conventional Commits, no co-author trailers
