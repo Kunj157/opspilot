@@ -32,6 +32,7 @@ from opspilot_api.events.relay import OutboxRelay
 from opspilot_api.kube import KubernetesWriter
 from opspilot_api.logging import configure_logging
 from opspilot_api.ml.shadow import ShadowScorer
+from opspilot_api.ops_metrics import LLM_DAILY_BUDGET, POOLS, sample_queues
 from opspilot_api.remediation.executor import claim as claim_execution
 from opspilot_api.remediation.executor import execute
 from opspilot_api.remediation.verification import pending as pending_verifications
@@ -62,6 +63,8 @@ async def run(settings: Settings) -> None:
         raise SystemExit("DATABASE_URL is required")
     engine = create_async_engine(settings.database_url, pool_pre_ping=True)
     sessions = async_sessionmaker(engine, expire_on_commit=False)
+    POOLS.track("worker", engine)
+    LLM_DAILY_BUDGET.set(settings.llm_daily_budget_usd)
     timeout = settings.telemetry_timeout_seconds
     metrics = PrometheusMetrics(settings.prometheus_url or "http://localhost:9090", timeout=timeout)
     logs = LokiLogs(settings.loki_url or "http://localhost:3100", timeout=timeout)
@@ -156,6 +159,13 @@ async def run(settings: Settings) -> None:
         return False
 
     loops.append(_loop(stop, "verification", verify_recovery, 10.0))
+
+    async def queue_metrics() -> bool:
+        """Refresh the backlog gauges the queue alerts read."""
+        await sample_queues(sessions, outbox=bool(settings.kafka_bootstrap_servers))
+        return False
+
+    loops.append(_loop(stop, "queue-metrics", queue_metrics, settings.queue_metrics_seconds))
 
     producer: KafkaProducer | None = None
     if settings.kafka_bootstrap_servers:
