@@ -18,6 +18,8 @@ import pandas as pd
 SCHEMA_VERSION = "v1"
 STEP = timedelta(seconds=15)
 NAMESPACE = "demo"
+# The synthetic traffic source reports metrics too; it is not a monitored service.
+EXCLUDED_SERVICES = frozenset({"loadgen"})
 FEATURES = [
     "request_rate",
     "error_rate",
@@ -132,7 +134,7 @@ def fetch(prometheus_url: str, start: datetime, end: datetime) -> pd.DataFrame:
     frames = []
     with httpx.Client(base_url=prometheus_url, timeout=60) as client:
         per_feature = {name: query_range(client, q, start, end) for name, q in QUERIES.items()}
-    services = sorted({s for series in per_feature.values() for s in series})
+    services = sorted({s for series in per_feature.values() for s in series} - EXCLUDED_SERVICES)
     for service in services:
         columns = {
             name: per_feature[name].get(service, pd.Series(dtype=float)) for name in FEATURES
