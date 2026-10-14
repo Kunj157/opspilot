@@ -162,14 +162,27 @@ def clean(frame: pd.DataFrame) -> pd.DataFrame:
     return out.reset_index(drop=True)
 
 
+# After a rollback the healthy release is still rolling out for a while.
+RECOVERY = timedelta(minutes=2)
+
+
 def label(frame: pd.DataFrame, runs: Iterable[Run]) -> pd.DataFrame:
-    """Add `anomaly` (the faulty service while its fault is live) and the owning `run`."""
+    """Add `anomaly`, `fault_active`, and the owning `run`.
+
+    `anomaly` marks the faulty service while its faulty release is live.
+    `fault_active` marks every service from fault start until the recovery
+    has settled: callers of the faulty service really do fail then, so those
+    windows are neither normal (for training) nor false alerts (for scoring).
+    """
     out = frame.copy()
     out["anomaly"] = 0
+    out["fault_active"] = 0
     out["run"] = -1
     for i, run in enumerate(runs):
         in_run = (out["time"] >= run.stable_start) & (out["time"] <= run.recovered_at)
         out.loc[in_run, "run"] = i
+        active = (out["time"] >= run.fault_start) & (out["time"] < run.fault_end + RECOVERY)
+        out.loc[in_run & active, "fault_active"] = 1
         faulty = (
             in_run
             & (out["service"] == run.service)
