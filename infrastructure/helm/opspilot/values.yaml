@@ -16,6 +16,8 @@ config:
   JWT_AUDIENCE: opspilot-api
   AGENT_ALLOWED_NAMESPACES: demo
   AUTO_INVESTIGATE: "true"
+  # Estimated LLM spend per 24 h before OpsPilotLLMCostBudgetBreach pages.
+  LLM_DAILY_BUDGET_USD: "5"
 
 # A Secret with DATABASE_URL, REDIS_URL, JWT_ISSUER, OIDC_*, LLM_API_KEY, ...
 # created outside the chart (External Secrets in AWS, kubectl locally).
@@ -53,6 +55,14 @@ rollouts:
   prometheusUrl: http://prometheus.observability:9090
   maxErrorRate: "0.05"
   maxP95Seconds: "0.5"
+
+# Alert and recording rules as a PrometheusRule (needs the Prometheus
+# Operator CRDs). `labels` must match the operator's ruleSelector, e.g.
+# { release: kube-prometheus-stack }.
+monitoring:
+  prometheusRule:
+    enabled: false
+    labels: {}
 
 # Development only: in-cluster PostgreSQL and Redis instead of managed ones.
 devDatabases:

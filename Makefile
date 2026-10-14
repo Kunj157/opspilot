@@ -203,9 +203,12 @@ seed-runbooks: ## Load docs/runbooks into the runbook library (API must be runni
 test-detection: ## One sustained failure → exactly one incident, with detection delay (needs make dev and the kind stack)
 	cd demo/services && uv run python -u ../../tests/telemetry/detection_smoke.py
 
-test-alerts: ## Check the Prometheus alert rules and run their unit tests (promtool)
+test-alerts: ## Check and unit-test the alert rules (promtool), the Alertmanager config, and the Helm copy
 	promtool check rules observability/k8s/rules/opspilot-alerts.yaml
 	promtool test rules observability/k8s/rules/tests/*.test.yaml
+	amtool check-config observability/k8s/alertmanager/alertmanager.yml
+	@cmp observability/k8s/rules/opspilot-alerts.yaml infrastructure/helm/opspilot/files/prometheus-rules.yaml || \
+		{ echo "infrastructure/helm/opspilot/files/prometheus-rules.yaml must be a copy of the rule file"; exit 1; }
 
 test-telemetry: ## Follow one request through traces, logs, and metrics on the kind cluster
 	cd demo/services && uv run python -u ../../tests/telemetry/telemetry_smoke.py
