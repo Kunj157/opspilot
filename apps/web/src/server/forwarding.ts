@@ -3,6 +3,9 @@ const FORWARDED_REQUEST_HEADERS = [
   "content-type",
   "idempotency-key",
   "last-event-id",
+  // W3C trace context from an instrumented ingress, so API logs join the trace.
+  "traceparent",
+  "tracestate",
   "x-request-id",
 ];
 
@@ -30,11 +33,7 @@ export function clientAddress(forwardedFor: string | null, trustedHops: number):
  * (never its cookies or Authorization), the session's bearer token, and the
  * client's address when it can be trusted.
  */
-export function upstreamHeaders(
-  incoming: Headers,
-  accessToken: string | null,
-  trustedHops: number,
-): Headers {
+export function upstreamHeaders(incoming: Headers, accessToken: string | null, trustedHops: number): Headers {
   const headers = new Headers();
   for (const name of FORWARDED_REQUEST_HEADERS) {
     const value = incoming.get(name);
@@ -44,4 +43,16 @@ export function upstreamHeaders(
   const client = clientAddress(incoming.get("x-forwarded-for"), trustedHops);
   if (client) headers.set("x-forwarded-for", client);
   return headers;
+}
+
+/**
+ * The API URL for a proxied path, or null when a segment would escape
+ * `/api/v1` ("." or ".."; Next.js decodes `%2e%2e` into the segment), so the
+ * proxy can only ever reach the API's public routes.
+ */
+export function upstreamUrl(segments: string[], search: string, apiUrl: string): URL | null {
+  if (segments.some((segment) => segment === "." || segment === "..")) return null;
+  const target = new URL(`/api/v1/${segments.map(encodeURIComponent).join("/")}`, apiUrl);
+  target.search = search;
+  return target;
 }

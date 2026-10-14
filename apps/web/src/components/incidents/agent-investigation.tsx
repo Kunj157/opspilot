@@ -7,6 +7,8 @@ import Link from "next/link";
 import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
+import { BorderTrail } from "@/components/motion/border-trail";
+import { TextShimmer } from "@/components/motion/text-shimmer";
 import { Card } from "@/components/ui/card";
 import { Tabs } from "@/components/ui/tabs";
 import { useToast } from "@/components/ui/toast";
@@ -51,10 +53,13 @@ function useList<T>(
     queryKey: key,
     refetchInterval: (q) => ((typeof live === "function" ? live(q.state.data) : live) ? 4000 : false),
     queryFn: async ({ signal }) => {
-      const { data } = await api().GET(`/api/v1/incidents/{incident_id}/${path}` as "/api/v1/incidents/{incident_id}/evidence", {
-        params: { path: { incident_id: incidentId } },
-        signal,
-      });
+      const { data } = await api().GET(
+        `/api/v1/incidents/{incident_id}/${path}` as "/api/v1/incidents/{incident_id}/evidence",
+        {
+          params: { path: { incident_id: incidentId } },
+          signal,
+        },
+      );
       if (!data) throw new Error(`${path} unavailable`);
       return data.items as T[];
     },
@@ -66,7 +71,11 @@ function EvidenceList({ evidence }: { evidence: Evidence[] }) {
   return (
     <ol aria-label="Evidence" className="flex flex-col gap-2">
       {evidence.map((e, i) => (
-        <li key={e.id} id={`evidence-${e.id}`} className="scroll-mt-24 rounded-sm border border-border bg-surface-1 p-3 target:border-accent">
+        <li
+          key={e.id}
+          id={`evidence-${e.id}`}
+          className="scroll-mt-24 rounded-sm border border-border bg-surface-1 p-3 target:border-accent"
+        >
           <p className="flex flex-wrap items-center gap-2 text-xs text-fg-muted">
             <span className="font-mono text-accent">E{i + 1}</span>
             <span className="rounded-sm bg-surface-3 px-1.5 py-0.5">{e.source}</span>
@@ -147,22 +156,39 @@ export function AgentInvestigation({
   }
 
   const inv = investigation.data;
-  const result = (inv?.result ?? null) as { summary?: string; hypotheses?: Hypothesis[]; unknowns?: string[]; manual_review?: boolean; runbooks?: { title: string; version: number; runbook_id: string; score: number }[] } | null;
+  const result = (inv?.result ?? null) as {
+    summary?: string;
+    hypotheses?: Hypothesis[];
+    unknowns?: string[];
+    manual_review?: boolean;
+    runbooks?: { title: string; version: number; runbook_id: string; score: number }[];
+  } | null;
   const refs = new Map((evidence.data ?? []).map((e, i) => [e.id, `E${i + 1}`]));
   const byRef = new Map((evidence.data ?? []).map((e, i) => [`E${i + 1}`, e.id]));
   const proposal = proposals.data?.[0];
   const canStart = canInvestigate && !live;
 
   return (
-    <Card as="section" aria-label="Agent investigation" className="flex flex-col gap-4 p-5">
+    <Card as="section" aria-label="Agent investigation" className="relative flex flex-col gap-4 p-5">
+      {/* While agents work, a light travels around the panel (static under reduced motion). */}
+      {live && <BorderTrail />}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h2 className="text-sm font-medium text-fg-secondary">Agent investigation</h2>
         <div className="flex items-center gap-3">
           {inv && (
             <span className={`inline-flex items-center gap-1.5 text-xs ${live ? "text-accent" : "text-fg-secondary"}`}>
-              <span aria-hidden className={`size-1.5 rounded-full ${live ? "animate-pulse bg-accent" : "bg-fg-muted"}`} />
-              {STATUS[inv.status] ?? inv.status}
-              {inv.status === "running" && inv.current_node ? ` · ${inv.current_node}` : ""}
+              <span
+                aria-hidden
+                className={`size-1.5 rounded-full ${live ? "animate-pulse bg-accent" : "bg-fg-muted"}`}
+              />
+              {live ? (
+                <TextShimmer className="text-shimmer-accent">
+                  {STATUS[inv.status] ?? inv.status}
+                  {inv.status === "running" && inv.current_node ? ` · ${inv.current_node}` : ""}
+                </TextShimmer>
+              ) : (
+                (STATUS[inv.status] ?? inv.status)
+              )}
             </span>
           )}
           {canStart && (
@@ -173,7 +199,7 @@ export function AgentInvestigation({
         </div>
       </div>
 
-      {investigation.isPending && <div aria-hidden className="h-24 animate-pulse rounded-sm bg-surface-3" />}
+      {investigation.isPending && <div aria-hidden className="skeleton h-24 rounded-sm" />}
       {investigation.isSuccess && !inv && (
         <p className="text-sm text-fg-muted">No agent has investigated this incident yet.</p>
       )}
@@ -198,7 +224,11 @@ export function AgentInvestigation({
               <p className="mt-2 text-xs text-fg-muted">
                 Evidence:
                 {h.supporting_evidence.map((ref) => (
-                  <a key={ref} href={`#evidence-${byRef.get(ref) ?? ref}`} className="ml-1.5 font-mono text-accent hover:underline">
+                  <a
+                    key={ref}
+                    href={`#evidence-${byRef.get(ref) ?? ref}`}
+                    className="ml-1.5 font-mono text-accent hover:underline"
+                  >
                     {ref}
                   </a>
                 ))}
@@ -232,7 +262,11 @@ export function AgentInvestigation({
         <Tabs
           label="Investigation details"
           items={[
-            { id: "evidence", label: `Evidence (${evidence.data?.length ?? 0})`, content: <EvidenceList evidence={evidence.data ?? []} /> },
+            {
+              id: "evidence",
+              label: `Evidence (${evidence.data?.length ?? 0})`,
+              content: <EvidenceList evidence={evidence.data ?? []} />,
+            },
             { id: "tools", label: "Tool calls", content: <ToolCalls runs={runs.data ?? []} /> },
             {
               id: "runbooks",

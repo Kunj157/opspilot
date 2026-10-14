@@ -10,6 +10,9 @@ export const INCIDENT_EVENT_TYPES = [
   "incident.updated",
   "incident.signal_recovered",
   "incident.impact_detected",
+  "incident.anomaly_detected",
+  "incident.investigation_requested",
+  "incident.evidence_collected",
   "incident.agent_update",
   "incident.remediation_proposed",
   "incident.investigation_finished",
@@ -36,10 +39,7 @@ export type StreamedEvent = {
  * server closes the stream for good (e.g. an expired session) it reopens
  * after a pause.
  */
-export function useIncidentStream(
-  path: string | null,
-  onEvent: (event: StreamedEvent) => void,
-): StreamState {
+export function useIncidentStream(path: string | null, onEvent: (event: StreamedEvent) => void): StreamState {
   const [state, setState] = useState<StreamState>("connecting");
   const handler = useRef(onEvent);
   useEffect(() => {

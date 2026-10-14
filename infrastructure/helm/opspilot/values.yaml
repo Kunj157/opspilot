@@ -16,10 +16,61 @@ config:
   JWT_AUDIENCE: opspilot-api
   AGENT_ALLOWED_NAMESPACES: demo
   AUTO_INVESTIGATE: "true"
+  # Estimated LLM spend per 24 h before OpsPilotLLMCostBudgetBreach pages.
+  LLM_DAILY_BUDGET_USD: "5"
 
 # A Secret with DATABASE_URL, REDIS_URL, JWT_ISSUER, OIDC_*, LLM_API_KEY, ...
-# created outside the chart (External Secrets in AWS, kubectl locally).
+# Created outside the chart (kubectl locally), or by the ExternalSecret below.
 existingSecret: opspilot
+
+# Sync existingSecret from AWS Secrets Manager with External Secrets
+# Operator (installed by Terraform with the aws-secrets-manager store).
+externalSecrets:
+  enabled: false
+  secretStore:
+    kind: ClusterSecretStore
+    name: aws-secrets-manager
+  # The JSON secret holding every key, e.g. opspilot-production/app
+  # (Terraform output app_secret_name).
+  remoteKey: ""
+  refreshInterval: 1h
+
+# IAM roles for service accounts (Terraform output app_role_arns), e.g.
+#   api: { annotations: { eks.amazonaws.com/role-arn: arn:aws:iam::<account>:role/opspilot-production-app-api } }
+serviceAccounts:
+  api: { annotations: {} }
+  worker: { annotations: {} }
+
+# Public entry point. On EKS: className alb with the annotations below and
+# the ACM certificate found from the hosts (docs/adr/005). With an
+# in-cluster controller: its class, certManager.enabled, and tls.secretName.
+ingress:
+  enabled: false
+  className: ""
+  hosts: []
+  apiPath: /api
+  annotations: {}
+  #  alb.ingress.kubernetes.io/scheme: internet-facing
+  #  alb.ingress.kubernetes.io/target-type: ip
+  #  alb.ingress.kubernetes.io/group.name: opspilot
+  #  alb.ingress.kubernetes.io/listen-ports: '[{"HTTPS":443}]'
+  #  alb.ingress.kubernetes.io/ssl-policy: ELBSecurityPolicy-TLS13-1-2-2021-06
+  tls:
+    enabled: true
+    # Secret for the certificate; cert-manager fills it when enabled.
+    # Leave empty for the ALB (certificate from ACM).
+    secretName: ""
+  certManager:
+    enabled: false
+    clusterIssuer: letsencrypt
+
+networkPolicy:
+  # Who may reach the web and API pods from outside the namespace: the
+  # ingress controller. For ALB IP targets, the VPC CIDR, e.g.
+  #   - ipBlock: { cidr: 10.30.0.0/16 }
+  ingressPeers:
+    - namespaceSelector:
+        matchLabels: { kubernetes.io/metadata.name: ingress-nginx }
 
 api:
   replicas: 2
@@ -54,7 +105,75 @@ rollouts:
   maxErrorRate: "0.05"
   maxP95Seconds: "0.5"
 
+# Smoke tests (health, readiness, web root) after every Argo CD sync and,
+# with rollouts, against each canary before its traffic grows.
+smokeTest:
+  enabled: true
+
+# Alert and recording rules as a PrometheusRule (needs the Prometheus
+# Operator CRDs). `labels` must match the operator's ruleSelector, e.g.
+# { release: kube-prometheus-stack }.
+monitoring:
+  prometheusRule:
+    enabled: false
+    labels: {}
+
+# Nightly PostgreSQL backup (templates/backup.yaml). destination: pvc keeps
+# dumps on a PersistentVolumeClaim; s3 uploads them to S3 or any
+# S3-compatible store (MinIO: set s3.endpoint). On EKS give the service
+# account an IRSA role with s3:PutObject on the bucket instead of keys.
+backup:
+  enabled: false
+  schedule: "17 2 * * *"
+  destination: pvc
+  # pg_dump must match the server's major version (PostgreSQL 17 + pgvector).
+  image: pgvector/pgvector:0.8.0-pg17
+  publishImage:
+    pvc: curlimages/curl:8.16.0
+    s3: amazon/aws-cli:2.31.0
+  pushgatewayUrl: ""
+  activeDeadlineSeconds: 3600
+  resources:
+    requests: { cpu: 100m, memory: 256Mi }
+    limits: { cpu: "1", memory: 1Gi }
+  serviceAccountAnnotations: {}
+  pvc:
+    size: 20Gi
+    storageClassName: ""
+    existingClaim: ""
+    retentionDays: 14
+  s3:
+    bucket: ""
+    prefix: opspilot/postgres
+    endpoint: ""
+    region: eu-central-1
+    # Secret with AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY; empty = IRSA.
+    credentialsSecret: ""
+    stagingSize: 10Gi
+
 # Development only: in-cluster PostgreSQL and Redis instead of managed ones.
 devDatabases:
   enabled: false
   postgresPassword: opspilot-dev
+
+# Kyverno ClusterPolicy: OpsPilot images must carry the keyless signature of
+# .github/workflows/images.yml on main. Needs Kyverno (argocd/bootstrap/kyverno).
+imageVerification:
+  enabled: false
+  # Audit (report) or Enforce (reject unsigned Pods).
+  failureAction: Audit
+  images:
+    - ghcr.io/kunj157/opspilot-api*
+    - ghcr.io/kunj157/opspilot-web*
+  issuer: https://token.actions.githubusercontent.com
+  subjectRegExp: ^https://github\.com/Kunj157/opspilot/\.github/workflows/images\.yml@refs/heads/main$
+
+# Development only: in-cluster Redpanda for the event stream; sets
+# KAFKA_BOOTSTRAP_SERVERS for the API and the worker.
+redpanda:
+  enabled: false
+  image: docker.redpanda.com/redpandadata/redpanda:v24.2.18
+  memory: 1G
+  resources:
+    requests: { cpu: 100m, memory: 1Gi }
+    limits: { cpu: "1", memory: 1536Mi }

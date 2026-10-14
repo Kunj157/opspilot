@@ -70,7 +70,16 @@ function renderIt() {
   );
 }
 
-beforeEach(() => vi.stubGlobal("EventSource", SilentEventSource));
+beforeEach(() => {
+  vi.stubGlobal("EventSource", SilentEventSource);
+  // Numbers count up from zero; reduced motion shows the final values at once.
+  vi.stubGlobal("matchMedia", (query: string) => ({
+    matches: query.includes("reduce"),
+    media: query,
+    addEventListener: () => {},
+    removeEventListener: () => {},
+  }));
+});
 afterEach(() => vi.unstubAllGlobals());
 
 describe("CommandCenter", () => {
@@ -93,7 +102,7 @@ describe("CommandCenter", () => {
     const active = await screen.findByRole("group", { name: "Active incidents" });
     expect(within(active).getByText("3")).toBeInTheDocument();
     expect(within(screen.getByRole("group", { name: "Critical incidents" })).getByText("1")).toBeInTheDocument();
-    expect(within(screen.getByRole("group", { name: "Healthy services" })).getByText("2 of 3")).toBeInTheDocument();
+    expect(screen.getByRole("group", { name: "Healthy services" })).toHaveTextContent("2 of 3");
     expect(within(screen.getByRole("group", { name: "Mean time to acknowledge" })).getByText("6m")).toBeInTheDocument();
     expect(within(screen.getByRole("group", { name: "Mean time to resolve" })).getByText("—")).toBeInTheDocument();
     expect(screen.getByRole("img", { name: /incidents started per day/i })).toBeInTheDocument();
@@ -120,7 +129,10 @@ describe("CommandCenter", () => {
   });
 
   it("shows an error when the summary cannot load", async () => {
-    vi.stubGlobal("fetch", vi.fn(async () => new Response("boom", { status: 500 })));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response("boom", { status: 500 })),
+    );
 
     renderIt();
 

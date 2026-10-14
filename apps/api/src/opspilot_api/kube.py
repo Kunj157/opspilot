@@ -1,15 +1,20 @@
 """Kubernetes access, limited to allow-listed namespaces.
 
-Investigations get a reader with two questions: a deployment's rollout
-history and its current rollout status. Approved remediations get a writer
-with three actions: roll back to a revision, restart, and scale within
-bounds. There is no generic API access.
+Investigations get a reader with three questions: a deployment's rollout
+history (with each revision's configuration), its current rollout status,
+and metadata of the ConfigMaps it uses. Secrets are never read: they are
+only named, as the pod template references them. Approved remediations get
+a writer with four actions: roll back to a revision, restart, scale within
+bounds, and pause a rollout. There is no generic API access.
 """
 
 import asyncio
-from dataclasses import dataclass
+import re
+from dataclasses import dataclass, field, replace
 from datetime import datetime
 from typing import Any, Protocol
+
+from opspilot_api.redaction import redact
 
 
 class NamespaceNotAllowed(Exception):
@@ -23,6 +28,21 @@ class Revision:
     change_cause: str | None
     version: str | None
     image: str | None
+    # Environment of the first container, values redacted; references shown as "<from ...>".
+    env: dict[str, str] = field(default_factory=dict)
+    # ConfigMaps and Secrets the pod template uses, e.g. "configmap/shop", "secret/db".
+    config_refs: tuple[str, ...] = ()
+    # Source commit from pod template annotations: sha, author, message, pull_request, source.
+    commit: dict[str, str] = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
+class ConfigMapInfo:
+    """Metadata only: when it last changed and which keys it has, never the values."""
+
+    name: str
+    updated_at: datetime | None
+    keys: tuple[str, ...]
 
 
 @dataclass(frozen=True)
@@ -40,6 +60,8 @@ class KubeReader(Protocol):
 
     async def rollout_status(self, namespace: str, deployment: str) -> RolloutStatus: ...
 
+    async def config_maps(self, namespace: str, names: list[str]) -> list[ConfigMapInfo]: ...
+
 
 def check_namespace(namespace: str, allowed: frozenset[str]) -> None:
     if namespace not in allowed:
@@ -54,6 +76,92 @@ def _env(container: Any, name: str) -> str | None:
     return None
 
 
+class _Timed:
+    """An API object whose every call carries a request timeout.
+
+    The client has no global timeout: without one, an API server that accepts
+    the connection and never answers blocks the worker thread forever, and the
+    execution's lease can expire while the call is still in flight.
+    """
+
+    def __init__(self, api: Any, timeout: float) -> None:
+        self._api = api
+        self._timeout = timeout
+        self.api_client = api.api_client
+
+    def __getattr__(self, name: str) -> Any:
+        method = getattr(self._api, name)
+
+        def call(*args: Any, **kwargs: Any) -> Any:
+            kwargs.setdefault("_request_timeout", self._timeout)
+            return method(*args, **kwargs)
+
+        return call
+
+
+MAX_ENV_VALUE = 120
+
+
+def _env_value(env: Any) -> str:
+    source = env.value_from
+    if source is None:
+        return str(env.value or "")[:MAX_ENV_VALUE]
+    if source.secret_key_ref is not None:
+        return f"<from secret {source.secret_key_ref.name}>"
+    if source.config_map_key_ref is not None:
+        ref = source.config_map_key_ref
+        return f"<from configmap {ref.name} key {ref.key}>"
+    return "<from the pod or its resources>"
+
+
+def template_config(template: Any) -> tuple[dict[str, str], tuple[str, ...]]:
+    """(redacted environment of the first container, ConfigMap/Secret references)."""
+    spec = template.spec
+    container = spec.containers[0]
+    env = {e.name: _env_value(e) for e in container.env or []}
+    refs: set[str] = set()
+    for c in spec.containers:
+        for e in c.env or []:
+            if e.value_from is not None and e.value_from.secret_key_ref is not None:
+                refs.add(f"secret/{e.value_from.secret_key_ref.name}")
+            if e.value_from is not None and e.value_from.config_map_key_ref is not None:
+                refs.add(f"configmap/{e.value_from.config_map_key_ref.name}")
+        for source in c.env_from or []:
+            if source.config_map_ref is not None:
+                refs.add(f"configmap/{source.config_map_ref.name}")
+            if source.secret_ref is not None:
+                refs.add(f"secret/{source.secret_ref.name}")
+    for volume in spec.volumes or []:
+        if volume.config_map is not None:
+            refs.add(f"configmap/{volume.config_map.name}")
+        if volume.secret is not None:
+            refs.add(f"secret/{volume.secret.secret_name}")
+    return redact(env), tuple(sorted(refs))
+
+
+# Pod template annotation → commit field; the first one present wins.
+COMMIT_ANNOTATIONS = {
+    "sha": ("opspilot.io/commit-sha", "org.opencontainers.image.revision"),
+    "author": ("opspilot.io/commit-author",),
+    "message": ("opspilot.io/commit-message",),
+    "pull_request": ("opspilot.io/pull-request",),
+    "source": ("opspilot.io/source", "org.opencontainers.image.source"),
+}
+MAX_COMMIT_MESSAGE = 200
+
+
+def template_commit(annotations: dict[str, str] | None) -> dict[str, str]:
+    """The commit a revision was built from; e-mail addresses are dropped."""
+    commit: dict[str, str] = {}
+    for key, names in COMMIT_ANNOTATIONS.items():
+        value = next((v for n in names if (v := (annotations or {}).get(n, "").strip())), "")
+        if key == "author":
+            value = re.sub(r"\s*<[^>]*>|\S+@\S+", "", value).strip()
+        if value:
+            commit[key] = value[:MAX_COMMIT_MESSAGE] if key == "message" else value[:300]
+    return commit
+
+
 class KubernetesReader:
     """The official client, run in a thread; config is loaded on first use."""
 
@@ -63,10 +171,12 @@ class KubernetesReader:
         *,
         context: str | None = None,
         config_file: str | None = None,
+        request_timeout: float = 30.0,
     ) -> None:
         self.allowed = allowed_namespaces
         self.context = context
         self.config_file = config_file
+        self.request_timeout = request_timeout
         self._apps: Any = None
 
     def _api(self) -> Any:
@@ -80,7 +190,7 @@ class KubernetesReader:
             except config.ConfigException:
                 config.load_incluster_config()  # type: ignore[no-untyped-call]
                 api_client = client.ApiClient()
-            self._apps = client.AppsV1Api(api_client)
+            self._apps = _Timed(client.AppsV1Api(api_client), self.request_timeout)
         return self._apps
 
     def _history(self, namespace: str, deployment: str) -> list[Revision]:
@@ -93,6 +203,7 @@ class KubernetesReader:
                 continue
             annotations = rs.metadata.annotations or {}
             container = rs.spec.template.spec.containers[0]
+            env, refs = template_config(rs.spec.template)
             revisions.append(
                 Revision(
                     revision=int(annotations.get("deployment.kubernetes.io/revision", 0)),
@@ -100,6 +211,11 @@ class KubernetesReader:
                     change_cause=annotations.get("kubernetes.io/change-cause"),
                     version=_env(container, "SERVICE_VERSION"),
                     image=container.image,
+                    env=env,
+                    config_refs=refs,
+                    commit=template_commit(
+                        rs.spec.template.metadata.annotations if rs.spec.template.metadata else None
+                    ),
                 )
             )
         revisions.sort(key=lambda r: r.revision, reverse=True)
@@ -109,15 +225,13 @@ class KubernetesReader:
             started = self._pods_started(namespace, owner, revisions[0].revision)
             latest = revisions[0]
             if started is not None:
-                revisions[0] = Revision(
-                    latest.revision, started, latest.change_cause, latest.version, latest.image
-                )
+                revisions[0] = replace(latest, created_at=started)
         return revisions
 
     def _pods_started(self, namespace: str, deployment: Any, revision: int) -> datetime | None:
         from kubernetes import client
 
-        core = client.CoreV1Api(self._api().api_client)
+        core = _Timed(client.CoreV1Api(self._api().api_client), self.request_timeout)
         labels = deployment.spec.selector.match_labels or {}
         selector = ",".join(f"{k}={v}" for k, v in labels.items())
         apps = self._api()
@@ -159,9 +273,37 @@ class KubernetesReader:
             ],
         )
 
+    def _config_maps(self, namespace: str, names: list[str]) -> list[ConfigMapInfo]:
+        from kubernetes import client
+        from kubernetes.client.exceptions import ApiException
+
+        core = _Timed(client.CoreV1Api(self._api().api_client), self.request_timeout)
+        found = []
+        for name in names:
+            try:
+                cm = core.read_namespaced_config_map(name, namespace)
+            except ApiException as exc:
+                if exc.status == 404:
+                    continue
+                raise
+            meta = cm.metadata or client.V1ObjectMeta()
+            times = [f.time for f in meta.managed_fields or [] if f.time is not None]
+            found.append(
+                ConfigMapInfo(
+                    name=name,
+                    updated_at=max(times) if times else meta.creation_timestamp,
+                    keys=tuple(sorted({*(cm.data or {}), *(cm.binary_data or {})})),
+                )
+            )
+        return found
+
     async def rollout_history(self, namespace: str, deployment: str) -> list[Revision]:
         check_namespace(namespace, self.allowed)
         return await asyncio.to_thread(self._history, namespace, deployment)
+
+    async def config_maps(self, namespace: str, names: list[str]) -> list[ConfigMapInfo]:
+        check_namespace(namespace, self.allowed)
+        return await asyncio.to_thread(self._config_maps, namespace, names)
 
     async def rollout_status(self, namespace: str, deployment: str) -> RolloutStatus:
         check_namespace(namespace, self.allowed)
@@ -184,6 +326,8 @@ class KubeWriter(Protocol):
     async def scale_deployment_within_bounds(
         self, namespace: str, deployment: str, replicas: int, *, maximum: int
     ) -> dict[str, Any]: ...
+
+    async def pause_rollout(self, namespace: str, deployment: str) -> dict[str, Any]: ...
 
 
 class KubernetesWriter(KubernetesReader):
@@ -249,6 +393,11 @@ class KubernetesWriter(KubernetesReader):
         )
         return {"replicas_before": before, "replicas": replicas}
 
+    def _pause(self, namespace: str, deployment: str) -> dict[str, Any]:
+        # As `kubectl rollout pause`: pods already rolled out keep running, no new ones start.
+        self._api().patch_namespaced_deployment(deployment, namespace, {"spec": {"paused": True}})
+        return {"paused": True}
+
     async def _run(self, namespace: str, action: Any, *args: Any) -> dict[str, Any]:
         check_namespace(namespace, self.allowed)
         from kubernetes.client.exceptions import ApiException
@@ -275,3 +424,6 @@ class KubernetesWriter(KubernetesReader):
         if not 1 <= replicas <= maximum:
             raise RemediationFailed(f"{replicas} replicas is outside 1..{maximum}")
         return await self._run(namespace, self._scale, deployment, replicas)
+
+    async def pause_rollout(self, namespace: str, deployment: str) -> dict[str, Any]:
+        return await self._run(namespace, self._pause, deployment)

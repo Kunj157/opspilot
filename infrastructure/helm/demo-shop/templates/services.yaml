@@ -30,6 +30,12 @@ spec:
         prometheus.io/scrape: "true"
         prometheus.io/port: "8080"
         prometheus.io/path: /metrics
+        # Always rendered, so a reset replaces the commit of an injected release.
+        opspilot.io/commit-sha: {{ $.Values.release.commit | quote }}
+        opspilot.io/commit-author: {{ $.Values.release.author | quote }}
+        opspilot.io/commit-message: {{ $.Values.release.message | trunc 200 | quote }}
+        opspilot.io/pull-request: {{ $.Values.release.pullRequest | quote }}
+        opspilot.io/source: {{ $.Values.release.source | quote }}
     spec:
       serviceAccountName: {{ $name }}
       terminationGracePeriodSeconds: 20
@@ -49,6 +55,7 @@ spec:
             - { name: SERVICE_VERSION, value: {{ $.Values.serviceVersion | quote }} }
             - { name: ENVIRONMENT, value: {{ $.Values.environment | quote }} }
             - { name: OTLP_ENDPOINT, value: {{ $.Values.otlpEndpoint | quote }} }
+            - { name: OTEL_SEMCONV_STABILITY_OPT_IN, value: "http" }
             - { name: FAULT_ERROR_RATE, value: {{ $svc.faults.errorRate | quote }} }
             - { name: FAULT_LATENCY_MS, value: {{ $svc.faults.latencyMs | quote }} }
             - name: K8S_NAMESPACE

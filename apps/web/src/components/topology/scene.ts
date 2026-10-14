@@ -60,3 +60,34 @@ export function canUseWebGL(): boolean {
     return false;
   }
 }
+
+export type CameraPose = { target: Vec3; position: Vec3 };
+
+/** The whole map, seen straight on. */
+export function overview(distance: number): CameraPose {
+  return { target: [0, 0, 0], position: [0, 0, distance] };
+}
+
+/** Close in on one service, slightly from above and to the side, so its neighbours stay in frame. */
+export function focusOn(node: SceneNode, distance: number): CameraPose {
+  const [x, y, z] = node.position;
+  const near = Math.max(3.2, distance * 0.55);
+  return { target: [x, y, z], position: [x + near * 0.18, y + near * 0.12, z + near] };
+}
+
+/**
+ * Edges that carry flow particles: failing dependencies, plus every edge of the
+ * selected service. Never the whole graph — a healthy map stays still.
+ */
+export function flowingEdges(edges: SceneEdge[], selectedId: string | null): SceneEdge[] {
+  return edges.filter(
+    (e) => e.failing || (selectedId !== null && (e.sourceId === selectedId || e.targetId === selectedId)),
+  );
+}
+
+/** Nodes whose state is actively bad get a halo: critical, degraded, or with an open incident. */
+export function glows(node: TopologyNode): "critical" | "degraded" | null {
+  if (node.health_status === "critical" || node.active_incidents > 0) return "critical";
+  if (node.health_status === "degraded") return "degraded";
+  return null;
+}

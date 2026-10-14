@@ -12,7 +12,13 @@ const pending: Proposal = {
   id: "p-1",
   action_type: "ROLLBACK_DEPLOYMENT",
   description: "Errors began with release 1.4.2",
-  parameters: { namespace: "demo", deployment: "checkout", to_revision: 23, from_version: "1.4.2", to_version: "1.0.0" },
+  parameters: {
+    namespace: "demo",
+    deployment: "checkout",
+    to_revision: 23,
+    from_version: "1.4.2",
+    to_version: "1.0.0",
+  },
   risk_level: "medium",
   status: "PENDING",
   verification_plan: { window_minutes: 3, max_error_rate: 0.02, max_p95_ratio_to_baseline: 1.5 },
@@ -53,7 +59,13 @@ const verified: Proposal = {
 function renderIt(proposal: Proposal, canApprove: boolean, onDecided = vi.fn()) {
   render(
     <ToastProvider>
-      <RemediationReview proposal={proposal} refs={new Map([["e2", "E2"]])} canApprove={canApprove} now={NOW} onDecided={onDecided} />
+      <RemediationReview
+        proposal={proposal}
+        refs={new Map([["e2", "E2"]])}
+        canApprove={canApprove}
+        now={NOW}
+        onDecided={onDecided}
+      />
     </ToastProvider>,
   );
   return onDecided;
@@ -70,6 +82,23 @@ function serve(status: number, body: unknown) {
 afterEach(() => vi.unstubAllGlobals());
 
 describe("RemediationReview", () => {
+  it("labels a rollout pause and verifies it once the rollout is paused", () => {
+    renderIt(
+      {
+        ...pending,
+        action_type: "PAUSE_ROLLOUT",
+        risk_level: "low",
+        parameters: { namespace: "demo", deployment: "checkout", revision: 20, version: "1.4.3" },
+        verification_plan: { ...pending.verification_plan, require_paused: true },
+      },
+      false,
+    );
+
+    const card = screen.getByRole("region", { name: "Proposed remediation" });
+    expect(card).toHaveTextContent("Pause the rollout of checkout");
+    expect(card).toHaveTextContent("over 3 min once the rollout is paused");
+  });
+
   it("shows the action, versions, verification plan, expiry, and cited evidence", () => {
     renderIt(pending, false);
 
@@ -125,7 +154,9 @@ describe("RemediationReview", () => {
     renderIt(verified, true);
 
     const progress = screen.getByRole("list", { name: "Remediation progress" });
-    const steps = within(progress).getAllByRole("listitem").map((li) => li.textContent);
+    const steps = within(progress)
+      .getAllByRole("listitem")
+      .map((li) => li.textContent);
     expect(steps[1]).toContain("Approved by Cleo Commander");
     expect(steps[1]).toContain("Errors began with 1.4.2");
     expect(steps[2]).toContain("Executed (1.0.0)");
@@ -138,7 +169,11 @@ describe("RemediationReview", () => {
     renderIt(
       {
         ...verified,
-        execution: { ...verified.execution!, verification_status: "failed", verification: { reason: "error rate 30.0% is above 2%" } },
+        execution: {
+          ...verified.execution!,
+          verification_status: "failed",
+          verification: { reason: "error rate 30.0% is above 2%" },
+        },
       },
       true,
     );

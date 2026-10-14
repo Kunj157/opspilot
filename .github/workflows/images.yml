@@ -2,7 +2,8 @@ name: images
 
 # On main: build the API/worker and web images, scan them, attach an SBOM,
 # sign them keylessly, and push them to GHCR tagged with the commit SHA.
-# Argo CD deploys each main commit with the images of that same commit.
+# Only then is the git tag env/development moved to that commit; Argo CD
+# tracks the tag, so it never syncs a commit whose images are not there yet.
 on:
   push:
     branches: [main]
@@ -35,7 +36,8 @@ jobs:
     outputs:
       tag: ${{ steps.tag.outputs.tag }}
     env:
-      IMAGE: ghcr.io/${{ github.repository_owner }}/opspilot-${{ matrix.image }}
+      # Image references must be lowercase; the owner is Kunj157.
+      IMAGE: ghcr.io/kunj157/opspilot-${{ matrix.image }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - id: tag
@@ -79,3 +81,26 @@ jobs:
         run: |
           cosign sign --yes "${{ steps.push.outputs.digest }}"
           cosign attest --yes --type spdxjson --predicate "sbom-${{ matrix.image }}.spdx.json" "${{ steps.push.outputs.digest }}"
+
+  promote:
+    name: Promote to development
+    needs: build
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: write # push the env/development tag ref (no commits)
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - name: Move env/development to this commit (forward only)
+        run: |
+          if current="$(git rev-parse -q --verify "refs/tags/env/development^{commit}")" \
+            && ! git merge-base --is-ancestor "$current" "$GITHUB_SHA"; then
+            echo "env/development is at $current, which is not an ancestor of $GITHUB_SHA: not moving it back."
+            exit 0
+          fi
+          git tag -f env/development "$GITHUB_SHA"
+          git push -f origin refs/tags/env/development
+          echo "env/development -> $GITHUB_SHA" >> "$GITHUB_STEP_SUMMARY"

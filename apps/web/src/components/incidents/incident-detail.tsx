@@ -2,9 +2,10 @@
 
 import { createApiClient } from "@opspilot/api-client";
 import type { components } from "@opspilot/api-client/schema";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { type InfiniteData, type QueryClient, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { useParams } from "next/navigation";
+import { ViewTransition } from "react";
 
 import { SERVICES_KEY } from "@/components/services/service-catalog";
 import { formatSeconds } from "@/lib/durations";
@@ -16,7 +17,7 @@ import { AgentInvestigation, investigationKeys } from "./agent-investigation";
 import { DetectionEvidence } from "./detection-evidence";
 import { PostmortemView } from "./postmortem-view";
 import { IncidentActions } from "./incident-actions";
-import { INCIDENTS_KEY } from "./incident-list";
+import { INCIDENTS_KEY, incidentTitleTransition } from "./incident-list";
 import { IncidentTimeline } from "./incident-timeline";
 import { LiveIndicator } from "./live-indicator";
 
@@ -39,6 +40,17 @@ function Fact({ label, children }: { label: string; children: React.ReactNode })
   );
 }
 
+type IncidentPage = components["schemas"]["IncidentPage"];
+
+function fromLists(queryClient: QueryClient, id: string) {
+  const lists = queryClient.getQueriesData<InfiniteData<IncidentPage>>({ queryKey: [...INCIDENTS_KEY, "list"] });
+  for (const [, data] of lists) {
+    const match = data?.pages.flatMap((page) => page.items).find((item) => item.id === id);
+    if (match) return match;
+  }
+  return undefined;
+}
+
 export function IncidentDetail({
   permissions,
 }: {
@@ -50,7 +62,7 @@ export function IncidentDetail({
   const incidentKey = [...INCIDENTS_KEY, "detail", incidentId];
   const eventsKey = [...INCIDENTS_KEY, "events", incidentId];
 
-  const incident = useQuery({
+  const incident = useQuery<Incident | null>({
     queryKey: incidentKey,
     queryFn: async ({ signal }) => {
       const { data, response } = await createApiClient(window.location.origin).GET("/api/v1/incidents/{incident_id}", {
@@ -61,6 +73,8 @@ export function IncidentDetail({
       if (!data) throw new Error("incident unavailable");
       return data;
     },
+    // Coming from the list, show its copy of the incident at once while the full one loads.
+    placeholderData: () => fromLists(queryClient, incidentId),
   });
   const events = useQuery({
     queryKey: eventsKey,
@@ -84,18 +98,25 @@ export function IncidentDetail({
     },
   });
 
-  const stream = useIncidentStream(incident.data ? `/api/v1/incidents/${incidentId}/stream` : null, (streamed: StreamedEvent) => {
-    const { incident: latest, ...event } = streamed as StreamedEvent & Event & { incident: Incident };
-    queryClient.setQueryData<Incident | null>(incidentKey, (current) =>
-      !current || latest.version >= current.version ? latest : current,
-    );
-    queryClient.setQueryData<Event[]>(eventsKey, (current = []) =>
-      current.some((e) => e.sequence === event.sequence) ? current : [...current, event as Event],
-    );
-    if (/^incident\.(agent_update|remediation_\w+|investigation_finished|verification_\w+)$/.test(event.event_type)) {
-      void queryClient.invalidateQueries({ queryKey: investigationKeys(incidentId).all });
-    }
-  });
+  const stream = useIncidentStream(
+    incident.data ? `/api/v1/incidents/${incidentId}/stream` : null,
+    (streamed: StreamedEvent) => {
+      const { incident: latest, ...event } = streamed as StreamedEvent & Event & { incident: Incident };
+      queryClient.setQueryData<Incident | null>(incidentKey, (current) =>
+        !current || latest.version >= current.version ? latest : current,
+      );
+      queryClient.setQueryData<Event[]>(eventsKey, (current = []) =>
+        current.some((e) => e.sequence === event.sequence) ? current : [...current, event as Event],
+      );
+      if (
+        /^incident\.(agent_update|evidence_collected|investigation_\w+|remediation_\w+|verification_\w+)$/.test(
+          event.event_type,
+        )
+      ) {
+        void queryClient.invalidateQueries({ queryKey: investigationKeys(incidentId).all });
+      }
+    },
+  );
 
   if (incident.isPending) return <div aria-hidden className="h-96 animate-pulse rounded-card bg-surface-2" />;
   if (incident.isError)
@@ -124,9 +145,11 @@ export function IncidentDetail({
           <StatusBadge status={i.status} />
           <LiveIndicator state={stream} />
         </div>
-        <h1 className="text-3xl font-semibold tracking-tight break-words sm:text-4xl">{i.title}</h1>
+        <ViewTransition name={incidentTitleTransition(i.id)} share="morph" default="none">
+          <h1 className="w-fit max-w-full text-3xl font-semibold tracking-tight break-words sm:text-4xl">{i.title}</h1>
+        </ViewTransition>
         {i.description && <p className="max-w-2xl text-fg-secondary">{i.description}</p>}
-        <dl className="grid grid-cols-2 gap-5 rounded-card border border-border bg-surface-2 p-5 shadow-2 lg:grid-cols-4">
+        <dl className="surface-raised grid grid-cols-2 gap-5 rounded-card border border-border p-5 lg:grid-cols-4">
           <Fact label="Service">
             {i.service_id ? (
               <Link href={`/services/${i.service_id}`} className="text-accent hover:underline">
@@ -168,11 +191,14 @@ export function IncidentDetail({
       )}
 
       <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
-        <section aria-labelledby="timeline-heading" className="rounded-card border border-border bg-surface-1 shadow-3">
+        <section
+          aria-labelledby="timeline-heading"
+          className="rounded-card border border-border bg-surface-1 shadow-edge"
+        >
           <h2 id="timeline-heading" className="border-b border-border px-5 py-4 text-sm font-medium text-fg-secondary">
             Timeline
           </h2>
-          {events.isPending && <div aria-hidden className="m-5 h-24 animate-pulse rounded-card bg-surface-2" />}
+          {events.isPending && <div aria-hidden className="skeleton m-5 h-24 rounded-card" />}
           {events.isError && (
             <p role="alert" className="px-5 py-8 text-center text-sm text-critical">
               The timeline could not be loaded.
@@ -180,7 +206,11 @@ export function IncidentDetail({
           )}
           {events.isSuccess && <IncidentTimeline events={events.data} />}
         </section>
-        <AgentInvestigation incidentId={i.id} canInvestigate={permissions.investigate} canApprove={permissions.approve} />
+        <AgentInvestigation
+          incidentId={i.id}
+          canInvestigate={permissions.investigate}
+          canApprove={permissions.approve}
+        />
       </div>
     </div>
   );

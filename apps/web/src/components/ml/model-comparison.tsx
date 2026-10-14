@@ -7,6 +7,7 @@ import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { type Column, DataTable } from "@/components/ui/table";
 import { useToast } from "@/components/ui/toast";
 
 type Model = components["schemas"]["ModelOut"];
@@ -21,10 +22,20 @@ const ROWS: { label: string; key: string; format: (v: number) => string; better:
   { label: "Recall", key: "recall", format: (v) => v.toFixed(2), better: "higher" },
   { label: "F1", key: "f1", format: (v) => v.toFixed(2), better: "higher" },
   { label: "False alerts per hour", key: "false_alerts_per_hour", format: (v) => v.toFixed(2), better: "lower" },
-  { label: "Median detection delay", key: "median_detection_delay_s", format: (v) => `${Math.round(v)} s`, better: "lower" },
+  {
+    label: "Median detection delay",
+    key: "median_detection_delay_s",
+    format: (v) => `${Math.round(v)} s`,
+    better: "lower",
+  },
   { label: "P95 detection delay", key: "p95_detection_delay_s", format: (v) => `${Math.round(v)} s`, better: "lower" },
   { label: "Missed incidents", key: "missed_incidents", format: (v) => String(v), better: "lower" },
-  { label: "Inference per window", key: "inference_ms_per_window", format: (v) => `${v.toFixed(2)} ms`, better: "lower" },
+  {
+    label: "Inference per window",
+    key: "inference_ms_per_window",
+    format: (v) => `${v.toFixed(2)} ms`,
+    better: "lower",
+  },
 ];
 
 function api() {
@@ -38,9 +49,19 @@ function winner(row: (typeof ROWS)[number], baseline: Metrics, model: Metrics): 
   return (row.better === "higher" ? m > b : m < b) ? "model" : "baseline";
 }
 
-function Cell({ value, format, best }: { value: number | null | undefined; format: (v: number) => string; best: boolean }) {
+function Cell({
+  value,
+  format,
+  best,
+}: {
+  value: number | null | undefined;
+  format: (v: number) => string;
+  best: boolean;
+}) {
   return (
-    <td className={`px-3 py-2 text-right font-mono tabular-nums ${best ? "font-semibold text-fg" : "text-fg-secondary"}`}>
+    <td
+      className={`px-3 py-2 text-right font-mono tabular-nums ${best ? "font-semibold text-fg" : "text-fg-secondary"}`}
+    >
       {value == null ? "—" : format(value)}
       {best && <span className="sr-only"> (better)</span>}
       {best && (
@@ -53,7 +74,13 @@ function Cell({ value, format, best }: { value: number | null | undefined; forma
 }
 
 function Comparison({ model }: { model: Model }) {
-  const metrics = model.metrics as { model?: Metrics; baseline?: Metrics; promotable?: boolean; reason?: string; test?: { runs?: number[]; scenarios?: string[] } };
+  const metrics = model.metrics as {
+    model?: Metrics;
+    baseline?: Metrics;
+    promotable?: boolean;
+    reason?: string;
+    test?: { runs?: number[]; scenarios?: string[] };
+  };
   const m = metrics.model ?? {};
   const b = metrics.baseline ?? {};
   return (
@@ -104,43 +131,33 @@ function Comparison({ model }: { model: Model }) {
 
 type Shadow = components["schemas"]["ShadowSummary"];
 
+type ShadowRow = Shadow["services"][number];
+
+const number = (value: (row: ShadowRow) => number, muted = false): Column<ShadowRow> => ({
+  id: "",
+  header: "",
+  cell: (row) => <span className={`font-mono tabular-nums ${muted ? "text-fg-secondary" : ""}`}>{value(row)}</span>,
+  sortValue: value,
+  className: "text-right",
+});
+
+const SHADOW_COLUMNS: Column<ShadowRow>[] = [
+  { id: "service", header: "Service", cell: (row) => row.service, sortValue: (row) => row.service.toLowerCase() },
+  { ...number((row) => row.shadow_windows, true), id: "windows", header: "Windows scored" },
+  { ...number((row) => row.shadow_alerts), id: "alerts", header: "Model alerts" },
+  { ...number((row) => row.rule_triggers), id: "rules", header: "Rule triggers" },
+  { ...number((row) => row.incidents), id: "incidents", header: "Incidents" },
+];
+
 function ShadowTable({ shadow }: { shadow: Shadow }) {
   if (!shadow.model) return <p className="text-sm text-fg-muted">No model is running in shadow mode.</p>;
   return (
-    <table aria-label="Shadow predictions by service" className="w-full text-sm">
-      <thead>
-        <tr className="border-b border-border text-xs text-fg-muted">
-          <th scope="col" className="px-3 py-2 text-left font-medium">
-            Service
-          </th>
-          <th scope="col" className="px-3 py-2 text-right font-medium">
-            Windows scored
-          </th>
-          <th scope="col" className="px-3 py-2 text-right font-medium">
-            Model alerts
-          </th>
-          <th scope="col" className="px-3 py-2 text-right font-medium">
-            Rule triggers
-          </th>
-          <th scope="col" className="px-3 py-2 text-right font-medium">
-            Incidents
-          </th>
-        </tr>
-      </thead>
-      <tbody className="divide-y divide-border">
-        {shadow.services.map((s) => (
-          <tr key={s.service_id}>
-            <th scope="row" className="px-3 py-2 text-left font-normal">
-              {s.service}
-            </th>
-            <td className="px-3 py-2 text-right font-mono tabular-nums text-fg-secondary">{s.shadow_windows}</td>
-            <td className="px-3 py-2 text-right font-mono tabular-nums">{s.shadow_alerts}</td>
-            <td className="px-3 py-2 text-right font-mono tabular-nums">{s.rule_triggers}</td>
-            <td className="px-3 py-2 text-right font-mono tabular-nums">{s.incidents}</td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
+    <DataTable
+      caption="Shadow predictions by service"
+      columns={SHADOW_COLUMNS}
+      rows={shadow.services}
+      rowKey={(row) => row.service_id}
+    />
   );
 }
 
@@ -178,7 +195,7 @@ export function ModelComparison({ canManage }: { canManage: boolean }) {
     void queryClient.invalidateQueries({ queryKey: KEY });
   }
 
-  if (models.isPending) return <div aria-hidden className="h-64 animate-pulse rounded-card bg-surface-2" />;
+  if (models.isPending) return <div aria-hidden className="h-64 skeleton rounded-card" />;
   if (models.isError)
     return (
       <p role="alert" className="rounded-card border border-border bg-surface-2 p-5 text-sm text-critical">
@@ -218,7 +235,7 @@ export function ModelComparison({ canManage }: { canManage: boolean }) {
           <h2 className="text-sm font-medium text-fg-secondary">Shadow mode, last 24 hours</h2>
           <span className="text-xs text-fg-muted">The model only observes; the error-rate rule still decides.</span>
         </div>
-        {shadow.data ? <ShadowTable shadow={shadow.data} /> : <div aria-hidden className="h-24 animate-pulse rounded-sm bg-surface-3" />}
+        {shadow.data ? <ShadowTable shadow={shadow.data} /> : <div aria-hidden className="h-24 skeleton rounded-sm" />}
       </Card>
 
       <Card as="section" aria-label="Model versions" className="flex flex-col gap-3 p-5">
@@ -229,12 +246,20 @@ export function ModelComparison({ canManage }: { canManage: boolean }) {
               <span className="font-mono">
                 {m.name} v{m.version}
               </span>
-              <span className={`rounded-full border px-2 py-0.5 text-[11px] ${m.status === "shadow" ? "border-accent/50 text-accent" : "border-border text-fg-secondary"}`}>
+              <span
+                className={`rounded-full border px-2 py-0.5 text-[11px] ${m.status === "shadow" ? "border-accent/50 text-accent" : "border-border text-fg-secondary"}`}
+              >
                 {m.status}
               </span>
               <span className="text-xs text-fg-muted">registered {date.format(new Date(m.created_at))}</span>
               {canManage && m.status !== "shadow" && (
-                <Button size="sm" variant="secondary" className="ml-auto" disabled={busy === m.id} onClick={() => void promoteModel(m)}>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  className="ml-auto"
+                  disabled={busy === m.id}
+                  onClick={() => void promoteModel(m)}
+                >
                   {m.status === "retired" ? "Roll back to this version" : "Run in shadow mode"}
                 </Button>
               )}

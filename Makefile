@@ -15,8 +15,12 @@ HELM := helm --kube-context kind-opspilot
 DEMO_IMAGE := opspilot-demo:dev
 API := cd apps/api && uv run
 DEMO := cd demo/services && uv run
+# The demo shop's commit metadata (read by the deployment agent): this repository's HEAD.
+DEMO_RELEASE = --set-string release.commit="$$(git rev-parse HEAD)" \
+	--set-literal release.author="$$(git log -1 --format=%an)" \
+	--set-literal release.message="$$(git log -1 --format=%s)"
 
-.PHONY: db-upgrade db-downgrade db-revision keycloak-smoke token api-client web-dev dev build test-e2e test-lighthouse kind-create kind-delete docker-build deploy-local observability-up load-normal load-stop inject-failure reset-demo seed seed-runbooks test-telemetry test-detection worker help infra-up infra-down llm-up events-up stop secrets-scan install api-dev format lint typecheck test test-unit test-integration test-agent test-ml ml-scenarios ml-dataset ml-train images kind-load gitops-up
+.PHONY: test-alerts db-upgrade db-downgrade db-revision keycloak-smoke token api-client web-dev dev build test-e2e test-lighthouse kind-create kind-delete docker-build deploy-local observability-up load-normal load-stop inject-failure reset-demo seed seed-runbooks test-telemetry test-detection worker help infra-up infra-down llm-up events-up stop secrets-scan install api-dev format lint typecheck test test-unit test-integration test-agent test-ml ml-scenarios ml-dataset ml-train images kind-load gitops-up tf-check tf-plan loadtest-teardown infra-smoke
 
 help: ## List available targets
 	@grep -hE '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | sort | \
@@ -27,7 +31,8 @@ infra-up: ## Start PostgreSQL, Redis, and Keycloak and wait until healthy
 
 events-up: ## Start the event broker (Redpanda) and create the incident topics
 	$(COMPOSE) --profile events up -d --wait redpanda
-	for t in incident.created.v1 incident.remediation.proposed.v1 incident.remediation.approved.v1 \
+	for t in telemetry.anomaly.detected.v1 incident.created.v1 incident.investigation.requested.v1 \
+		incident.evidence.collected.v1 incident.remediation.proposed.v1 incident.remediation.approved.v1 \
 		incident.remediation.completed.v1 incident.verification.completed.v1 incident.resolved.v1; do \
 		$(COMPOSE) exec -T redpanda rpk topic create $$t $$t.dlq -p 3 >/dev/null || true; done
 
@@ -58,6 +63,7 @@ format: ## Format all code
 	$(DEMO) ruff format .
 	$(DEMO) ruff check --fix .
 	pnpm --filter @opspilot/web exec eslint --fix
+	pnpm --filter @opspilot/web format
 
 lint: ## Lint all code (no changes)
 	$(API) ruff format --check .
@@ -65,6 +71,7 @@ lint: ## Lint all code (no changes)
 	$(DEMO) ruff format --check .
 	$(DEMO) ruff check .
 	pnpm --filter @opspilot/web lint
+	pnpm --filter @opspilot/web format:check
 
 typecheck: ## Static type checks
 	$(API) mypy
@@ -175,7 +182,8 @@ observability-up: kind-create ## Deploy the collector, Prometheus, Loki, Tempo, 
 	$(KUBECTL) -n observability rollout status deploy,daemonset --timeout=5m
 
 deploy-local: observability-up docker-build ## Deploy observability and the demo shop to the kind cluster
-	$(HELM) upgrade --install demo-shop infrastructure/helm/demo-shop --namespace demo --create-namespace --wait --timeout 5m
+	$(HELM) upgrade --install demo-shop infrastructure/helm/demo-shop --namespace demo --create-namespace --wait --timeout 5m \
+		$(DEMO_RELEASE)
 
 load-normal: ## Start steady synthetic traffic against the demo shop (RPS=5)
 	$(HELM) upgrade demo-shop infrastructure/helm/demo-shop --namespace demo --reuse-values \
@@ -190,7 +198,7 @@ inject-failure: ## Ship a faulty release: make inject-failure SCENARIO=checkout-
 
 reset-demo: ## Restore every demo service to its healthy release (keeps load running)
 	$(HELM) upgrade demo-shop infrastructure/helm/demo-shop --namespace demo --reuse-values --force-conflicts --wait \
-		--set changeCause="reset to the healthy release"
+		--set changeCause="reset to the healthy release" $(DEMO_RELEASE)
 
 seed: ## Register the demo shop in the service catalog (API must be running)
 	cd apps/api && uv run python -m opspilot_api.demo_seed \
@@ -203,6 +211,49 @@ seed-runbooks: ## Load docs/runbooks into the runbook library (API must be runni
 test-detection: ## One sustained failure → exactly one incident, with detection delay (needs make dev and the kind stack)
 	cd demo/services && uv run python -u ../../tests/telemetry/detection_smoke.py
 
+.PHONY: load-seed test-load
+load-seed: ## Seed demo services and SEED_INCIDENTS (default 500) incidents for the load tests (API running)
+	$(MAKE) --no-print-directory seed
+	k6 run -q tests/performance/k6/seed.js
+
+test-load: ## k6 load tests against the running API on API_PORT (K6_TESTS="reads writes sse mixed"); summaries in test-results/k6
+	@mkdir -p test-results/k6
+	@status=0; for t in $${K6_TESTS:-reads writes sse mixed}; do \
+		K6_ENABLE_COMMUNITY_EXTENSIONS=true k6 run tests/performance/k6/$$t.js || status=1; done; exit $$status
+
+test-alerts: ## Check and unit-test the alert rules (promtool), the Alertmanager config, and the Helm copy
+	promtool check rules observability/k8s/rules/opspilot-alerts.yaml
+	promtool test rules observability/k8s/rules/tests/*.test.yaml
+	amtool check-config observability/k8s/alertmanager/alertmanager.yml
+	@cmp observability/k8s/rules/opspilot-alerts.yaml infrastructure/helm/opspilot/files/prometheus-rules.yaml || \
+		{ echo "infrastructure/helm/opspilot/files/prometheus-rules.yaml must be a copy of the rule file"; exit 1; }
+
+.PHONY: test-chaos
+test-chaos: ## Fault-injection suite: Redis, Redpanda, PostgreSQL, API, worker, LLM, Kubernetes (Docker; docs/operations/chaos-results.md)
+	cd apps/api && uv run python -m pytest -c pyproject.toml ../../tests/chaos -v --durations=0
+
 test-telemetry: ## Follow one request through traces, logs, and metrics on the kind cluster
 	cd demo/services && uv run python -u ../../tests/telemetry/telemetry_smoke.py
 
+TF_ENVS := $(notdir $(patsubst %/,%,$(wildcard infrastructure/terraform/environments/*/)))
+
+tf-check: ## Terraform fmt, validate, tflint, and checkov for every root and module, as CI runs them
+	cd infrastructure/terraform && terraform fmt -check -recursive
+	cd infrastructure/terraform && for dir in bootstrap environments/* modules/*; do \
+	  [ -d "$$dir" ] || continue; \
+	  (cd "$$dir" && terraform init -backend=false -input=false >/dev/null && terraform validate -no-color) || exit 1; \
+	done
+	cd infrastructure/terraform && tflint --init && tflint --recursive --config "$$PWD/.tflint.hcl"
+	cd infrastructure/terraform && uvx checkov==3.3.29 -d . --framework terraform --compact --quiet
+
+tf-plan: ## Plan an AWS environment: make tf-plan ENV=development (AWS credentials, environments/backend.hcl, terraform.tfvars)
+	@case " $(TF_ENVS) " in *" $(ENV) "*) ;; *) echo "ENV must be one of: $(TF_ENVS)"; exit 1;; esac
+	terraform -chdir=infrastructure/terraform/environments/$(ENV) init -input=false -backend-config=../backend.hcl
+	terraform -chdir=infrastructure/terraform/environments/$(ENV) plan -input=false -out=tfplan
+
+loadtest-teardown: ## Destroy the loadtest environment if its ttl has passed: ARGS="--dry-run" or "--force"
+	scripts/loadtest-teardown.sh $(ARGS)
+
+infra-smoke: ## After terraform apply: nodes, add-ons, secret sync, and database reachability: make infra-smoke ENV=development
+	@case " $(TF_ENVS) " in *" $(ENV) "*) ;; *) echo "ENV must be one of: $(TF_ENVS)"; exit 1;; esac
+	scripts/infra-smoke.sh $(ENV)

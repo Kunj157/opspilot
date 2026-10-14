@@ -30,24 +30,24 @@ export function MobileNav({ items, footer }: { items: NavItem[]; footer: ReactNo
         ref={dialog}
         aria-label="Navigation"
         onClose={() => setOpen(false)}
-        className="m-0 h-full max-h-none w-72 max-w-[85vw] border-r border-border bg-surface-1 p-0 text-fg shadow-3 backdrop:bg-black/60"
+        className="nav-dialog m-0 h-full max-h-none w-72 max-w-[85vw] border-r border-border bg-surface-1 p-0 text-fg shadow-3 backdrop:bg-black/60"
       >
         {open && (
-        <div className="flex h-full flex-col gap-6 p-4">
-          <div className="flex items-center justify-between">
-            <span className="text-sm font-semibold tracking-tight">OpsPilot</span>
-            <button
-              type="button"
-              onClick={close}
-              aria-label="Close navigation"
-              className="rounded-sm p-2 text-fg-secondary hover:bg-surface-2 hover:text-fg"
-            >
-              <icons.close width={18} height={18} />
-            </button>
+          <div className="flex h-full flex-col gap-6 p-4">
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-semibold tracking-tight">OpsPilot</span>
+              <button
+                type="button"
+                onClick={close}
+                aria-label="Close navigation"
+                className="rounded-sm p-2 text-fg-secondary hover:bg-surface-2 hover:text-fg"
+              >
+                <icons.close width={18} height={18} />
+              </button>
+            </div>
+            <SidebarNav items={items} onNavigate={close} highlightId="mobile-nav-highlight" />
+            <div className="mt-auto">{footer}</div>
           </div>
-          <SidebarNav items={items} onNavigate={close} />
-          <div className="mt-auto">{footer}</div>
-        </div>
         )}
       </dialog>
     </>

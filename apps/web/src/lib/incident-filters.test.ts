@@ -13,7 +13,7 @@ describe("incident filters", () => {
       source: null,
       since: null,
       until: null,
-      mine: false,
+      assignee: null,
     });
     expect(toApiQuery(filters, "me")).toEqual({ status: ACTIVE_STATUSES });
   });
@@ -26,10 +26,21 @@ describe("incident filters", () => {
       source: "detector" as const,
       since: "2026-10-01",
       until: "2026-10-13",
-      mine: true,
+      assignee: "me",
     };
 
     expect(parseFilters(new URLSearchParams(filtersToSearch(filters)))).toEqual(filters);
+    const someone = { ...filters, assignee: "00000000-0000-4000-8000-0000000000aa" };
+    expect(parseFilters(new URLSearchParams(filtersToSearch(someone)))).toEqual(someone);
+  });
+
+  it("filters by any assignee and keeps ?mine=1 links working", () => {
+    expect(parseFilters(new URLSearchParams("mine=1")).assignee).toBe("me");
+    expect(parseFilters(new URLSearchParams("assignee=not-a-uuid")).assignee).toBeNull();
+    const other = "00000000-0000-4000-8000-0000000000aa";
+    expect(toApiQuery({ ...parseFilters(new URLSearchParams(`assignee=${other}`)) }, "user-1").assigned_user_id).toBe(
+      other,
+    );
   });
 
   it("drops values the API would reject instead of failing the page", () => {
@@ -58,7 +69,7 @@ describe("incident filters", () => {
         source: "manual",
         since: "2026-10-01",
         until: "2026-10-02",
-        mine: true,
+        assignee: "me",
       },
       "user-1",
     );

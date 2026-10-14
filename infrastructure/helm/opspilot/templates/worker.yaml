@@ -4,6 +4,9 @@ kind: ServiceAccount
 metadata:
   name: {{ $name }}
   labels: {{- include "opspilot.labels" . | nindent 4 }}
+  {{- with .Values.serviceAccounts.worker.annotations }}
+  annotations: {{- toYaml . | nindent 4 }}
+  {{- end }}
 # The worker talks to the Kubernetes API (investigations and remediation).
 automountServiceAccountToken: true
 {{- range .Values.worker.allowedNamespaces }}
@@ -28,6 +31,10 @@ rules:
   - apiGroups: [""]
     resources: ["pods"]
     verbs: ["get", "list"]
+  # ConfigMap metadata for configuration-change evidence. Secrets are never readable.
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    verbs: ["get"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
@@ -61,7 +68,7 @@ spec:
       annotations:
         prometheus.io/scrape: "true"
         prometheus.io/port: "9100"
-        checksum/config: {{ toJson .Values.config | sha256sum | trunc 16 }}
+        checksum/config: {{ toJson (list .Values.config .Values.redpanda.enabled) | sha256sum | trunc 16 }}
     spec:
       serviceAccountName: {{ $name }}
       # Leases and idempotency keys make a stopped worker's jobs safe to retry.
@@ -76,8 +83,17 @@ spec:
           env:
             - { name: WORKER_METRICS_PORT, value: "9100" }
             - { name: WORKER_METRICS_HOST, value: "0.0.0.0" }
+            - { name: WORKER_HEARTBEAT_FILE, value: /tmp/worker-heartbeat }
           ports:
             - { name: metrics, containerPort: 9100 }
+          # Ready while the database answers: the worker touches the heartbeat
+          # file every 10 s after a successful query.
+          readinessProbe:
+            exec:
+              command: ["python", "-m", "opspilot_api.heartbeat", "/tmp/worker-heartbeat", "45"]
+            initialDelaySeconds: 5
+            periodSeconds: 15
+            timeoutSeconds: 5
           livenessProbe:
             tcpSocket: { port: metrics }
             periodSeconds: 20

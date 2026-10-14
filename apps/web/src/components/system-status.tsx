@@ -67,7 +67,13 @@ function StatusIcon({ tone }: { tone: Tone }) {
       return (
         <svg {...common}>
           <circle cx="8" cy="8" r="7" stroke="currentColor" strokeWidth="1.5" />
-          <path d="M5 8.2 7 10.2 11 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+          <path
+            d="M5 8.2 7 10.2 11 6"
+            stroke="currentColor"
+            strokeWidth="1.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
         </svg>
       );
     case "degraded":
@@ -106,9 +112,12 @@ export function SystemStatus() {
   return (
     <section
       aria-labelledby="system-status-heading"
-      className="relative overflow-hidden rounded-card border border-border bg-surface-2 shadow-3"
+      className="relative overflow-hidden surface-raised rounded-card border border-border"
     >
-      <div aria-hidden className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/15 to-transparent" />
+      <div
+        aria-hidden
+        className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/15 to-transparent"
+      />
       <header className="flex items-start justify-between gap-4 border-b border-border px-6 py-5">
         <div>
           <h2 id="system-status-heading" className="text-sm font-medium text-fg-secondary">

@@ -13,6 +13,16 @@ changeCause: ""
 # Service version reported in telemetry; a release bumps it.
 serviceVersion: "1.0.0"
 
+# Source commit of the release, as pod template annotations (opspilot.io/commit-*)
+# that OpsPilot's deployment agent reads. make deploy-local / reset-demo set the
+# repository's HEAD commit.
+release:
+  commit: ""
+  author: ""
+  message: ""
+  pullRequest: ""
+  source: https://github.com/Kunj157/opspilot
+
 resources:
   requests: { cpu: 25m, memory: 64Mi }
   limits: { cpu: 250m, memory: 192Mi }
@@ -21,10 +31,17 @@ resources:
 # and `kubectl rollout undo` removes it.
 services:
   storefront: { replicas: 1, faults: { errorRate: 0, latencyMs: 0 } }
-  checkout: { replicas: 2, faults: { errorRate: 0, latencyMs: 0 } }
-  payment: { replicas: 1, faults: { errorRate: 0, latencyMs: 0 } }
-  inventory: { replicas: 1, faults: { errorRate: 0, latencyMs: 0 } }
-  notification: { replicas: 1, faults: { errorRate: 0, latencyMs: 0 } }
+  checkout: { replicas: 2, faults: { errorRate: 0, latencyMs: 0 }, callers: [storefront] }
+  payment: { replicas: 1, faults: { errorRate: 0, latencyMs: 0 }, callers: [checkout] }
+  inventory: { replicas: 1, faults: { errorRate: 0, latencyMs: 0 }, callers: [storefront, checkout] }
+  notification: { replicas: 1, faults: { errorRate: 0, latencyMs: 0 }, callers: [checkout] }
+
+# Ingress is denied by default; each service admits only its callers (above),
+# the storefront admits everyone (shoppers, loadgen, the NodePort), and
+# Prometheus may scrape every service from this namespace.
+networkPolicy:
+  enabled: true
+  scrapeNamespace: observability
 
 # Exposes the storefront on the kind node (localhost:38080); empty to disable.
 storefrontNodePort: 30080

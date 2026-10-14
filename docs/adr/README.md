@@ -10,6 +10,7 @@ and update the old one's status line.
 | [002](002-modular-monolith.md) | Modular monolith over microservices | Accepted |
 | [003](003-human-approved-remediation.md) | Human-approved, allow-listed remediation | Accepted |
 | [004](004-live-updates-via-postgres-notify.md) | Live incident updates via PostgreSQL NOTIFY | Accepted |
+| [005](005-ingress-with-aws-load-balancer-controller.md) | Ingress on EKS with the AWS Load Balancer Controller | Accepted |
 
 ## Template
 

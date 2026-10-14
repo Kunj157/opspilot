@@ -1,8 +1,9 @@
 # Failure injection
 
 Every scenario ships a **faulty release**: a new rollout revision of one demo
-deployment with a bumped `SERVICE_VERSION`, fault settings, and a
-`kubernetes.io/change-cause` annotation. That is what a bad deploy looks
+deployment with a bumped `SERVICE_VERSION`, fault settings, commit metadata
+(`opspilot.io/commit-sha`, `-author`, `-message` pod template annotations, as a
+CI build would stamp them), and a `kubernetes.io/change-cause` annotation. That is what a bad deploy looks
 like to OpsPilot, and `kubectl rollout undo` (the remediation it proposes)
 removes it.
 

@@ -132,18 +132,33 @@ export function SeverityChart({ daily }: { daily: Day[] }) {
               let base = y(0);
               return (
                 <g key={d.date} data-day={d.date} opacity={hovered && hovered !== d.date ? 0.55 : 1}>
-                  {present.map((s, index) => {
-                    const height = (d[s.key] / max) * plot - (index < present.length - 1 ? GAP : 0);
-                    const top = base - height;
-                    const last = index === present.length - 1;
-                    const segment = last ? (
-                      <path key={s.key} data-severity={s.key} d={topRounded(x, top, BAR, height)} className={s.className} />
-                    ) : (
-                      <rect key={s.key} data-severity={s.key} x={x} y={top} width={BAR} height={height} className={s.className} />
-                    );
-                    base = top - GAP;
-                    return segment;
-                  })}
+                  <g className="bar-grow" style={{ animationDelay: `${i * 25}ms` }}>
+                    {present.map((s, index) => {
+                      const height = (d[s.key] / max) * plot - (index < present.length - 1 ? GAP : 0);
+                      const top = base - height;
+                      const last = index === present.length - 1;
+                      const segment = last ? (
+                        <path
+                          key={s.key}
+                          data-severity={s.key}
+                          d={topRounded(x, top, BAR, height)}
+                          className={s.className}
+                        />
+                      ) : (
+                        <rect
+                          key={s.key}
+                          data-severity={s.key}
+                          x={x}
+                          y={top}
+                          width={BAR}
+                          height={height}
+                          className={s.className}
+                        />
+                      );
+                      base = top - GAP;
+                      return segment;
+                    })}
+                  </g>
                   {i % labelEvery === 0 && (
                     <text x={x + BAR / 2} y={HEIGHT - 6} textAnchor="middle" className="fill-fg-muted text-[9px]">
                       {format(d.date)}

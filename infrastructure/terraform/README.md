@@ -1,42 +1,86 @@
 # OpsPilot on AWS (Terraform)
 
 Everything an environment needs, created from code with no console steps:
-network, EKS, PostgreSQL, Redis, container registry, buckets, secrets, DNS and
-certificate, alerting, the CI deploy role, and cost controls.
+network, EKS with Karpenter, PostgreSQL, Redis, container registry, buckets,
+secrets, DNS and certificate, alerting, the CI deploy role, and cost controls.
 
 ```
-bootstrap/                 state bucket (once per AWS account, local state)
+bootstrap/                 state bucket, audit trail, GuardDuty (once per AWS account, local state)
 modules/                   network, eks, rds, redis, ecr, s3, secrets, iam, dns, observability
+modules/irsa/              one IAM role for named Kubernetes service accounts
+modules/karpenter/         node autoscaling: IAM, interruption queue, chart, default NodePool
+modules/audit/             multi-region CloudTrail into a locked-down bucket; optional GuardDuty
+modules/addons/            load balancer controller, cert-manager, External Secrets, issuers, secret store
 modules/environment/       one environment composed from the modules, plus budgets and schedules
-environments/<name>/       development, staging, production: separate state and settings
+environments/<name>/       development, staging, production, loadtest: separate state and settings
 ```
 
 ## Create an environment
 
-Requires Terraform ≥ 1.10 and AWS credentials for the target account.
+Requires Terraform ≥ 1.10, the AWS CLI (the Helm provider signs in with
+`aws eks get-token`), and AWS credentials for the target account.
 
 ```bash
-# 1. Once per account: the encrypted, versioned state bucket.
+# 1. Once per account: the state bucket and the audit trail. List every
+#    principal that may read or write state; everyone else is denied.
 cd bootstrap
-terraform init && terraform apply -var state_bucket=opspilot-terraform-state-<account-id>
+terraform init && terraform apply \
+  -var state_bucket=opspilot-terraform-state-<account-id> \
+  -var audit_bucket=opspilot-audit-<account-id> \
+  -var 'admin_principal_arns=["arn:aws:iam::<account-id>:role/aws-reserved/sso.amazonaws.com/*/AWSReservedSSO_AdministratorAccess_*"]' \
+  -var 'ci_principal_arns=["arn:aws:iam::<account-id>:role/opspilot-*-ci-deploy"]' \
+  -var enable_guardduty=true
 
 # 2. Each environment: S3 backend with S3-native locking, separate state key.
 cd ../environments/development
-cp ../backend.hcl.example ../backend.hcl            # set the bucket name
+cp ../backend.hcl.example ../backend.hcl            # bucket name and state key ARN
 cp terraform.tfvars.example terraform.tfvars        # domain, alert e-mails
 terraform init -backend-config=../backend.hcl
 terraform plan -out=tfplan && terraform apply tfplan
 ```
 
+Check the result with `make infra-smoke ENV=development` (wraps
+`scripts/infra-smoke.sh`). Through a throwaway kubeconfig, it checks that
+all nodes are Ready and the add-ons have rolled out (CoreDNS, VPC CNI,
+metrics-server, Karpenter, load balancer controller, cert-manager, External
+Secrets). It also checks that the node class, node pool, ClusterIssuer, and
+ClusterSecretStore report Ready, that the app ExternalSecret has synced
+once the chart is installed, and that a pod can reach PostgreSQL.
+
 Then delegate the environment's domain to the `name_servers` output, put the
 OIDC client secret and model API key into the Secrets Manager entries
 (`opspilot-<env>/...`), and point CI at the `ci_role_arn` output.
+
+`make tf-plan ENV=<environment>` runs the init and plan steps from the repository
+root, and `make tf-check` runs fmt, validate, tflint, and checkov the way CI
+does.
 
 Destroy a temporary environment with `terraform destroy`. Development and
 staging have deletion protection off. Production refuses to drop its
 database, takes a final snapshot, and keeps the state bucket.
 
 ## Security
+
+Every role, its trust, and its permissions, with the reason for each, are
+listed in [docs/security/iam-review.md](../../docs/security/iam-review.md).
+
+### State and audit
+
+- The state bucket's policy denies every principal not listed in
+  `admin_principal_arns` / `ci_principal_arns`, denies non-TLS requests, and
+  rejects puts that ask for SSE-S3 or a key other than the state key. The
+  backend therefore sets `kms_key_id` (see `backend.hcl.example`). If the
+  list is wrong and locks everyone out, the account root user can still
+  delete the bucket policy.
+- A multi-region CloudTrail trail with log file validation records
+  management events in every region, plus object-level reads and writes of
+  the state bucket. Logs go to a versioned bucket that is KMS-encrypted,
+  private, and TLS-only, owned by the bucket owner, and kept for 365 days.
+  Its policy denies deleting log objects.
+- `enable_guardduty` turns on GuardDuty with S3 data-event and EKS
+  audit-log protection.
+
+### Everything else
 
 - Every store is encrypted with a customer-managed KMS key that rotates
   yearly: state, flow logs, EKS secrets, node disks, RDS, Redis, buckets,
@@ -55,13 +99,151 @@ database, takes a final snapshot, and keeps the state bucket.
 and module. Checkov exceptions are justified next to the resource they
 apply to.
 
+## Capacity
+
+The managed node group is a small, fixed `system` group (on-demand) that runs
+the add-ons, Karpenter included. Every other pod is placed on nodes that
+Karpenter launches for it:
+
+- One `EC2NodeClass` (private subnets, the cluster security group that the
+  databases trust, IMDSv2 only, encrypted gp3 disk) and one `default`
+  `NodePool` (amd64, the architecture the images are built for; current
+  generation c/m/r/t families; nodes replaced every 30 days).
+- Development and staging allow Spot with on-demand fallback; production is
+  on-demand only. Spot interruption, rebalance, and health events reach
+  Karpenter through an SQS queue, so nodes are drained before AWS reclaims
+  them.
+- Idle or underused nodes are consolidated after one minute, at most 10 %
+  of nodes at a time. A per-environment CPU limit (8 / 16 / 48 vCPU) caps
+  spend.
+- The controller role (IRSA) can only launch, tag, and terminate instances
+  tagged for its own cluster, and pass only the Karpenter node role.
+
+Chart versions are pinned in `modules/karpenter/variables.tf`.
+
+## Cluster add-ons
+
+Installed by Terraform as Helm releases with pinned chart versions
+(`modules/addons/variables.tf`). Each has its own IRSA role:
+
+| Add-on | Chart | What it may do in AWS |
+|---|---|---|
+| AWS Load Balancer Controller | eks-charts `aws-load-balancer-controller` 3.6.0 | Manage ALBs, target groups, and their security groups (upstream policy, `modules/addons/lbc-policy.json`) |
+| cert-manager | jetstack `cert-manager` v1.21.2 | Write `_acme-challenge` TXT records in the environment's zone only |
+| External Secrets Operator | `external-secrets` 2.12.0 | Read `opspilot-<env>/*` secrets and decrypt them through Secrets Manager |
+
+Public traffic enters through an ALB (`ingressClassName: alb`) with the
+environment's ACM certificate. ingress-nginx was retired in March 2026, so
+it is not used; see [ADR-005](../../docs/adr/005-ingress-with-aws-load-balancer-controller.md).
+cert-manager provides the `letsencrypt` and `letsencrypt-staging`
+ClusterIssuers (Route53 DNS-01) for certificates that live in the cluster.
+External Secrets provides the `aws-secrets-manager` ClusterSecretStore.
+
+## Application roles
+
+`modules/environment/app_iam.tf` creates one IRSA role per OpsPilot
+workload, each trusted only by its service account in the `opspilot`
+namespace (`app_namespace`), and outputs them as `app_role_arns`:
+
+| Role | Service account | Permissions |
+|---|---|---|
+| `opspilot-<env>-app-api` | `opspilot-api` | Read the `opspilot-<env>/app` secret; `elasticache:Connect` as the Redis IAM user |
+| `opspilot-<env>-app-worker` | `opspilot-worker` | As the API, plus read the ML model bucket |
+| `opspilot-<env>-app-backup` | `opspilot-backup` | Read the app secret; list and put objects in the backup bucket (no object reads, no delete) |
+
+KMS use is limited to decrypting through Secrets Manager or S3. The pods
+get credentials when their service account carries the
+`eks.amazonaws.com/role-arn` annotation with the matching ARN. Other
+outputs the chart needs: `app_secret_name`, `redis_app_user`, `buckets`.
+
+## Deploy OpsPilot onto an environment
+
+The chart in `infrastructure/helm/opspilot` takes the Terraform outputs
+like this (production shown):
+
+```yaml
+existingSecret: opspilot
+externalSecrets:
+  enabled: true                               # store: aws-secrets-manager (output secret_store)
+  remoteKey: opspilot-production/app          # output app_secret_name
+serviceAccounts:
+  api:    { annotations: { eks.amazonaws.com/role-arn: <app_role_arns.api> } }
+  worker: { annotations: { eks.amazonaws.com/role-arn: <app_role_arns.worker> } }
+ingress:
+  enabled: true
+  className: alb
+  hosts: [opspilot.example.com]               # inside the environment's domain
+  annotations:
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/group.name: opspilot
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTPS":443}]'
+    alb.ingress.kubernetes.io/ssl-policy: ELBSecurityPolicy-TLS13-1-2-2021-06
+networkPolicy:
+  ingressPeers: [{ ipBlock: { cidr: 10.30.0.0/16 } }]   # the VPC: ALB IP targets
+```
+
+Put the application settings into the `opspilot-<env>/app` secret as one
+JSON object (`DATABASE_URL`, `REDIS_URL`, `JWT_ISSUER`, `OIDC_*`,
+`LLM_API_KEY`, ...). External Secrets turns it into the `opspilot` Secret
+and refreshes it hourly. Then point a DNS record for the host at the ALB.
+For an in-cluster controller instead of the ALB, set its `className`,
+`certManager.enabled: true`, and `tls.secretName`. cert-manager then issues
+the certificate from the `letsencrypt` ClusterIssuer.
+
+## Temporary load-test environment
+
+`environments/loadtest` is the smallest composition (two zones, one system
+node, Spot application nodes up to 16 vCPU, micro databases, 7-day logs,
+$100 budget) with no deletion protection. Every resource it creates
+carries a `ttl` tag from the required `expires_at` variable:
+
+```bash
+cd environments/loadtest
+terraform init -backend-config=../backend.hcl
+terraform apply -var expires_at=2026-10-20T18:00:00Z   # plus domain / alert_emails
+```
+
+The **Load-test teardown** workflow (`.github/workflows/loadtest-teardown.yml`)
+runs hourly and on demand. It calls `scripts/loadtest-teardown.sh`, which
+reads the earliest `ttl` tag of resources tagged `environment=loadtest`.
+Once that time has passed, or when the run is forced, the script:
+
+1. forgets the Helm releases, because the runner cannot reach the private
+   cluster API and the releases go with the cluster;
+2. destroys the EKS cluster, which stops Karpenter and the load balancer
+   controller;
+3. deletes what those controllers created outside Terraform: Karpenter
+   instances and instance profiles, ALBs, target groups, and security
+   groups;
+4. runs `terraform destroy`.
+
+Guards:
+- The script's target, state key, and environment name are constants.
+  It refuses to run unless the configuration really is the loadtest
+  composition, and no workflow input can change the target.
+- The workflow runs only on the default branch, in the `loadtest` GitHub
+  environment (protect it with required reviewers for manual runs).
+- It is a no-op until that environment defines `LOADTEST_TEARDOWN_ROLE_ARN`
+  (plus `TF_STATE_BUCKET`, `TF_STATE_KMS_KEY_ARN`, `LOADTEST_DOMAIN`, and
+  `LOADTEST_ALERT_EMAILS` as a JSON list).
+- Give that role a trust policy for
+  `repo:Kunj157/opspilot:environment:loadtest` only, and permissions
+  limited to resources tagged `environment=loadtest` and the
+  `opspilot/loadtest/*` state key.
+
+Run it by hand with `make loadtest-teardown ARGS=--dry-run`.
+
 ## Cost controls
 
-- Small instances outside production: Graviton `t4g` nodes on Spot, and
-  `db.t4g.micro` / `cache.t4g.micro`.
+- Small instances outside production: a Graviton `t4g` system node,
+  Spot application nodes, and `db.t4g.micro` / `cache.t4g.micro`.
 - One NAT gateway in development and staging, one per zone in production.
-- Development and staging nodes scale to zero at 20:00 and back up at 07:00
-  on weekdays (Europe/Berlin).
+- Application nodes follow load: Karpenter removes empty nodes and packs
+  pods onto cheaper ones. The old clock-based scale-to-zero of the node
+  group (`office_hours`) is off wherever Karpenter runs, because stopping
+  the system group would stop Karpenter and strand its nodes; it remains
+  available for a cluster without Karpenter.
 - An AWS Budget per environment alerts at 80 % of actual and 100 % of
   forecast spend.
 
@@ -71,9 +253,11 @@ the AWS Pricing Calculator before applying.
 
 | Environment | Main items | Estimate | Budget |
 |---|---|---|---|
-| development | EKS control plane, 2 × t4g.medium Spot in office hours, 1 NAT, db.t4g.micro, cache.t4g.micro | ≈ $160 | $250 |
-| staging | as development with t4g.large nodes and db.t4g.small | ≈ $230 | $400 |
-| production | EKS, 3 × m7g.large, 3 NAT, Multi-AZ db.m7g.large, Redis with a replica | ≈ $700 | $1,500 |
+| development | EKS control plane, 1 × t4g.medium system node, ≈ 2 small Spot application nodes, 1 NAT, db.t4g.micro, cache.t4g.micro | ≈ $190 | $250 |
+| staging | as development with 2 system nodes and db.t4g.small | ≈ $250 | $400 |
+| production | EKS, 2 × m7g.large system nodes, ≈ 3 on-demand application nodes, 3 NAT, Multi-AZ db.m7g.large, Redis with a replica | ≈ $750 | $1,500 |
 
-The EKS control plane ($0.10/h) and NAT gateways dominate small
-environments. Destroy development when it is not in use.
+A load-test environment costs about $6 per day (control plane, NAT, system
+node, micro databases) plus the Spot nodes the test asks for. The EKS
+control plane ($0.10/h) and NAT gateways dominate small environments.
+Destroy development when it is not in use.

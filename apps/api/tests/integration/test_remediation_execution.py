@@ -8,6 +8,7 @@ from typing import Any
 
 import pytest
 import sqlalchemy as sa
+from prometheus_client import REGISTRY
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from opspilot_api.db.models import (
@@ -65,6 +66,10 @@ class FakeWriter:
     ) -> dict[str, Any]:
         await self._call("scale", namespace, deployment, replicas)
         return {"replicas": replicas}
+
+    async def pause_rollout(self, namespace: str, deployment: str) -> dict[str, Any]:
+        await self._call("pause", namespace, deployment)
+        return {"paused": True}
 
 
 @pytest.fixture
@@ -195,9 +200,14 @@ async def test_an_approved_rollback_runs_once_and_moves_to_verifying(
 ) -> None:
     proposal_id = await approved(sessions)
     writer = FakeWriter()
+    succeeded = {"action": "rollback_deployment", "outcome": "succeeded"}
+    before = REGISTRY.get_sample_value("opspilot_remediation_executions_total", succeeded) or 0
 
     assert await run_once(sessions, writer) is ExecutionStatus.SUCCEEDED
     assert await run_once(sessions, writer) is None
+    assert (
+        REGISTRY.get_sample_value("opspilot_remediation_executions_total", succeeded) == before + 1
+    )
 
     proposal, incident, [execution], events, audit, _ = await snapshot(sessions, proposal_id)
     assert writer.calls == [("rollback", "demo", "checkout", 6)]
@@ -206,6 +216,27 @@ async def test_an_approved_rollback_runs_once_and_moves_to_verifying(
     assert execution.idempotency_key == f"{proposal_id}:v1"
     assert execution.output == {"rolled_back_to": 6, "version": "1.0.0"}
     assert execution.completed_at is not None
+    assert "incident.remediation_executed" in events
+    assert "remediation.executed" in audit
+
+
+async def test_an_approved_pause_pauses_the_rollout(
+    sessions: async_sessionmaker[AsyncSession],
+) -> None:
+    proposal_id = await approved(
+        sessions,
+        action=RemediationAction.PAUSE_ROLLOUT,
+        parameters={"namespace": "demo", "deployment": "checkout", "revision": 7},
+    )
+    writer = FakeWriter()
+
+    assert await run_once(sessions, writer) is ExecutionStatus.SUCCEEDED
+
+    proposal, incident, [execution], events, audit, _ = await snapshot(sessions, proposal_id)
+    assert writer.calls == [("pause", "demo", "checkout")]
+    assert execution.output == {"paused": True}
+    assert proposal.status is ProposalStatus.EXECUTED
+    assert incident.status is IncidentStatus.VERIFYING
     assert "incident.remediation_executed" in events
     assert "remediation.executed" in audit
 
@@ -245,8 +276,11 @@ async def test_an_expired_proposal_does_not_run_and_reopens_the_investigation(
 ) -> None:
     proposal_id = await approved(sessions, expires_in=-timedelta(seconds=1))
     writer = FakeWriter()
+    expired = {"reason": "expired"}
+    before = REGISTRY.get_sample_value("opspilot_remediation_blocked_total", expired) or 0
 
     assert await run_once(sessions, writer) is ExecutionStatus.FAILED
+    assert REGISTRY.get_sample_value("opspilot_remediation_blocked_total", expired) == before + 1
 
     proposal, incident, [execution], events, audit, investigations = await snapshot(
         sessions, proposal_id

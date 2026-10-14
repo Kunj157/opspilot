@@ -39,6 +39,7 @@ def settings() -> Settings:
         redis_url="redis://redis.invalid:6379/0",
         jwt_issuer="https://idp.invalid/realms/opspilot",
         jwt_audience="opspilot-api",
+        rate_limit_enabled=False,
     )
 
 
