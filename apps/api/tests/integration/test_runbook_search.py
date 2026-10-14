@@ -11,11 +11,12 @@ from tests.support.tokens import TokenFactory
 pytestmark = pytest.mark.integration
 
 
-def doc(title: str, services: str, symptoms: str, actions: str) -> str:
+def doc(title: str, services: str, symptoms: str, actions: str, environment: str = "") -> str:
+    env = f"environment: {environment}\n" if environment else ""
     return f"""---
 title: {title}
 services: [{services}]
-version: 1
+{env}version: 1
 ---
 
 ## Symptoms
@@ -39,6 +40,20 @@ MEMORY = doc(
     "notification",
     "Memory grows steadily until pods are OOM killed and restart.",
     "Restart the deployment and investigate the leak.",
+)
+
+GENERIC = doc(
+    "Pod crash loop",
+    "",
+    "Pods restart repeatedly with CrashLoopBackOff.",
+    "Read the previous container logs before restarting.",
+)
+PRODUCTION_ONLY = doc(
+    "Checkout failover",
+    "checkout",
+    "Checkout errors in production only.",
+    "Fail over checkout to the standby region.",
+    environment="production",
 )
 
 
@@ -106,6 +121,42 @@ async def test_the_service_filter_prefers_runbooks_for_that_service(
     hits = await search(client, operator, q="restart the deployment", service="notification")
 
     assert hits[0]["runbook_slug"] == "high-memory-usage"
+
+
+async def test_the_service_filter_excludes_other_services_but_keeps_generic_runbooks(
+    client: httpx.AsyncClient, factory: TokenFactory
+) -> None:
+    operator = Caller(factory, new_org(), "operator")
+    await add(client, operator, CHECKOUT)
+    await add(client, operator, MEMORY)
+    await add(client, operator, GENERIC)
+
+    hits = await search(client, operator, q="checkout errors 500 after release", service="payment")
+    slugs = {h["runbook_slug"] for h in hits}
+
+    assert slugs == {"pod-crash-loop"}
+    unfiltered = {h["runbook_slug"] for h in await search(client, operator, q="checkout errors")}
+    assert {"checkout-high-error-rate", "high-memory-usage", "pod-crash-loop"} == unfiltered
+
+
+async def test_the_environment_filter_keeps_that_environment_and_all(
+    client: httpx.AsyncClient, factory: TokenFactory
+) -> None:
+    operator = Caller(factory, new_org(), "operator")
+    created = await add(client, operator, PRODUCTION_ONLY)
+    await add(client, operator, CHECKOUT)
+
+    assert created["environment"] == "production"
+    staging = {
+        h["runbook_slug"]
+        for h in await search(client, operator, q="checkout", environment="staging")
+    }
+    production = {
+        h["runbook_slug"]
+        for h in await search(client, operator, q="checkout", environment="production")
+    }
+    assert staging == {"checkout-high-error-rate"}
+    assert production == {"checkout-high-error-rate", "checkout-failover"}
 
 
 async def test_other_organizations_and_archived_runbooks_are_never_returned(

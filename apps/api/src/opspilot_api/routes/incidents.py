@@ -22,7 +22,7 @@ from opspilot_api.db.models import (
     User,
 )
 from opspilot_api.db.session import get_session
-from opspilot_api.idempotency import Idempotency, idempotency_key
+from opspilot_api.idempotency import Idempotency, IdempotencyDep, idempotency_key
 from opspilot_api.incidents import service as incidents
 from opspilot_api.incidents.state_machine import ALLOWED_TRANSITIONS
 from opspilot_api.pagination import decode_page_token, encode_page_token
@@ -157,10 +157,14 @@ async def _require_owned(
         )
 
 
-async def _finish(session: AsyncSession, incident: Incident) -> IncidentOut:
-    await session.commit()
+async def _finish(
+    session: AsyncSession, incident: Incident, idempotency: Idempotency
+) -> IncidentOut:
+    await session.flush()
     await session.refresh(incident)
-    return IncidentOut.of(incident)
+    out = IncidentOut.of(incident)
+    await idempotency.commit(status.HTTP_200_OK, out)
+    return out
 
 
 @router.get("/incidents", response_model=IncidentPage)
@@ -250,7 +254,10 @@ async def update_incident(
     body: IncidentUpdate,
     principal: Annotated[Principal, Depends(require(Permission.MANAGE_INCIDENTS))],
     session: Annotated[AsyncSession, Depends(get_session)],
-) -> IncidentOut:
+    idempotency: IdempotencyDep,
+) -> IncidentOut | JSONResponse:
+    if replay := await idempotency.replay(body):
+        return replay
     incident = await get_owned_or_404(session, Incident, incident_id, principal)
     actor = incidents.Actor.from_principal(principal)
     if body.status is not None:
@@ -272,7 +279,7 @@ async def update_incident(
                 session, incident, expected_version=body.version, actor=actor, changes=changes
             ),
         )
-    return await _finish(session, incident)
+    return await _finish(session, incident, idempotency)
 
 
 @router.post("/incidents/{incident_id}/acknowledge", response_model=IncidentOut)
@@ -281,7 +288,10 @@ async def acknowledge_incident(
     body: VersionedRequest,
     principal: Annotated[Principal, Depends(require(Permission.MANAGE_INCIDENTS))],
     session: Annotated[AsyncSession, Depends(get_session)],
-) -> IncidentOut:
+    idempotency: IdempotencyDep,
+) -> IncidentOut | JSONResponse:
+    if replay := await idempotency.replay(body):
+        return replay
     incident = await get_owned_or_404(session, Incident, incident_id, principal)
     await _apply(
         incident,
@@ -293,7 +303,7 @@ async def acknowledge_incident(
             assignee_id=incident.assigned_user_id or principal.user_id,
         ),
     )
-    return await _finish(session, incident)
+    return await _finish(session, incident, idempotency)
 
 
 @router.post("/incidents/{incident_id}/investigate", response_model=IncidentOut)
@@ -302,7 +312,10 @@ async def investigate_incident(
     body: VersionedRequest,
     principal: Annotated[Principal, Depends(require(Permission.START_INVESTIGATION))],
     session: Annotated[AsyncSession, Depends(get_session)],
-) -> IncidentOut:
+    idempotency: IdempotencyDep,
+) -> IncidentOut | JSONResponse:
+    if replay := await idempotency.replay(body):
+        return replay
     incident = await get_owned_or_404(session, Incident, incident_id, principal)
     await _apply(
         incident,
@@ -314,7 +327,7 @@ async def investigate_incident(
             actor=incidents.Actor.from_principal(principal),
         ),
     )
-    return await _finish(session, incident)
+    return await _finish(session, incident, idempotency)
 
 
 @router.post("/incidents/{incident_id}/resolve", response_model=IncidentOut)
@@ -323,7 +336,10 @@ async def resolve_incident(
     body: VersionedRequest,
     principal: Annotated[Principal, Depends(require(Permission.MANAGE_INCIDENTS))],
     session: Annotated[AsyncSession, Depends(get_session)],
-) -> IncidentOut:
+    idempotency: IdempotencyDep,
+) -> IncidentOut | JSONResponse:
+    if replay := await idempotency.replay(body):
+        return replay
     incident = await get_owned_or_404(session, Incident, incident_id, principal)
     await _apply(
         incident,
@@ -335,7 +351,7 @@ async def resolve_incident(
             actor=incidents.Actor.from_principal(principal),
         ),
     )
-    return await _finish(session, incident)
+    return await _finish(session, incident, idempotency)
 
 
 @router.get("/incidents/{incident_id}/events", response_model=EventList)

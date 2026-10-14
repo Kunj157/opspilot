@@ -1,11 +1,12 @@
 "use client";
 
-import { createContext, type ReactNode, useCallback, useContext, useEffect, useState } from "react";
+import dynamic from "next/dynamic";
+import { createContext, type ReactNode, useCallback, useContext, useState } from "react";
 
-import { icons } from "@/components/icons";
+const ToastList = dynamic(() => import("./toast-list"), { ssr: false });
 
 type Tone = "success" | "error";
-type Toast = { id: number; message: string; tone: Tone };
+export type Toast = { id: number; message: string; tone: Tone };
 type Notify = (message: string, tone?: Tone) => void;
 
 const TOAST_MS = 5000;
@@ -18,30 +19,20 @@ export function useToast(): Notify {
   return notify;
 }
 
-function ToastItem({ toast, dismiss }: { toast: Toast; dismiss: (id: number) => void }) {
-  useEffect(() => {
-    const timer = setTimeout(() => dismiss(toast.id), TOAST_MS);
-    return () => clearTimeout(timer);
-  }, [toast.id, dismiss]);
-
-  return (
-    <li className="pointer-events-auto flex items-start gap-3 rounded-card border border-border bg-surface-3 px-4 py-3 text-sm shadow-3">
-      <span aria-hidden className={`mt-1.5 size-2 shrink-0 rounded-full ${toast.tone === "error" ? "bg-critical" : "bg-healthy"}`} />
-      <p className="flex-1">{toast.message}</p>
-      <button type="button" onClick={() => dismiss(toast.id)} aria-label="Dismiss" className="text-fg-secondary hover:text-fg">
-        <icons.close />
-      </button>
-    </li>
-  );
-}
-
 /** Transient notifications; errors are announced assertively, the rest politely. */
 export function ToastProvider({ children }: { children: ReactNode }) {
   const [toasts, setToasts] = useState<Toast[]>([]);
-  const notify = useCallback<Notify>((message, tone = "success") => {
-    setToasts((all) => [...all, { id: ++nextId, message, tone }]);
-  }, []);
+  const [used, setUsed] = useState(false);
   const dismiss = useCallback((id: number) => setToasts((all) => all.filter((t) => t.id !== id)), []);
+  const notify = useCallback<Notify>(
+    (message, tone = "success") => {
+      const id = ++nextId;
+      setUsed(true);
+      setToasts((all) => [...all, { id, message, tone }]);
+      setTimeout(() => dismiss(id), TOAST_MS);
+    },
+    [dismiss],
+  );
 
   const region = (tone: Tone) => (
     // Live regions without a landmark role, so page-level status and alert queries stay unambiguous.
@@ -50,13 +41,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
       aria-live={tone === "error" ? "assertive" : "polite"}
       className="pointer-events-none fixed right-4 bottom-4 z-50 w-[min(24rem,calc(100vw-2rem))]"
     >
-      <ul className="flex flex-col gap-2">
-        {toasts
-          .filter((t) => t.tone === tone)
-          .map((t) => (
-            <ToastItem key={t.id} toast={t} dismiss={dismiss} />
-          ))}
-      </ul>
+      {used && <ToastList toasts={toasts.filter((t) => t.tone === tone)} dismiss={dismiss} lifetime={TOAST_MS} />}
     </section>
   );
 

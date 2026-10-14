@@ -32,7 +32,10 @@ class Envelope(BaseModel):
 
 # Timeline event type → topic. Status changes publish only when they resolve.
 TOPICS = {
+    "incident.anomaly_detected": "telemetry.anomaly.detected.v1",
     "incident.created": "incident.created.v1",
+    "incident.investigation_requested": "incident.investigation.requested.v1",
+    "incident.evidence_collected": "incident.evidence.collected.v1",
     "incident.remediation_proposed": "incident.remediation.proposed.v1",
     "incident.remediation_approved": "incident.remediation.approved.v1",
     "incident.remediation_executed": "incident.remediation.completed.v1",
@@ -54,6 +57,15 @@ SAFE_METADATA = {
     "execution_id",
     "investigation_id",
     "status",
+    "service_id",
+    "detector",
+    "failure_category",
+    "score",
+    "threshold",
+    "agent",
+    "evidence_count",
+    "evidence_ids",
+    "evidence_types",
 }
 
 

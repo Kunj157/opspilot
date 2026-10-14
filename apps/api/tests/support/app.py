@@ -35,6 +35,8 @@ async def api_client(
             redis_url=settings.pop("redis_url", "redis://unused:6379/0"),
             # Deterministic embeddings: no model download in tests.
             embedding_model=settings.pop("embedding_model", "hashing"),
+            # Off unless a test asks: most tests have no Redis to count in.
+            rate_limit_enabled=settings.pop("rate_limit_enabled", False),
             jwt_issuer=ISSUER,
             jwt_audience=AUDIENCE,
             **settings,

@@ -118,7 +118,7 @@ def happy_model(
             return {"calls": []}  # use the default plan
         if schema is Synthesis:
             return synthesis or {
-                "summary": "Checkout 1.4.2 fails half of orders since its rollout.",
+                "summary": "Checkout 1.4.2 fails half of orders since its rollout (E3, E6).",
                 "hypotheses": [
                     {
                         "description": "Release 1.4.2 broke checkout",
@@ -291,6 +291,9 @@ async def test_a_bad_release_is_investigated_and_a_rollback_proposed(
     assert all(r.prompt_version == PROMPT_VERSION for r in data["runs"])
     assert "incident.remediation_proposed" in data["events"]
     assert data["events"][-1] == "incident.investigation_finished"
+    # One evidence event per node that found something, never per evidence row.
+    agents = {e["agent"] for e in data["investigation"].state["evidence"]}
+    assert data["events"].count("incident.evidence_collected") == len(agents) >= 3
     result = data["investigation"].result
     assert result["hypotheses"][0]["supporting_evidence"] == ["E3", "E6"]
     assert result["manual_review"] is False
@@ -334,6 +337,29 @@ async def test_ungrounded_hypotheses_are_dropped_and_the_run_stops_at_max_rounds
     assert data["investigation"].round == 1
     assert data["investigation"].result["hypotheses"] == []
     assert data["proposals"] == []
+
+
+async def test_summary_claims_citing_unknown_evidence_are_dropped_and_uncited_marked(
+    sessions: async_sessionmaker[AsyncSession],
+) -> None:
+    investigation_id = await setup(sessions)
+    synthesis = {
+        "summary": "Checkout 1.4.2 broke orders (E3). The database is saturated (E99). "
+        "Traffic doubled overnight. Unknown: why 1.4.2 fails.",
+        "hypotheses": [
+            {"description": "Release 1.4.2", "confidence": 0.9, "supporting_evidence": ["E3"]}
+        ],
+        "enough_evidence": True,
+    }
+
+    await investigator(sessions, happy_model(synthesis=synthesis)).run(investigation_id)
+
+    result = (await load(sessions, investigation_id))["investigation"].result
+    assert result["summary"] == (
+        "Checkout 1.4.2 broke orders (E3). Unverified: Traffic doubled overnight. "
+        "Unknown: why 1.4.2 fails."
+    )
+    assert "Dropped 1 summary claim(s) citing unknown evidence" in result["notes"]
 
 
 async def test_policy_rejects_targets_outside_the_catalog(

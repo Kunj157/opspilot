@@ -1,22 +1,18 @@
 "use client";
 
+import { zodResolver } from "@hookform/resolvers/zod";
 import { createApiClient } from "@opspilot/api-client";
 import type { components } from "@opspilot/api-client/schema";
-import { type FormEvent, useId, useState } from "react";
+import { useState } from "react";
+import { useForm } from "react-hook-form";
 
 import { Button } from "@/components/ui/button";
+import { Field } from "@/components/ui/field";
+import { Input } from "@/components/ui/input";
+import { serverFieldErrors, serviceSchema, type ServiceValues } from "@/lib/form-schemas";
 
 type Service = components["schemas"]["ServiceOut"];
-type EditableField =
-  | "name"
-  | "slug"
-  | "description"
-  | "owner_team"
-  | "repository_url"
-  | "namespace"
-  | "deployment_name";
-type Values = Record<EditableField, string>;
-type Errors = Partial<Record<EditableField | "form", string>>;
+type EditableField = keyof ServiceValues;
 
 const FIELDS: { name: EditableField; label: string; required?: boolean; placeholder?: string }[] = [
   { name: "name", label: "Name", required: true, placeholder: "Checkout" },
@@ -27,6 +23,7 @@ const FIELDS: { name: EditableField; label: string; required?: boolean; placehol
   { name: "namespace", label: "Namespace", placeholder: "demo" },
   { name: "deployment_name", label: "Deployment", placeholder: "checkout" },
 ];
+const NAMES = FIELDS.map((f) => f.name);
 
 export function slugify(name: string): string {
   return name
@@ -36,27 +33,8 @@ export function slugify(name: string): string {
     .slice(0, 63);
 }
 
-function initialValues(service?: Pick<Service, EditableField>): Values {
-  return Object.fromEntries(
-    FIELDS.map(({ name }) => [name, service?.[name] ?? ""]),
-  ) as Values;
-}
-
-type ValidationItem = { loc: (string | number)[]; msg: string };
-
-function errorsFrom(status: number, body: unknown): Errors {
-  if (status === 409) return { slug: "A service with this slug already exists." };
-  const detail = (body as { detail?: unknown })?.detail;
-  if (status === 422 && Array.isArray(detail)) {
-    const errors: Errors = {};
-    for (const item of detail as ValidationItem[]) {
-      const field = item.loc[item.loc.length - 1];
-      if (FIELDS.some((f) => f.name === field)) errors[field as EditableField] = item.msg;
-      else errors.form = item.msg;
-    }
-    return errors;
-  }
-  return { form: "The service could not be saved. Please try again." };
+function initialValues(service?: Pick<Service, EditableField>): ServiceValues {
+  return Object.fromEntries(NAMES.map((name) => [name, service?.[name] ?? ""])) as ServiceValues;
 }
 
 export function ServiceForm({
@@ -66,93 +44,68 @@ export function ServiceForm({
   service?: Pick<Service, "id" | EditableField>;
   onSaved: (saved: Service) => void;
 }) {
-  const formId = useId();
-  const [values, setValues] = useState<Values>(() => initialValues(service));
-  const [slugEdited, setSlugEdited] = useState(Boolean(service));
-  const [errors, setErrors] = useState<Errors>({});
-  const [saving, setSaving] = useState(false);
+  const {
+    register,
+    handleSubmit,
+    setValue,
+    setError,
+    getFieldState,
+    formState: { errors, isSubmitting, dirtyFields },
+  } = useForm<ServiceValues>({ resolver: zodResolver(serviceSchema), defaultValues: initialValues(service) });
   // One key per form instance: a double submit or retry cannot create two services.
   const [idempotencyKey] = useState(() => crypto.randomUUID());
 
-  function update(name: EditableField, value: string) {
-    setValues((current) => {
-      const next = { ...current, [name]: value };
-      if (name === "name" && !slugEdited) next.slug = slugify(value);
-      return next;
-    });
-    if (name === "slug") setSlugEdited(true);
-  }
+  // The slug follows the name until someone edits the slug itself.
+  const name = register("name", {
+    onChange: (event) => {
+      if (!service && !getFieldState("slug").isDirty) setValue("slug", slugify(event.target.value));
+    },
+  });
 
-  async function submit(event: FormEvent) {
-    event.preventDefault();
-    setSaving(true);
-    setErrors({});
+  async function submit(values: ServiceValues) {
     const api = createApiClient(window.location.origin);
-    const original = initialValues(service);
-    const changed = FIELDS.map((f) => f.name).filter((name) =>
-      service ? values[name] !== original[name] : values[name] !== "",
-    );
-    const body = Object.fromEntries(
-      changed.map((name) => [name, values[name] === "" ? null : values[name]]),
-    );
-
+    const changed = NAMES.filter((field) => (service ? dirtyFields[field] : values[field] !== ""));
+    const body = Object.fromEntries(changed.map((field) => [field, values[field] === "" ? null : values[field]]));
     const result = service
-      ? await api.PATCH("/api/v1/services/{service_id}", {
-          params: { path: { service_id: service.id } },
-          body,
-        })
+      ? await api.PATCH("/api/v1/services/{service_id}", { params: { path: { service_id: service.id } }, body })
       : await api.POST("/api/v1/services", {
           params: { header: { "Idempotency-Key": idempotencyKey } },
           body: body as components["schemas"]["ServiceCreate"],
         });
-    setSaving(false);
-    if (result.data) onSaved(result.data as Service);
-    else setErrors(errorsFrom(result.response.status, result.error));
+    if (result.data) return onSaved(result.data as Service);
+
+    if (result.response.status === 409) return setError("slug", { message: "A service with this slug already exists." });
+    const server = serverFieldErrors(result.error, NAMES);
+    for (const field of NAMES) {
+      const message = server.fields[field];
+      if (message) setError(field, { message });
+    }
+    if (server.form || Object.keys(server.fields).length === 0) {
+      setError("root", { message: server.form ?? "The service could not be saved. Please try again." });
+    }
   }
 
   return (
-    <form onSubmit={submit} noValidate className="grid gap-4 sm:grid-cols-2">
-      {FIELDS.map(({ name, label, required, placeholder }) => {
-        const id = `${formId}-${name}`;
-        const error = errors[name];
-        return (
-          <div key={name} className={name === "description" ? "sm:col-span-2" : undefined}>
-            <div className="mb-1.5 flex gap-1 text-xs text-fg-secondary">
-              <label htmlFor={id}>{label}</label>
-              {/* Visual hint only; the input's required attribute is what assistive tech reads. */}
-              {required && (
-                <span aria-hidden className="text-accent">
-                  *
-                </span>
-              )}
-            </div>
-            <input
-              id={id}
-              name={name}
-              value={values[name]}
-              required={required}
-              placeholder={placeholder}
-              onChange={(e) => update(name, e.target.value)}
-              aria-invalid={error ? true : undefined}
-              aria-describedby={error ? `${id}-error` : undefined}
-              className="h-9 w-full rounded-sm border border-border bg-surface-1 px-2.5 text-sm placeholder:text-fg-muted focus:border-accent focus:outline-none aria-[invalid=true]:border-critical"
-            />
-            {error && (
-              <p id={`${id}-error`} className="mt-1 text-xs text-critical">
-                {error}
-              </p>
-            )}
-          </div>
-        );
-      })}
-      {errors.form && (
+    <form onSubmit={handleSubmit(submit)} noValidate className="grid gap-4 sm:grid-cols-2">
+      {FIELDS.map(({ name: field, label, required, placeholder }) => (
+        <Field
+          key={field}
+          label={label}
+          required={required}
+          error={errors[field]?.message}
+          className={field === "description" ? "sm:col-span-2" : undefined}
+        >
+          {(control) => <Input {...control} {...(field === "name" ? name : register(field))} placeholder={placeholder} />}
+        </Field>
+      ))}
+      {errors.root && (
         <p role="alert" className="text-sm text-critical sm:col-span-2">
-          {errors.form}
+          {errors.root.message}
         </p>
       )}
       <div className="flex justify-end sm:col-span-2">
-        <Button type="submit" disabled={saving}>
-          {saving ? "Saving…" : service ? "Save changes" : "Create service"}
+        <Button type="submit" disabled={isSubmitting}>
+          {isSubmitting ? "Saving…" : service ? "Save changes" : "Create service"}
         </Button>
       </div>
     </form>
