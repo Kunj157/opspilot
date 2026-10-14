@@ -21,10 +21,13 @@ from opspilot_api.routes import (
     incident_metrics,
     incident_streams,
     incidents,
+    investigations,
     me,
+    runbooks,
     services,
     topology,
 )
+from opspilot_api.runbooks.embeddings import build_embedder
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -61,6 +64,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 stack.push_async_callback(redis.aclose)
                 checks["redis"] = readiness.redis_check(redis)
 
+            app.state.embedder = build_embedder(
+                settings.embedding_model, settings.embedding_cache_dir
+            )
             app.state.settings = settings
             app.state.readiness_checks = checks
             app.state.session_factory = session_factory
@@ -91,4 +97,6 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(incidents.router)
     app.include_router(incident_metrics.router)
     app.include_router(detections.router)
+    app.include_router(investigations.router)
+    app.include_router(runbooks.router)
     return app
