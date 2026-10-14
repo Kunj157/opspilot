@@ -7,6 +7,9 @@ environment: local
 # OTLP/HTTP endpoint of the OpenTelemetry Collector.
 otlpEndpoint: http://otel-collector.observability:4318
 
+# Change cause recorded on new rollout revisions (default: "chart release N").
+changeCause: ""
+
 # Service version reported in telemetry; a release bumps it.
 serviceVersion: "1.0.0"
 
