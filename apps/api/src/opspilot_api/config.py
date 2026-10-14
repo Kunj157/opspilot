@@ -44,8 +44,17 @@ class Settings(BaseSettings):
     llm_api_key: str | None = None
     llm_timeout_seconds: float = 120.0
 
+    # Investigations may only read (and, in phase 9, remediate) these namespaces.
+    agent_allowed_namespaces: str = "demo"
+    kubernetes_context: str | None = None
+    kubeconfig: str | None = None
+
     readiness_timeout_seconds: float = 2.0
     sse_heartbeat_seconds: float = 15.0
+
+    @property
+    def allowed_namespaces(self) -> frozenset[str]:
+        return frozenset(n.strip() for n in self.agent_allowed_namespaces.split(",") if n.strip())
 
     def missing_required(self) -> list[str]:
         """Names of required environment variables that are not set."""

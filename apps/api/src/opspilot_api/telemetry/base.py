@@ -81,7 +81,7 @@ class LogsProvider(Protocol):
 
 class TracesProvider(Protocol):
     async def search(
-        self, service: str, start: datetime, end: datetime, limit: int
+        self, service: str, start: datetime, end: datetime, limit: int, *, errors_only: bool = False
     ) -> list[TraceSummary]: ...
 
     async def get(self, trace_id: str) -> TraceDetail | None: ...

@@ -18,12 +18,15 @@ class TempoTraces(Backend):
     name = "tempo"
 
     async def search(
-        self, service: str, start: datetime, end: datetime, limit: int
+        self, service: str, start: datetime, end: datetime, limit: int, *, errors_only: bool = False
     ) -> list[TraceSummary]:
+        condition = f"resource.service.name = {label_value(service)}"
+        if errors_only:
+            condition += " && status = error"
         body = await self.get_json(
             "/api/search",
             {
-                "q": f"{{ resource.service.name = {label_value(service)} }}",
+                "q": f"{{ {condition} }}",
                 "start": int(start.timestamp()),
                 "end": int(end.timestamp()),
                 "limit": limit,
