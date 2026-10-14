@@ -15,7 +15,7 @@ from opspilot_api.auth.principal import Principal
 from opspilot_api.auth.tenancy import get_owned_or_404, scoped
 from opspilot_api.db.models import HealthStatus, Service, ServiceDependency
 from opspilot_api.db.session import get_session
-from opspilot_api.idempotency import Idempotency, idempotency_key
+from opspilot_api.idempotency import Idempotency, IdempotencyDep, idempotency_key
 
 router = APIRouter(prefix="/api/v1", tags=["services"])
 
@@ -144,7 +144,10 @@ async def update_service(
     body: ServiceUpdate,
     principal: Annotated[Principal, Depends(require(Permission.MANAGE_SERVICES))],
     session: Annotated[AsyncSession, Depends(get_session)],
-) -> ServiceOut:
+    idempotency: IdempotencyDep,
+) -> ServiceOut | JSONResponse:
+    if replay := await idempotency.replay(body):
+        return replay
     service = await get_owned_or_404(session, Service, service_id, principal)
     changes = _columns(body, exclude_unset=True)
     for field, value in changes.items():
@@ -162,9 +165,11 @@ async def update_service(
         resource_id=str(service.id),
         metadata={"changed": sorted(changes)},
     )
-    await session.commit()
+    await session.flush()
     await session.refresh(service)
-    return ServiceOut.model_validate(service)
+    out = ServiceOut.model_validate(service)
+    await idempotency.commit(status.HTTP_200_OK, out)
+    return out
 
 
 class DependenciesUpdate(BaseModel):
@@ -208,8 +213,11 @@ async def replace_dependencies(
     body: DependenciesUpdate,
     principal: Annotated[Principal, Depends(require(Permission.MANAGE_SERVICES))],
     session: Annotated[AsyncSession, Depends(get_session)],
-) -> ServiceList:
+    idempotency: IdempotencyDep,
+) -> ServiceList | JSONResponse:
     """Replace the full set of services this service calls."""
+    if replay := await idempotency.replay(body):
+        return replay
     service = await get_owned_or_404(session, Service, service_id, principal)
     targets = sorted(set(body.target_ids), key=str)
     if service.id in targets:
@@ -241,5 +249,5 @@ async def replace_dependencies(
     )
     await session.flush()
     result = await _dependencies(session, service)
-    await session.commit()
+    await idempotency.commit(status.HTTP_200_OK, result)
     return result

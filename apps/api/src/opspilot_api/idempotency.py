@@ -1,4 +1,4 @@
-"""Idempotency-Key support for create requests.
+"""Idempotency-Key support for every mutating request.
 
 The key row is inserted in the same transaction as the resource it creates:
 - a concurrent duplicate blocks on the primary key until the first request
@@ -13,15 +13,17 @@ import re
 from datetime import UTC, datetime, timedelta
 from typing import Annotated, Any
 
-from fastapi import Header, HTTPException, Request, status
+from fastapi import Depends, Header, HTTPException, Request, status
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from sqlalchemy import delete, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from opspilot_api.auth.dependencies import CurrentPrincipal
 from opspilot_api.auth.principal import Principal
 from opspilot_api.db.models import IdempotencyKey
+from opspilot_api.db.session import get_session
 
 TTL = timedelta(hours=24)
 _VALID_KEY = re.compile(r"^[\x21-\x7e]{1,255}$")
@@ -56,13 +58,18 @@ class Idempotency:
         self._request = request
         self._key = key
 
-    async def replay(self, body: BaseModel) -> JSONResponse | None:
+    async def replay(self, body: BaseModel | None = None) -> JSONResponse | None:
+        """The stored response of an earlier request with this key, if any.
+
+        Call before any other work (including version checks), so a retry
+        replays the original outcome instead of failing on the changes the
+        first attempt made.
+        """
         if self._key is None:
             return None
         org = self._principal.organization_id
-        fingerprint = hashlib.sha256(
-            json.dumps(body.model_dump(mode="json"), sort_keys=True).encode()
-        ).hexdigest()
+        payload = body.model_dump(mode="json") if body is not None else None
+        fingerprint = hashlib.sha256(json.dumps(payload, sort_keys=True).encode()).hexdigest()
         now = datetime.now(UTC)
         await self._session.execute(
             delete(IdempotencyKey).where(
@@ -118,3 +125,20 @@ class Idempotency:
         if stored is not None:
             stored.response_status = status_code
             stored.response_body = body
+
+    async def commit(self, status_code: int, out: BaseModel) -> None:
+        """Store `out` as this key's response and commit it with the work."""
+        await self.remember(status_code, out.model_dump(mode="json"))
+        await self._session.commit()
+
+
+async def get_idempotency(
+    request: Request,
+    principal: CurrentPrincipal,
+    session: Annotated[AsyncSession, Depends(get_session)],
+    key: Annotated[str | None, Depends(idempotency_key)],
+) -> Idempotency:
+    return Idempotency(session, principal, request, key)
+
+
+IdempotencyDep = Annotated[Idempotency, Depends(get_idempotency)]

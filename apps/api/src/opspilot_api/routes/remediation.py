@@ -4,6 +4,7 @@ import uuid
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -12,6 +13,7 @@ from opspilot_api.auth.principal import Principal
 from opspilot_api.auth.tenancy import get_owned_or_404
 from opspilot_api.db.models import RemediationProposal
 from opspilot_api.db.session import get_session
+from opspilot_api.idempotency import Idempotency, IdempotencyDep
 from opspilot_api.incidents.service import IncidentConflictError, InvalidTransitionError
 from opspilot_api.remediation.approval import DecisionConflict, ProposalExpired, decide
 from opspilot_api.routes.investigations import ProposalOut, proposals_out
@@ -40,9 +42,14 @@ async def _decide(
     principal: Principal,
     proposal_id: uuid.UUID,
     body: DecisionIn,
+    idempotency: Idempotency,
     *,
     approve: bool,
-) -> ProposalOut:
+) -> ProposalOut | JSONResponse:
+    # Replayed before the version check: a retried approval returns the
+    # original outcome, it never executes or fails twice.
+    if replay := await idempotency.replay(body):
+        return replay
     proposal = await get_owned_or_404(session, RemediationProposal, proposal_id, principal)
     try:
         await decide(
@@ -54,13 +61,16 @@ async def _decide(
             comment=body.comment,
         )
     except ProposalExpired as exc:
-        await session.commit()  # keep the EXPIRED status and its audit record
+        # Keep the EXPIRED status and its audit record; a retry replays the 409.
+        await idempotency.remember(status.HTTP_409_CONFLICT, {"detail": str(exc)})
+        await session.commit()
         raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
     except (DecisionConflict, IncidentConflictError, InvalidTransitionError) as exc:
         await session.rollback()
         raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
-    await session.commit()
+    await session.flush()
     [out] = await proposals_out(session, [proposal])
+    await idempotency.commit(status.HTTP_200_OK, out)
     return out
 
 
@@ -70,9 +80,10 @@ async def approve_proposal(
     body: DecisionIn,
     principal: Annotated[Principal, Depends(require(Permission.APPROVE_REMEDIATION))],
     session: Annotated[AsyncSession, Depends(get_session)],
-) -> ProposalOut:
+    idempotency: IdempotencyDep,
+) -> ProposalOut | JSONResponse:
     """Approve the reviewed version; the worker then executes it once."""
-    return await _decide(session, principal, proposal_id, body, approve=True)
+    return await _decide(session, principal, proposal_id, body, idempotency, approve=True)
 
 
 @router.post("/proposals/{proposal_id}/reject", response_model=ProposalOut)
@@ -81,5 +92,6 @@ async def reject_proposal(
     body: DecisionIn,
     principal: Annotated[Principal, Depends(require(Permission.APPROVE_REMEDIATION))],
     session: Annotated[AsyncSession, Depends(get_session)],
-) -> ProposalOut:
-    return await _decide(session, principal, proposal_id, body, approve=False)
+    idempotency: IdempotencyDep,
+) -> ProposalOut | JSONResponse:
+    return await _decide(session, principal, proposal_id, body, idempotency, approve=False)
