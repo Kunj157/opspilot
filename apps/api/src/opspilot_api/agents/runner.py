@@ -34,6 +34,7 @@ def context_factory(
     kube: KubeReader,
     embedder: Embedder | None,
     allowed_namespaces: frozenset[str],
+    environment: str | None = None,
 ) -> ContextFactory:
     async def make(organization_id: uuid.UUID, incident_id: uuid.UUID) -> ToolContext:
         async def resolve(slug: str) -> ServiceTarget | None:
@@ -65,6 +66,7 @@ def context_factory(
             sessions=sessions,
             embedder=embedder,
             incident_id=incident_id,
+            environment=environment,
         )
 
     return make
