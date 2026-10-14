@@ -304,6 +304,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/evaluations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Evaluations */
+        get: operations["evaluations_api_v1_evaluations_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/incidents/{incident_id}/detections": {
         parameters: {
             query?: never;
@@ -493,7 +510,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Search Runbooks */
+        /**
+         * Search Runbooks
+         * @description Runbooks for the service (or generic) and the environment (or all), best first.
+         */
         get: operations["search_runbooks_api_v1_runbooks_search_get"];
         put?: never;
         post?: never;
@@ -647,6 +667,44 @@ export interface components {
          * @enum {string}
          */
         ActorType: "user" | "agent" | "system";
+        /** AgentMetrics */
+        AgentMetrics: {
+            /**
+             * Runs
+             * @description Agent (model) calls started in the range
+             */
+            runs: number;
+            /**
+             * Success Rate
+             * @description Share of agent runs with status succeeded; failed calls and runs that fell back to the fixed plan count against it
+             */
+            success_rate: number | null;
+            /**
+             * Tool Calls
+             * @description Tool calls made in the range
+             */
+            tool_calls: number;
+            /**
+             * Tool Error Rate
+             * @description Share of tool calls that returned a failed result
+             */
+            tool_error_rate: number | null;
+            /**
+             * Input Tokens
+             * @description Sum of agent_runs.input_tokens
+             */
+            input_tokens: number;
+            /**
+             * Output Tokens
+             * @description Sum of agent_runs.output_tokens
+             */
+            output_tokens: number;
+            /**
+             * Cost Usd
+             * @description Sum of agent_runs.estimated_cost (USD, estimated)
+             */
+            cost_usd: number;
+        };
         /** AgentRunOut */
         AgentRunOut: {
             /**
@@ -807,6 +865,24 @@ export interface components {
             /** Items */
             items: components["schemas"]["DetectionOut"][];
         };
+        /** DetectionMetrics */
+        DetectionMetrics: {
+            /**
+             * Incidents
+             * @description Detector-opened incidents started in the range
+             */
+            incidents: number;
+            /**
+             * Delay P50 Seconds
+             * @description Median seconds from the start of the first anomalous evaluation window linked to an incident (anomaly_detections.window_start) to the incident opening (incidents.started_at): the detection pipeline's own delay
+             */
+            delay_p50_seconds: number | null;
+            /**
+             * Delay P95 Seconds
+             * @description 95th percentile of the same delay
+             */
+            delay_p95_seconds: number | null;
+        };
         /** DetectionOut */
         DetectionOut: {
             /**
@@ -850,6 +926,24 @@ export interface components {
              * Format: date-time
              */
             created_at: string;
+        };
+        /** Evaluations */
+        Evaluations: {
+            /**
+             * Range Start
+             * Format: date-time
+             */
+            range_start: string;
+            /**
+             * Range End
+             * Format: date-time
+             */
+            range_end: string;
+            detection: components["schemas"]["DetectionMetrics"];
+            investigations: components["schemas"]["InvestigationMetrics"];
+            agents: components["schemas"]["AgentMetrics"];
+            remediation: components["schemas"]["RemediationMetrics"];
+            response: components["schemas"]["ResponseMetrics"];
         };
         /** EventList */
         EventList: {
@@ -1075,6 +1169,29 @@ export interface components {
             assigned_user_id?: string | null;
             status?: components["schemas"]["IncidentStatus"] | null;
         };
+        /** InvestigationMetrics */
+        InvestigationMetrics: {
+            /**
+             * Total
+             * @description Investigations created in the range
+             */
+            total: number;
+            /**
+             * Succeeded
+             * @description Of those, finished with status completed
+             */
+            succeeded: number;
+            /**
+             * Partial
+             * @description Of those, stopped early (limits or model failure)
+             */
+            partial: number;
+            /**
+             * Failed
+             * @description Of those, gave up after repeated attempts
+             */
+            failed: number;
+        };
         /** InvestigationOut */
         InvestigationOut: {
             /**
@@ -1293,6 +1410,32 @@ export interface components {
          * @enum {string}
          */
         RemediationAction: "ROLLBACK_DEPLOYMENT" | "RESTART_DEPLOYMENT" | "SCALE_DEPLOYMENT" | "PAUSE_ROLLOUT" | "NO_ACTION";
+        /** RemediationMetrics */
+        RemediationMetrics: {
+            /**
+             * Decisions
+             * @description Human approve/reject decisions recorded in the range
+             */
+            decisions: number;
+            /**
+             * Approval Rate
+             * @description Share of those decisions that approved
+             */
+            approval_rate: number | null;
+        };
+        /** ResponseMetrics */
+        ResponseMetrics: {
+            /**
+             * Mtta Seconds
+             * @description Mean acknowledged_at - started_at over incidents started in the range
+             */
+            mtta_seconds: number | null;
+            /**
+             * Mttr Seconds
+             * @description Mean resolved_at - started_at over incidents started in the range that are resolved
+             */
+            mttr_seconds: number | null;
+        };
         /**
          * Role
          * @enum {string}
@@ -1357,6 +1500,8 @@ export interface components {
             title: string;
             /** Services */
             services: string[];
+            /** Environment */
+            environment: string;
             /** Owner */
             owner: string | null;
             /** Version */
@@ -1392,6 +1537,8 @@ export interface components {
             title: string;
             /** Services */
             services: string[];
+            /** Environment */
+            environment: string;
             /** Owner */
             owner: string | null;
             /** Version */
@@ -2388,6 +2535,40 @@ export interface operations {
             };
         };
     };
+    evaluations_api_v1_evaluations_get: {
+        parameters: {
+            query?: {
+                /** @description Range start; default 30 days ago */
+                from?: string | null;
+                /** @description Range end; default now */
+                to?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Evaluations"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_detections_api_v1_incidents__incident_id__detections_get: {
         parameters: {
             query?: never;
@@ -2815,6 +2996,7 @@ export interface operations {
             query: {
                 q: string;
                 service?: string | null;
+                environment?: string | null;
                 limit?: number;
             };
             header?: never;

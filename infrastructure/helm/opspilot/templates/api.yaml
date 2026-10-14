@@ -17,6 +17,21 @@ spec:
     - name: http
       port: 8000
       targetPort: http
+{{- if .Values.rollouts.enabled }}
+---
+# Only the canary pods (Argo Rollouts adds the pod-template-hash selector).
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $name }}-canary
+  labels: {{- include "opspilot.labels" . | nindent 4 }}
+spec:
+  selector: {{- include "opspilot.selector" $name | nindent 4 }}
+  ports:
+    - name: http
+      port: 8000
+      targetPort: http
+{{- end }}
 ---
 apiVersion: {{ if .Values.rollouts.enabled }}argoproj.io/v1alpha1{{ else }}apps/v1{{ end }}
 kind: {{ if .Values.rollouts.enabled }}Rollout{{ else }}Deployment{{ end }}
@@ -38,7 +53,7 @@ spec:
   {{- if .Values.rollouts.enabled }}
   strategy:
     canary:
-      {{- include "opspilot.canarySteps" (dict "Values" .Values "service" $name) | nindent 6 }}
+      {{- include "opspilot.canarySteps" (dict "Values" .Values "service" $name "analysis" "opspilot-api-health" "smokeUrls" "http://opspilot-api-canary:8000/api/v1/health http://opspilot-api-canary:8000/api/v1/ready") | nindent 6 }}
   {{- else }}
   strategy:
     rollingUpdate: { maxSurge: 1, maxUnavailable: 0 }
