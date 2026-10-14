@@ -12,7 +12,7 @@ export function GlowEffect({
   breathing?: boolean;
   className?: string;
 }) {
-  const color = tone === "critical" ? "bg-critical-subtle" : "bg-accent-glow";
+  const color = tone === "critical" ? "bg-critical-glow" : "bg-accent-glow";
   return (
     <span
       aria-hidden

@@ -85,6 +85,7 @@
   --color-healthy-subtle: var(--status-healthy-subtle);
   --color-degraded-subtle: var(--status-degraded-subtle);
   --color-critical-subtle: var(--status-critical-subtle);
+  --color-critical-glow: var(--status-critical-glow);
   --color-chart-1: var(--chart-neutral-1);
   --color-chart-2: var(--chart-neutral-2);
   --color-chart-3: var(--chart-neutral-3);
@@ -216,6 +217,50 @@ body {
   from {
     opacity: 0;
     transform: translateY(-6px) scale(0.98);
+  }
+}
+
+/* Severity pulse: only on critical items that are still active. */
+.pulse-ring {
+  animation: pulse-ring 2.4s var(--ease-out) infinite;
+}
+
+.pulse-dot {
+  animation: pulse-ring 2.4s var(--ease-out) infinite;
+}
+
+@keyframes pulse-ring {
+  0% {
+    box-shadow: 0 0 0 0 var(--status-critical-glow);
+  }
+  70%,
+  100% {
+    box-shadow: 0 0 0 6px transparent;
+  }
+}
+
+/* A live entry that just arrived: an Iris edge that fades out. */
+.just-arrived {
+  animation: just-arrived 1.8s var(--ease-out);
+}
+
+@keyframes just-arrived {
+  from {
+    box-shadow: inset 2px 0 0 var(--accent);
+    background-color: var(--accent-subtle);
+  }
+}
+
+/* Chart columns grow up from the baseline once, staggered by day. */
+.bar-grow {
+  transform-box: fill-box;
+  transform-origin: bottom;
+  animation: bar-grow 520ms var(--ease-out) both;
+}
+
+@keyframes bar-grow {
+  from {
+    transform: scaleY(0);
   }
 }
 
