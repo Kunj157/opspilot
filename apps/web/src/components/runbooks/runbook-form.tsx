@@ -1,11 +1,15 @@
 "use client";
 
+import { zodResolver } from "@hookform/resolvers/zod";
 import { createApiClient } from "@opspilot/api-client";
 import type { components } from "@opspilot/api-client/schema";
-import { type FormEvent, useId, useState } from "react";
+import { useId } from "react";
+import { useForm } from "react-hook-form";
 
 import { Button } from "@/components/ui/button";
+import { Field } from "@/components/ui/field";
 import { Textarea } from "@/components/ui/input";
+import { runbookSchema, type RunbookValues } from "@/lib/form-schemas";
 
 type Runbook = components["schemas"]["RunbookOut"];
 
@@ -45,15 +49,17 @@ function messageFor(status: number, error: unknown): string {
 
 /** Create a runbook, or save a new version of an existing one. */
 export function RunbookForm({ runbook, onSaved }: { runbook?: Runbook; onSaved: (runbook: Runbook) => void }) {
-  const id = useId();
-  const [content, setContent] = useState(runbook?.content ?? TEMPLATE);
-  const [error, setError] = useState<string | null>(null);
-  const [saving, setSaving] = useState(false);
+  const {
+    register,
+    handleSubmit,
+    setError,
+    formState: { errors, isSubmitting },
+  } = useForm<RunbookValues>({
+    resolver: zodResolver(runbookSchema),
+    defaultValues: { content: runbook?.content ?? TEMPLATE },
+  });
 
-  async function submit(event: FormEvent) {
-    event.preventDefault();
-    setSaving(true);
-    setError(null);
+  async function submit({ content }: RunbookValues) {
     const api = createApiClient(window.location.origin);
     const result = runbook
       ? await api.PUT("/api/v1/runbooks/{runbook_id}", {
@@ -61,36 +67,35 @@ export function RunbookForm({ runbook, onSaved }: { runbook?: Runbook; onSaved: 
           body: { content },
         })
       : await api.POST("/api/v1/runbooks", { body: { content } });
-    setSaving(false);
     if (result.data) onSaved(result.data);
-    else setError(messageFor(result.response.status, result.error));
+    else setError("content", { message: messageFor(result.response.status, result.error) });
   }
 
+  const error = errors.content?.message;
+  const errorId = useId();
   return (
-    <form onSubmit={submit} className="flex flex-col gap-4">
-      <div>
-        <label htmlFor={`${id}-content`} className="mb-1.5 block text-xs text-fg-secondary">
-          Runbook (markdown with front matter)
-        </label>
-        <Textarea
-          id={`${id}-content`}
-          value={content}
-          onChange={(e) => setContent(e.target.value)}
-          rows={18}
-          spellCheck={false}
-          aria-invalid={error ? true : undefined}
-          aria-describedby={error ? `${id}-error` : undefined}
-          className="font-mono text-xs leading-relaxed"
-        />
-      </div>
+    <form onSubmit={handleSubmit(submit)} noValidate className="flex flex-col gap-4">
+      <Field label="Runbook (markdown with front matter)">
+        {(control) => (
+          <Textarea
+            {...control}
+            {...register("content")}
+            rows={18}
+            spellCheck={false}
+            aria-invalid={error ? true : undefined}
+            aria-describedby={error ? errorId : undefined}
+            className="font-mono text-xs leading-relaxed"
+          />
+        )}
+      </Field>
       {error && (
-        <p id={`${id}-error`} role="alert" className="text-sm text-critical">
+        <p id={errorId} role="alert" className="text-sm text-critical">
           {error}
         </p>
       )}
       <div className="flex justify-end">
-        <Button type="submit" disabled={saving}>
-          {saving ? "Saving…" : runbook ? "Save new version" : "Create runbook"}
+        <Button type="submit" disabled={isSubmitting}>
+          {isSubmitting ? "Saving…" : runbook ? "Save new version" : "Create runbook"}
         </Button>
       </div>
     </form>
