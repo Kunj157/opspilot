@@ -7,6 +7,9 @@
   --surface-2: #181b20;
   --surface-3: #20242b;
   --surface-glass: rgba(24, 27, 32, 0.72);
+  /* Panels read as lit from above: a faint top sheen and a 1px inner highlight. */
+  --surface-sheen: linear-gradient(180deg, rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0) 45%);
+  --edge-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.05);
 
   --text-primary: #edeef0;
   --text-secondary: #a6abb5;
@@ -18,12 +21,18 @@
   --accent: #a79bff;
   --accent-hover: #bbb2ff;
   --accent-subtle: rgba(167, 155, 255, 0.12);
+  --accent-glow: rgba(167, 155, 255, 0.35);
   --on-accent: #0b0c0e;
 
   --status-healthy: #5cc98b;
   --status-degraded: #e3b34c;
-  --status-critical: #ef5f5f;
+  --status-critical: #f26a6a;
   --status-unknown: #868c97;
+  /* Badge fills; the label on top uses the full status colour. */
+  --status-healthy-subtle: rgba(92, 201, 139, 0.12);
+  --status-degraded-subtle: rgba(227, 179, 76, 0.12);
+  --status-critical-subtle: rgba(242, 106, 106, 0.1);
+  --status-critical-glow: rgba(242, 106, 106, 0.4);
 
   /* Charts: neutral steps (light → dark) beside at most one status colour. */
   --chart-neutral-1: #a6abb5;
@@ -33,13 +42,22 @@
   --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.3);
   --shadow-2: 0 4px 12px rgba(0, 0, 0, 0.28), 0 1px 2px rgba(0, 0, 0, 0.3);
   --shadow-3: 0 16px 40px rgba(0, 0, 0, 0.36), 0 2px 6px rgba(0, 0, 0, 0.3);
+  --shadow-glow-accent: 0 0 0 1px var(--accent-glow), 0 0 24px -6px var(--accent-glow);
+  --shadow-glow-critical: 0 0 0 1px var(--status-critical-glow), 0 0 20px -6px var(--status-critical-glow);
   --radius-sm: 8px;
   --radius-card: 14px;
   --radius-lg: 20px;
 
+  /* Motion — mirrored in src/lib/motion.ts for the motion package. */
+  --duration-instant: 100ms;
   --duration-fast: 150ms;
   --duration-base: 220ms;
+  --duration-slow: 320ms;
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+
+  /* A 2% noise tile on the backdrop stops gradient banding. */
+  --noise: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.5'/%3E%3C/svg%3E");
 }
 
 @theme inline {
@@ -56,18 +74,29 @@
   --color-accent: var(--accent);
   --color-accent-hover: var(--accent-hover);
   --color-accent-subtle: var(--accent-subtle);
+  --color-accent-glow: var(--accent-glow);
   --color-on-accent: var(--on-accent);
   --color-healthy: var(--status-healthy);
   --color-degraded: var(--status-degraded);
   --color-critical: var(--status-critical);
+  --color-unknown: var(--status-unknown);
+  --color-healthy-subtle: var(--status-healthy-subtle);
+  --color-degraded-subtle: var(--status-degraded-subtle);
+  --color-critical-subtle: var(--status-critical-subtle);
   --color-chart-1: var(--chart-neutral-1);
   --color-chart-2: var(--chart-neutral-2);
   --color-chart-3: var(--chart-neutral-3);
   --shadow-1: var(--shadow-1);
   --shadow-2: var(--shadow-2);
   --shadow-3: var(--shadow-3);
+  --shadow-edge: var(--edge-highlight);
+  --shadow-glow-accent: var(--shadow-glow-accent);
+  --shadow-glow-critical: var(--shadow-glow-critical);
   --radius-card: var(--radius-card);
   --radius-lg: var(--radius-lg);
+  --radius-sm: var(--radius-sm);
+  --ease-out: var(--ease-out);
+  --ease-in-out: var(--ease-in-out);
   --duration-base: var(--duration-base);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
@@ -96,7 +125,10 @@ body {
   z-index: -1;
   overflow: hidden;
   pointer-events: none;
-  background: radial-gradient(60% 40% at 50% 0%, var(--accent-subtle), transparent 70%);
+  background:
+    var(--noise),
+    radial-gradient(60% 40% at 50% 0%, var(--accent-subtle), transparent 70%);
+  background-blend-mode: soft-light, normal;
 }
 
 .depth-backdrop::after {
@@ -111,6 +143,36 @@ body {
   transform-origin: top center;
   opacity: 0.6;
   mask-image: linear-gradient(to bottom, transparent, black 30%, transparent 80%);
+}
+
+/* Raised panel: surface-2 with the top sheen and inner highlight. */
+@utility surface-raised {
+  background-color: var(--surface-2);
+  background-image: var(--surface-sheen);
+  box-shadow: var(--edge-highlight), var(--shadow-2);
+}
+
+/* Loading placeholder: a light band sweeps across; static under reduced motion. */
+@utility skeleton {
+  background-color: var(--surface-2);
+  background-image: linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.04) 50%, transparent 100%);
+  background-size: 200% 100%;
+  background-repeat: no-repeat;
+  animation: skeleton-sweep 1.6s var(--ease-in-out) infinite;
+}
+
+@keyframes skeleton-sweep {
+  from {
+    background-position: 150% 0;
+  }
+  to {
+    background-position: -50% 0;
+  }
+}
+
+/* Metrics never jitter while digits change. */
+.tabular {
+  font-variant-numeric: tabular-nums;
 }
 
 @media (prefers-reduced-motion: reduce) {
