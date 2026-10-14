@@ -59,6 +59,7 @@ format: ## Format all code
 	$(DEMO) ruff format .
 	$(DEMO) ruff check --fix .
 	pnpm --filter @opspilot/web exec eslint --fix
+	pnpm --filter @opspilot/web format
 
 lint: ## Lint all code (no changes)
 	$(API) ruff format --check .
@@ -66,6 +67,7 @@ lint: ## Lint all code (no changes)
 	$(DEMO) ruff format --check .
 	$(DEMO) ruff check .
 	pnpm --filter @opspilot/web lint
+	pnpm --filter @opspilot/web format:check
 
 typecheck: ## Static type checks
 	$(API) mypy
