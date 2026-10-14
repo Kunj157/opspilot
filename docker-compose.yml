@@ -56,5 +56,30 @@ services:
       retries: 60
       start_period: 10s
 
+  # Local LLM for the investigation agents (make llm-up). Optional: start it with
+  # the "llm" profile. Uses the NVIDIA GPU when available; runs on CPU otherwise.
+  ollama:
+    image: ollama/ollama:0.40.3
+    profiles: [llm]
+    ports:
+      - "127.0.0.1:${OLLAMA_PORT:-11434}:11434"
+    volumes:
+      - ollama-models:/root/.ollama
+    environment:
+      OLLAMA_KEEP_ALIVE: 30m
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
 volumes:
   postgres-data:
+  ollama-models:
