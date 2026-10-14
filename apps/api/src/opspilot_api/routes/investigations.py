@@ -17,6 +17,7 @@ from opspilot_api.auth.tenancy import get_owned_or_404
 from opspilot_api.db.models import (
     AgentRun,
     AgentToolCall,
+    Approval,
     Evidence,
     Incident,
     IncidentStatus,
@@ -99,6 +100,17 @@ class AgentRunOut(BaseModel):
     tool_calls: list[ToolCallOut] = []
 
 
+class DecisionOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    decision: str
+    proposal_version: int
+    reviewed_by: uuid.UUID
+    reviewer_name: str
+    comment: str | None
+    reviewed_at: datetime
+
+
 class ProposalOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -114,6 +126,26 @@ class ProposalOut(BaseModel):
     version: int
     expires_at: datetime | None
     created_at: datetime
+    decision: DecisionOut | None = None
+
+
+async def proposals_out(
+    session: AsyncSession, proposals: list[RemediationProposal]
+) -> list[ProposalOut]:
+    """Proposals with the decision taken on each, if any."""
+    approvals = {
+        a.proposal_id: a
+        for a in await session.scalars(
+            select(Approval).where(Approval.proposal_id.in_([p.id for p in proposals]))
+        )
+    }
+    out = []
+    for proposal in proposals:
+        item = ProposalOut.model_validate(proposal)
+        if approval := approvals.get(proposal.id):
+            item.decision = DecisionOut.model_validate(approval)
+        out.append(item)
+    return out
 
 
 class Items[T](BaseModel):
@@ -230,7 +262,7 @@ async def list_proposals(
         .where(RemediationProposal.incident_id == incident_id)
         .order_by(RemediationProposal.created_at.desc())
     )
-    return Items[ProposalOut](items=[ProposalOut.model_validate(r) for r in rows])
+    return Items[ProposalOut](items=await proposals_out(session, list(rows)))
 
 
 class PostmortemOut(BaseModel):
