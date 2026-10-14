@@ -59,7 +59,12 @@ afterEach(() => vi.unstubAllGlobals());
 
 describe("AuditLogExplorer", () => {
   it("lists entries newest first with their key fields", async () => {
-    vi.stubGlobal("fetch", vi.fn(async () => page([item(2, { action: "user.provisioned", actor_type: "system", actor_id: "provisioning" }), item(1)])));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        page([item(2, { action: "user.provisioned", actor_type: "system", actor_id: "provisioning" }), item(1)]),
+      ),
+    );
 
     renderExplorer();
 
@@ -72,7 +77,10 @@ describe("AuditLogExplorer", () => {
   });
 
   it("shows an empty state", async () => {
-    vi.stubGlobal("fetch", vi.fn(async () => page([])));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => page([])),
+    );
 
     renderExplorer();
 
@@ -80,7 +88,10 @@ describe("AuditLogExplorer", () => {
   });
 
   it("shows a forbidden state on 403", async () => {
-    vi.stubGlobal("fetch", vi.fn(async () => new Response('{"detail":"Forbidden"}', { status: 403 })));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response('{"detail":"Forbidden"}', { status: 403 })),
+    );
 
     renderExplorer();
 

@@ -73,7 +73,10 @@ describe("ServiceForm", () => {
   });
 
   it("explains a slug that is already taken", async () => {
-    vi.stubGlobal("fetch", vi.fn(async () => json({ detail: "A service with this slug already exists" }, 409)));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => json({ detail: "A service with this slug already exists" }, 409)),
+    );
 
     render(<ServiceForm onSaved={vi.fn()} />);
     await userEvent.type(screen.getByLabelText("Name"), "Checkout");

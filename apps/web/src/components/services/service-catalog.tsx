@@ -35,11 +35,7 @@ export function ServiceCatalog({ canManage }: { canManage: boolean }) {
     <>
       {canManage && (
         <div className="mb-6 flex justify-end">
-          <Button
-            onClick={() => setCreating(true)}
-          >
-            New service
-          </Button>
+          <Button onClick={() => setCreating(true)}>New service</Button>
         </div>
       )}
 

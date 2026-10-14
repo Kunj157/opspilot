@@ -80,7 +80,9 @@ export function focusOn(node: SceneNode, distance: number): CameraPose {
  * selected service. Never the whole graph — a healthy map stays still.
  */
 export function flowingEdges(edges: SceneEdge[], selectedId: string | null): SceneEdge[] {
-  return edges.filter((e) => e.failing || (selectedId !== null && (e.sourceId === selectedId || e.targetId === selectedId)));
+  return edges.filter(
+    (e) => e.failing || (selectedId !== null && (e.sourceId === selectedId || e.targetId === selectedId)),
+  );
 }
 
 /** Nodes whose state is actively bad get a halo: critical, degraded, or with an open incident. */

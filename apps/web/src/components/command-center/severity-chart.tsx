@@ -138,9 +138,22 @@ export function SeverityChart({ daily }: { daily: Day[] }) {
                       const top = base - height;
                       const last = index === present.length - 1;
                       const segment = last ? (
-                        <path key={s.key} data-severity={s.key} d={topRounded(x, top, BAR, height)} className={s.className} />
+                        <path
+                          key={s.key}
+                          data-severity={s.key}
+                          d={topRounded(x, top, BAR, height)}
+                          className={s.className}
+                        />
                       ) : (
-                        <rect key={s.key} data-severity={s.key} x={x} y={top} width={BAR} height={height} className={s.className} />
+                        <rect
+                          key={s.key}
+                          data-severity={s.key}
+                          x={x}
+                          y={top}
+                          width={BAR}
+                          height={height}
+                          className={s.className}
+                        />
                       );
                       base = top - GAP;
                       return segment;

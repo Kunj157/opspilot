@@ -35,7 +35,12 @@ function renderIt() {
       <DetectionEvidence
         incidentId="i-1"
         serviceId="svc-checkout"
-        serviceNames={new Map([["svc-checkout", "Checkout"], ["svc-storefront", "Storefront"]])}
+        serviceNames={
+          new Map([
+            ["svc-checkout", "Checkout"],
+            ["svc-storefront", "Storefront"],
+          ])
+        }
       />
     </QueryClientProvider>,
   );
@@ -67,7 +72,11 @@ describe("DetectionEvidence", () => {
     renderIt();
 
     const list = await screen.findByRole("list", { name: "Detector readings" });
-    expect(within(list).getAllByRole("listitem").map((li) => li.textContent)).toEqual([
+    expect(
+      within(list)
+        .getAllByRole("listitem")
+        .map((li) => li.textContent),
+    ).toEqual([
       expect.stringContaining("Recovered"),
       expect.stringContaining("Still failing"),
       expect.stringContaining("Triggered"),

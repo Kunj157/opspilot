@@ -128,9 +128,7 @@ body {
   z-index: -1;
   overflow: hidden;
   pointer-events: none;
-  background:
-    var(--noise),
-    radial-gradient(60% 40% at 50% 0%, var(--accent-subtle), transparent 70%);
+  background: var(--noise), radial-gradient(60% 40% at 50% 0%, var(--accent-subtle), transparent 70%);
   background-blend-mode: soft-light, normal;
 }
 
@@ -139,8 +137,7 @@ body {
   position: absolute;
   inset: 40% -50% -60%;
   background-image:
-    linear-gradient(var(--border) 1px, transparent 1px),
-    linear-gradient(90deg, var(--border) 1px, transparent 1px);
+    linear-gradient(var(--border) 1px, transparent 1px), linear-gradient(90deg, var(--border) 1px, transparent 1px);
   background-size: 56px 56px;
   transform: perspective(600px) rotateX(62deg);
   transform-origin: top center;

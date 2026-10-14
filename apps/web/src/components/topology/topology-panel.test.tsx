@@ -32,7 +32,14 @@ afterEach(() => {
 
 const shop: Topology = {
   nodes: [
-    { id: "c", name: "Checkout", slug: "checkout", health_status: "healthy", active_incidents: 0, investigating: false },
+    {
+      id: "c",
+      name: "Checkout",
+      slug: "checkout",
+      health_status: "healthy",
+      active_incidents: 0,
+      investigating: false,
+    },
     { id: "p", name: "Payment", slug: "payment", health_status: "critical", active_incidents: 1, investigating: false },
   ],
   edges: [{ source_id: "c", target_id: "p" }],

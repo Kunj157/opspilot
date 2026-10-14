@@ -10,7 +10,15 @@ import { useReducedMotion } from "@/lib/use-reduced-motion";
  * sign-in page) ship no animation library. Only for a mouse; nothing renders
  * under reduced motion or before the first pointer move.
  */
-export function Spotlight({ children, className, size = 320 }: { children: ReactNode; className?: string; size?: number }) {
+export function Spotlight({
+  children,
+  className,
+  size = 320,
+}: {
+  children: ReactNode;
+  className?: string;
+  size?: number;
+}) {
   const reduced = useReducedMotion();
   const [active, setActive] = useState(false);
   const light = useRef<HTMLDivElement>(null);

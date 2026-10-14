@@ -24,9 +24,7 @@ export function AlertStream({ onEvent }: { onEvent: (event: StreamedEvent) => vo
   const state = useIncidentStream("/api/v1/incidents/stream", (event) => {
     onEvent(event);
     setAlerts((current) =>
-      current.some((a) => a.sequence === event.sequence)
-        ? current
-        : [event as Alert, ...current].slice(0, MAX_ALERTS),
+      current.some((a) => a.sequence === event.sequence) ? current : [event as Alert, ...current].slice(0, MAX_ALERTS),
     );
   });
 

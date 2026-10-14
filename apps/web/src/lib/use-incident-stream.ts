@@ -39,10 +39,7 @@ export type StreamedEvent = {
  * server closes the stream for good (e.g. an expired session) it reopens
  * after a pause.
  */
-export function useIncidentStream(
-  path: string | null,
-  onEvent: (event: StreamedEvent) => void,
-): StreamState {
+export function useIncidentStream(path: string | null, onEvent: (event: StreamedEvent) => void): StreamState {
   const [state, setState] = useState<StreamState>("connecting");
   const handler = useRef(onEvent);
   useEffect(() => {

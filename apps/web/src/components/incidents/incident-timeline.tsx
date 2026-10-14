@@ -59,7 +59,9 @@ export function IncidentTimeline({ events }: { events: Event[] }) {
                   </time>
                 </p>
                 <p className="mt-1 text-xs text-fg-secondary">
-                  <span className={event.actor_type === "agent" ? "text-accent" : undefined}>{ACTOR[event.actor_type]}</span>
+                  <span className={event.actor_type === "agent" ? "text-accent" : undefined}>
+                    {ACTOR[event.actor_type]}
+                  </span>
                   {" · "}
                   <span className="font-mono">{event.event_type}</span>
                   {typeof event.metadata.reason === "string" && <> · {event.metadata.reason}</>}

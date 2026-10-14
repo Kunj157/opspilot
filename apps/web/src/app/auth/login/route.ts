@@ -6,7 +6,6 @@ import { oidc } from "@/server/oidc";
 import { safeReturnTo } from "@/server/redirects";
 import { isSecure } from "@/server/request";
 
-
 export async function GET(request: NextRequest) {
   await connection(); // always at request time: never prerender an auth flow
   const config = await oidc();

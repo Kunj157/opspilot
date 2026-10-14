@@ -7,7 +7,11 @@ import { Checkbox, Input, Select, Textarea } from "./input";
 
 describe("Field", () => {
   it("labels its control and shows the hint", () => {
-    render(<Field label="Title" hint="Short and specific">{(c) => <Input {...c} />}</Field>);
+    render(
+      <Field label="Title" hint="Short and specific">
+        {(c) => <Input {...c} />}
+      </Field>,
+    );
     const input = screen.getByRole("textbox", { name: "Title" });
     expect(input).toHaveAccessibleDescription("Short and specific");
     expect(input).not.toHaveAttribute("aria-invalid");
@@ -26,7 +30,11 @@ describe("Field", () => {
   });
 
   it("passes required through and shows a visual marker", () => {
-    render(<Field label="Name" required>{(c) => <Input {...c} />}</Field>);
+    render(
+      <Field label="Name" required>
+        {(c) => <Input {...c} />}
+      </Field>,
+    );
     expect(screen.getByRole("textbox", { name: "Name" })).toBeRequired();
   });
 

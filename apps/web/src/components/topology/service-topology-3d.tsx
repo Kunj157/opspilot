@@ -65,7 +65,14 @@ function Halo({ color, texture, animate }: { color: string; texture: CanvasTextu
   });
   return (
     <sprite ref={sprite} scale={[1.5, 1.5, 1]}>
-      <spriteMaterial map={texture} color={color} blending={AdditiveBlending} transparent depthWrite={false} opacity={0.55} />
+      <spriteMaterial
+        map={texture}
+        color={color}
+        blending={AdditiveBlending}
+        transparent
+        depthWrite={false}
+        opacity={0.55}
+      />
     </sprite>
   );
 }
@@ -118,7 +125,10 @@ function CameraRig({
 }) {
   const { camera, controls, invalidate } = useThree();
   const flying = useRef(false);
-  const goal = useMemo(() => ({ target: new Vector3(...pose.target), position: new Vector3(...pose.position) }), [pose]);
+  const goal = useMemo(
+    () => ({ target: new Vector3(...pose.target), position: new Vector3(...pose.position) }),
+    [pose],
+  );
 
   useEffect(() => {
     const orbit = controls as OrbitControlsImpl | null;

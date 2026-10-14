@@ -31,7 +31,9 @@ function Digit({ digit, reduced }: { digit: number; reduced: boolean }) {
  */
 export function SlidingNumber({ value, className }: { value: number; className?: string }) {
   const reduced = useMotionReduced() ?? false;
-  const digits = String(Math.max(0, Math.round(value))).split("").map(Number);
+  const digits = String(Math.max(0, Math.round(value)))
+    .split("")
+    .map(Number);
   return (
     <span className={`tabular inline-flex ${className ?? ""}`}>
       <span aria-hidden className="inline-flex">

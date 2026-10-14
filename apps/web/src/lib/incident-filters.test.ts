@@ -38,7 +38,9 @@ describe("incident filters", () => {
     expect(parseFilters(new URLSearchParams("mine=1")).assignee).toBe("me");
     expect(parseFilters(new URLSearchParams("assignee=not-a-uuid")).assignee).toBeNull();
     const other = "00000000-0000-4000-8000-0000000000aa";
-    expect(toApiQuery({ ...parseFilters(new URLSearchParams(`assignee=${other}`)) }, "user-1").assigned_user_id).toBe(other);
+    expect(toApiQuery({ ...parseFilters(new URLSearchParams(`assignee=${other}`)) }, "user-1").assigned_user_id).toBe(
+      other,
+    );
   });
 
   it("drops values the API would reject instead of failing the page", () => {

@@ -28,7 +28,12 @@ function ToastItem({ toast, dismiss, lifetime }: { toast: Toast; dismiss: (id: n
         {error ? "!" : "✓"}
       </span>
       <p className="flex-1">{toast.message}</p>
-      <button type="button" onClick={() => dismiss(toast.id)} aria-label="Dismiss" className="rounded-sm text-fg-secondary hover:text-fg">
+      <button
+        type="button"
+        onClick={() => dismiss(toast.id)}
+        aria-label="Dismiss"
+        className="rounded-sm text-fg-secondary hover:text-fg"
+      >
         <icons.close />
       </button>
       {/* Time left before it goes away; the global reduced-motion rule makes it static. */}
