@@ -126,7 +126,7 @@ export function RunbookLibrary({ canManage }: { canManage: boolean }) {
         <SearchResults query={query} />
       ) : (
         <>
-          {runbooks.isPending && <div aria-hidden className="h-40 animate-pulse rounded-card bg-surface-2" />}
+          {runbooks.isPending && <div aria-hidden className="h-40 skeleton rounded-card" />}
           {runbooks.isError && (
             <p role="alert" className="text-sm text-critical">
               Runbooks could not be loaded.
@@ -138,7 +138,7 @@ export function RunbookLibrary({ canManage }: { canManage: boolean }) {
             </p>
           )}
           {runbooks.isSuccess && runbooks.data.length > 0 && (
-            <ul aria-label="Runbooks" className="divide-y divide-border rounded-card border border-border bg-surface-2">
+            <ul aria-label="Runbooks" className="surface-raised divide-y divide-border rounded-card border border-border">
               {runbooks.data.map((rb) => (
                 <li key={rb.id} className="flex flex-col gap-1.5 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
                   <Link href={`/runbooks/${rb.id}`} className="font-medium hover:text-accent">

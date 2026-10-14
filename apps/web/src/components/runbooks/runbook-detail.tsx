@@ -35,7 +35,7 @@ export function RunbookDetail({ canManage }: { canManage: boolean }) {
     },
   });
 
-  if (runbook.isPending) return <div aria-hidden className="h-64 animate-pulse rounded-card bg-surface-2" />;
+  if (runbook.isPending) return <div aria-hidden className="h-64 skeleton rounded-card" />;
   if (runbook.isError)
     return (
       <p role="alert" className="text-sm text-critical">
@@ -69,7 +69,7 @@ export function RunbookDetail({ canManage }: { canManage: boolean }) {
     <article className="flex flex-col gap-8">
       <header className="flex flex-col gap-4">
         <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">{rb.title}</h1>
-        <dl className="grid grid-cols-2 gap-5 rounded-card border border-border bg-surface-2 p-5 shadow-2 lg:grid-cols-4">
+        <dl className="grid grid-cols-2 gap-5 surface-raised rounded-card border border-border p-5 lg:grid-cols-4">
           <div>
             <dt className="text-xs text-fg-muted">Version</dt>
             <dd className="mt-1 font-mono text-sm">v{rb.version}</dd>
