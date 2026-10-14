@@ -370,8 +370,23 @@ class Investigator:
             f"Evidence so far:\n{self._evidence_text(state)}"
         )
         plan, run_id = await self._ask(role, prompts.PLANNER.format(role=label), prompt, ToolPlan)
-        calls = plan.value.calls if plan is not None and plan.value.calls else default
+        calls = [self._complete(c, default) for c in plan.value.calls] if plan is not None else []
+        before = len(state["evidence"])
         await self._execute(state, role, run_id, calls)
+        if len(state["evidence"]) == before:
+            # The plan was empty or produced nothing usable: fall back to the fixed plan.
+            await self._execute(state, role, run_id, default)
+
+    @staticmethod
+    def _complete(call: PlannedCall, default: list[PlannedCall]) -> PlannedCall:
+        """Fill what the model left out (service, runbook query) from the fixed plan."""
+        fallback = default[0] if default else None
+        updates: dict[str, Any] = {}
+        if call.service is None and fallback is not None:
+            updates["service"] = fallback.service
+        if call.tool == "search_runbooks" and not call.query:
+            updates["query"] = next((d.query for d in default if d.query), None)
+        return call.model_copy(update=updates)
 
     async def _execute(
         self, state: State, role: str, run_id: uuid.UUID | None, calls: list[PlannedCall]

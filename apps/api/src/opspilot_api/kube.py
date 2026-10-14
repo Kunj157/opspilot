@@ -100,7 +100,39 @@ class KubernetesReader:
                     image=container.image,
                 )
             )
-        return sorted(revisions, key=lambda r: r.revision, reverse=True)
+        revisions.sort(key=lambda r: r.revision, reverse=True)
+        if revisions:
+            # A ReplicaSet reused by a rollback keeps its old creation time; its
+            # current pods were created when the latest revision started rolling out.
+            started = self._pods_started(namespace, owner, revisions[0].revision)
+            latest = revisions[0]
+            if started is not None:
+                revisions[0] = Revision(
+                    latest.revision, started, latest.change_cause, latest.version, latest.image
+                )
+        return revisions
+
+    def _pods_started(self, namespace: str, deployment: Any, revision: int) -> datetime | None:
+        from kubernetes import client
+
+        core = client.CoreV1Api(self._api().api_client)
+        labels = deployment.spec.selector.match_labels or {}
+        selector = ",".join(f"{k}={v}" for k, v in labels.items())
+        apps = self._api()
+        replica_sets = {
+            rs.metadata.uid
+            for rs in apps.list_namespaced_replica_set(namespace, label_selector=selector).items
+            if (rs.metadata.annotations or {}).get("deployment.kubernetes.io/revision")
+            == str(revision)
+        }
+        times: list[datetime] = []
+        for pod in core.list_namespaced_pod(namespace, label_selector=selector).items:
+            meta = pod.metadata
+            if meta is None or meta.creation_timestamp is None:
+                continue
+            if any(ref.uid in replica_sets for ref in meta.owner_references or []):
+                times.append(meta.creation_timestamp)
+        return min(times) if times else None
 
     def _status(self, namespace: str, deployment: str) -> RolloutStatus:
         d = self._api().read_namespaced_deployment_status(deployment, namespace)

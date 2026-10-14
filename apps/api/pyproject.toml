@@ -29,7 +29,7 @@ dependencies = [
 
 [project.scripts]
 opspilot-api = "opspilot_api.__main__:run"
-opspilot-worker = "opspilot_api.detection.worker:main"
+opspilot-worker = "opspilot_api.worker:main"
 
 [build-system]
 requires = ["uv_build>=0.11.12,<0.12.0"]
