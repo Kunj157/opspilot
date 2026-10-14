@@ -15,7 +15,7 @@ kind load docker-image "opspilot-api:$sha" "opspilot-web:$sha" --name opspilot
 
 # The development Application, pointed at local images and this revision,
 # created in one step so the first sync already uses them.
-sed -e "s|targetRevision: main|targetRevision: $revision|" \
+sed -e "s|targetRevision: env/development|targetRevision: $revision|" \
   -e 's|        - { name: image.web.tag, value: $ARGOCD_APP_REVISION }|&\
         - { name: image.api.repository, value: opspilot-api }\
         - { name: image.web.repository, value: opspilot-web }\
