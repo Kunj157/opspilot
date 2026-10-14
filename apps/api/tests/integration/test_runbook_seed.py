@@ -7,6 +7,7 @@ import httpx
 import pytest
 
 from opspilot_api.runbook_seed import seed_runbooks
+from opspilot_api.runbooks.document import parse
 from tests.support.app import Caller, api_client, new_org
 from tests.support.tokens import TokenFactory
 
@@ -31,4 +32,9 @@ async def test_seeding_twice_loads_each_runbook_once(client: httpx.AsyncClient) 
     assert first == {"created": 6, "updated": 0, "unchanged": 0}
     assert second == {"created": 0, "updated": 0, "unchanged": 6}
     assert {r["slug"] for r in items} >= {"checkout-high-error-rate", "deployment-rollback"}
-    assert all(r["version"] == 1 for r in items)
+    versions = {
+        path.stem: parse(path.read_text()).version
+        for path in DOCS.glob("*.md")
+        if path.name != "README.md"
+    }
+    assert {r["slug"]: r["version"] for r in items} == versions
