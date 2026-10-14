@@ -1,0 +1,4 @@
+# Fake AWS access key IDs in a redaction unit test (commit before the test built
+# them at runtime). Not credentials. Format: commit:file:rule:line.
+0b6b0952a899a18eac269f6376e51ff057a4da2c:apps/api/tests/unit/test_llm_gateway.py:aws-access-token:28
+0b6b0952a899a18eac269f6376e51ff057a4da2c:apps/api/tests/unit/test_llm_gateway.py:aws-access-token:31
