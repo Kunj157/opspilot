@@ -66,9 +66,14 @@ export function SidebarNav({
                     />
                   )}
                   {active && (
-                    <span aria-hidden className="absolute top-2 bottom-2 -left-4 w-0.5 rounded-full bg-accent shadow-glow-accent" />
+                    <span
+                      aria-hidden
+                      className="absolute top-2 bottom-2 -left-4 w-0.5 rounded-full bg-accent shadow-glow-accent"
+                    />
                   )}
-                  <Icon className={active ? "text-accent" : "text-fg-muted transition-colors group-hover:text-fg-secondary"} />
+                  <Icon
+                    className={active ? "text-accent" : "text-fg-muted transition-colors group-hover:text-fg-secondary"}
+                  />
                   {item.label}
                   {/* Visual only: the incidents page states the count in words. */}
                   {item.href === "/incidents" && open !== null && open > 0 && (

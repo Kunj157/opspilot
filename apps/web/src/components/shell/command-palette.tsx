@@ -67,7 +67,15 @@ function useCommands(navigate: (href: string) => void): Command[] {
       run: go(item.href),
     })),
     ...(can("manage_incidents")
-      ? [{ id: "action:new-incident", group: "Actions", label: "New incident", keywords: "create open declare", run: go("/incidents?new=1") }]
+      ? [
+          {
+            id: "action:new-incident",
+            group: "Actions",
+            label: "New incident",
+            keywords: "create open declare",
+            run: go("/incidents?new=1"),
+          },
+        ]
       : []),
     {
       id: "action:sign-out",
@@ -192,8 +200,16 @@ export default function CommandPalette({ open, onClose }: { open: boolean; onClo
             />
             <Kbd>esc</Kbd>
           </div>
-          <div ref={list} id={`${base}-list`} role="listbox" aria-label="Results" className="max-h-[min(24rem,60vh)] overflow-y-auto p-2">
-            {results.length === 0 && <p className="px-3 py-8 text-center text-sm text-fg-muted">No matches for “{query}”.</p>}
+          <div
+            ref={list}
+            id={`${base}-list`}
+            role="listbox"
+            aria-label="Results"
+            className="max-h-[min(24rem,60vh)] overflow-y-auto p-2"
+          >
+            {results.length === 0 && (
+              <p className="px-3 py-8 text-center text-sm text-fg-muted">No matches for “{query}”.</p>
+            )}
             {GROUPS.map((group) => {
               const items = results.filter((c) => c.group === group);
               if (items.length === 0) return null;
@@ -217,9 +233,13 @@ export default function CommandPalette({ open, onClose }: { open: boolean; onClo
                           selected ? "text-fg" : "text-fg-secondary"
                         }`}
                       >
-                        {selected && <ActiveHighlight layoutId={`${base}-highlight`} className="rounded-sm bg-accent-subtle" />}
+                        {selected && (
+                          <ActiveHighlight layoutId={`${base}-highlight`} className="rounded-sm bg-accent-subtle" />
+                        )}
                         <span className="truncate">{command.label}</span>
-                        {command.hint && <span className="shrink-0 font-mono text-xs text-fg-muted">{command.hint}</span>}
+                        {command.hint && (
+                          <span className="shrink-0 font-mono text-xs text-fg-muted">{command.hint}</span>
+                        )}
                       </div>
                     );
                   })}

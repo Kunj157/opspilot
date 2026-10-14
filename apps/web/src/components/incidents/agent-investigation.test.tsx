@@ -16,11 +16,24 @@ const investigation = {
   result: {
     summary: "Release 1.4.2 broke checkout.",
     hypotheses: [
-      { description: "Release 1.4.2 introduced a regression", confidence: 0.82, supporting_evidence: ["E2", "E3"], contradicting_evidence: [] },
+      {
+        description: "Release 1.4.2 introduced a regression",
+        confidence: 0.82,
+        supporting_evidence: ["E2", "E3"],
+        contradicting_evidence: [],
+      },
     ],
     unknowns: ["Why 1.4.2 fails"],
     proposal_id: "p-1",
-    runbooks: [{ slug: "checkout-high-error-rate", title: "Checkout high error rate", version: 1, runbook_id: "rb-1", score: 0.93 }],
+    runbooks: [
+      {
+        slug: "checkout-high-error-rate",
+        title: "Checkout high error rate",
+        version: 1,
+        runbook_id: "rb-1",
+        score: 0.93,
+      },
+    ],
     notes: [],
     manual_review: false,
   },
@@ -35,16 +48,55 @@ const investigation = {
 };
 
 const evidence = [
-  { id: "e1", evidence_type: "topology", source: "service catalog", summary: "Checkout calls payment", content: {}, query: "dependencies of checkout", time_range_start: null, time_range_end: "2026-10-14T01:16:02Z", confidence: 0.9, created_at: "2026-10-14T01:16:02Z" },
-  { id: "e2", evidence_type: "metrics", source: "prometheus", summary: "Checkout: error rate 29.1%", content: {}, query: "sum(rate(...))", time_range_start: "2026-10-14T01:01:00Z", time_range_end: "2026-10-14T01:16:00Z", confidence: 0.9, created_at: "2026-10-14T01:16:03Z" },
-  { id: "e3", evidence_type: "deployment", source: "kubernetes", summary: "revision 20 (1.4.2) rolled out 1 minute ago", content: {}, query: "rollout history", time_range_start: null, time_range_end: null, confidence: 0.95, created_at: "2026-10-14T01:16:04Z" },
+  {
+    id: "e1",
+    evidence_type: "topology",
+    source: "service catalog",
+    summary: "Checkout calls payment",
+    content: {},
+    query: "dependencies of checkout",
+    time_range_start: null,
+    time_range_end: "2026-10-14T01:16:02Z",
+    confidence: 0.9,
+    created_at: "2026-10-14T01:16:02Z",
+  },
+  {
+    id: "e2",
+    evidence_type: "metrics",
+    source: "prometheus",
+    summary: "Checkout: error rate 29.1%",
+    content: {},
+    query: "sum(rate(...))",
+    time_range_start: "2026-10-14T01:01:00Z",
+    time_range_end: "2026-10-14T01:16:00Z",
+    confidence: 0.9,
+    created_at: "2026-10-14T01:16:03Z",
+  },
+  {
+    id: "e3",
+    evidence_type: "deployment",
+    source: "kubernetes",
+    summary: "revision 20 (1.4.2) rolled out 1 minute ago",
+    content: {},
+    query: "rollout history",
+    time_range_start: null,
+    time_range_end: null,
+    confidence: 0.95,
+    created_at: "2026-10-14T01:16:04Z",
+  },
 ];
 
 const proposal = {
   id: "p-1",
   action_type: "ROLLBACK_DEPLOYMENT",
   description: "Errors began with release 1.4.2",
-  parameters: { namespace: "demo", deployment: "checkout", to_revision: 19, from_version: "1.4.2", to_version: "1.0.0" },
+  parameters: {
+    namespace: "demo",
+    deployment: "checkout",
+    to_revision: 19,
+    from_version: "1.4.2",
+    to_version: "1.0.0",
+  },
   risk_level: "medium",
   status: "PENDING",
   verification_plan: { window_minutes: 5, max_error_rate: 0.02 },
@@ -146,7 +198,12 @@ describe("AgentInvestigation", () => {
     serve({
       ...full,
       "GET /investigation": {
-        body: { ...investigation, status: "partial", error: "tool call limit reached", result: { ...investigation.result, manual_review: true, hypotheses: [] } },
+        body: {
+          ...investigation,
+          status: "partial",
+          error: "tool call limit reached",
+          result: { ...investigation.result, manual_review: true, hypotheses: [] },
+        },
       },
       "GET /proposals": { body: { items: [] } },
     });

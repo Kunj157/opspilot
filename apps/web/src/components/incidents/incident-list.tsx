@@ -130,7 +130,10 @@ export function IncidentList({ canManage, currentUserId }: { canManage: boolean;
     staleTime: 60_000,
   });
   const otherAssignees = [
-    ...new Set([...(assignees.data ?? []), ...(filters.assignee && filters.assignee !== "me" ? [filters.assignee] : [])]),
+    ...new Set([
+      ...(assignees.data ?? []),
+      ...(filters.assignee && filters.assignee !== "me" ? [filters.assignee] : []),
+    ]),
   ].filter((id) => id !== currentUserId);
 
   const rows = incidents.data?.pages.flatMap((p) => p.items) ?? [];
@@ -151,7 +154,10 @@ export function IncidentList({ canManage, currentUserId }: { canManage: boolean;
       cell: (incident) => (
         <>
           <ViewTransition name={incidentTitleTransition(incident.id)} share="morph" default="none">
-            <Link href={`/incidents/${incident.id}`} className="block w-fit max-w-full truncate font-medium hover:text-accent">
+            <Link
+              href={`/incidents/${incident.id}`}
+              className="block w-fit max-w-full truncate font-medium hover:text-accent"
+            >
               {incident.title}
             </Link>
           </ViewTransition>
@@ -207,7 +213,11 @@ export function IncidentList({ canManage, currentUserId }: { canManage: boolean;
           onSubmit={(e) => e.preventDefault()}
           className="grid grid-cols-2 gap-3 border-b border-border p-5 md:grid-cols-4 xl:grid-cols-7"
         >
-          <FilterSelect label="Status" value={filters.status} onChange={(v) => setFilters({ status: v as IncidentFilters["status"] })}>
+          <FilterSelect
+            label="Status"
+            value={filters.status}
+            onChange={(v) => setFilters({ status: v as IncidentFilters["status"] })}
+          >
             <option value="active">Active</option>
             <option value="all">All</option>
             {STATUSES.map((s) => (
@@ -228,7 +238,11 @@ export function IncidentList({ canManage, currentUserId }: { canManage: boolean;
               </option>
             ))}
           </FilterSelect>
-          <FilterSelect label="Service" value={filters.service ?? ""} onChange={(v) => setFilters({ service: v || null })}>
+          <FilterSelect
+            label="Service"
+            value={filters.service ?? ""}
+            onChange={(v) => setFilters({ service: v || null })}
+          >
             <option value="">Any</option>
             {services.data?.map((s) => (
               <option key={s.id} value={s.id}>
@@ -263,11 +277,19 @@ export function IncidentList({ canManage, currentUserId }: { canManage: boolean;
           </FilterSelect>
           <label className="flex flex-col gap-1.5 text-xs text-fg-secondary">
             Started from
-            <Input type="date" value={filters.since ?? ""} onChange={(e) => setFilters({ since: e.target.value || null })} />
+            <Input
+              type="date"
+              value={filters.since ?? ""}
+              onChange={(e) => setFilters({ since: e.target.value || null })}
+            />
           </label>
           <label className="flex flex-col gap-1.5 text-xs text-fg-secondary">
             Started until
-            <Input type="date" value={filters.until ?? ""} onChange={(e) => setFilters({ until: e.target.value || null })} />
+            <Input
+              type="date"
+              value={filters.until ?? ""}
+              onChange={(e) => setFilters({ until: e.target.value || null })}
+            />
           </label>
         </form>
 

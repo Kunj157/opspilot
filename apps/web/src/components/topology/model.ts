@@ -48,14 +48,12 @@ export function layout(topology: Topology): {
 
   const layers: string[][] = [];
   for (const [id, d] of depth) (layers[d] ??= []).push(id);
-  const filled = layers
-    .filter(Boolean)
-    .flatMap((ids) => {
-      ids.sort(byName(nodes));
-      return Array.from({ length: Math.ceil(ids.length / MAX_ROWS) }, (_, i) =>
-        ids.slice(i * MAX_ROWS, (i + 1) * MAX_ROWS),
-      );
-    });
+  const filled = layers.filter(Boolean).flatMap((ids) => {
+    ids.sort(byName(nodes));
+    return Array.from({ length: Math.ceil(ids.length / MAX_ROWS) }, (_, i) =>
+      ids.slice(i * MAX_ROWS, (i + 1) * MAX_ROWS),
+    );
+  });
   const tallest = Math.max(0, ...filled.map((c) => c.length));
 
   const positions = new Map<string, Position>();
@@ -84,7 +82,13 @@ export function connections(topology: Topology, id: string): { dependencies: str
   const nodes = new Map(topology.nodes.map((n) => [n.id, n]));
   const sort = byName(nodes);
   return {
-    dependencies: topology.edges.filter((e) => e.source_id === id).map((e) => e.target_id).sort(sort),
-    dependents: topology.edges.filter((e) => e.target_id === id).map((e) => e.source_id).sort(sort),
+    dependencies: topology.edges
+      .filter((e) => e.source_id === id)
+      .map((e) => e.target_id)
+      .sort(sort),
+    dependents: topology.edges
+      .filter((e) => e.target_id === id)
+      .map((e) => e.source_id)
+      .sort(sort),
   };
 }

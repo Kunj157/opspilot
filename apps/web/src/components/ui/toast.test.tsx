@@ -58,7 +58,9 @@ describe("Toast", () => {
     );
 
     act(() => screen.getByRole("button", { name: "Notify" }).click());
-    await vi.waitFor(() => expect(screen.getByRole("region", { name: "Notifications" })).toHaveTextContent("Incident resolved"));
+    await vi.waitFor(() =>
+      expect(screen.getByRole("region", { name: "Notifications" })).toHaveTextContent("Incident resolved"),
+    );
     act(() => vi.advanceTimersByTime(6000));
 
     await vi.waitFor(() =>

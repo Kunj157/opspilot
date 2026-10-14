@@ -74,7 +74,8 @@ export function ServiceForm({
         });
     if (result.data) return onSaved(result.data as Service);
 
-    if (result.response.status === 409) return setError("slug", { message: "A service with this slug already exists." });
+    if (result.response.status === 409)
+      return setError("slug", { message: "A service with this slug already exists." });
     const server = serverFieldErrors(result.error, NAMES);
     for (const field of NAMES) {
       const message = server.fields[field];
@@ -95,7 +96,9 @@ export function ServiceForm({
           error={errors[field]?.message}
           className={field === "description" ? "sm:col-span-2" : undefined}
         >
-          {(control) => <Input {...control} {...(field === "name" ? name : register(field))} placeholder={placeholder} />}
+          {(control) => (
+            <Input {...control} {...(field === "name" ? name : register(field))} placeholder={placeholder} />
+          )}
         </Field>
       ))}
       {errors.root && (

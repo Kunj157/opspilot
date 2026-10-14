@@ -37,9 +37,7 @@ export async function GET(request: NextRequest) {
     const session = sessionFromTokens(tokens);
     const sessionId = await createSession(session);
 
-    const response = NextResponse.redirect(
-      new URL(safeReturnTo(flow.returnTo), request.nextUrl.origin),
-    );
+    const response = NextResponse.redirect(new URL(safeReturnTo(flow.returnTo), request.nextUrl.origin));
     response.cookies.set(
       SESSION_COOKIE,
       sessionId,

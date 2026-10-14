@@ -8,10 +8,12 @@ vi.mock("next/navigation", () => ({ usePathname: () => "/incidents" }));
 
 afterEach(() => vi.unstubAllGlobals());
 
-function renderNav(items = [
-  { href: "/", label: "Command center", icon: "overview" as const },
-  { href: "/incidents", label: "Incidents", icon: "incidents" as const },
-]) {
+function renderNav(
+  items = [
+    { href: "/", label: "Command center", icon: "overview" as const },
+    { href: "/incidents", label: "Incidents", icon: "incidents" as const },
+  ],
+) {
   render(
     <QueryClientProvider client={new QueryClient()}>
       <SidebarNav items={items} />
@@ -22,7 +24,10 @@ function renderNav(items = [
 describe("SidebarNav", () => {
   it("marks the current section and shows the open incident count beside Incidents", async () => {
     const metrics = { active_by_severity: { critical: 2, high: 1, medium: 0, low: 4 } };
-    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify(metrics), { headers: { "Content-Type": "application/json" } })));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response(JSON.stringify(metrics), { headers: { "Content-Type": "application/json" } })),
+    );
     renderNav();
 
     const incidents = screen.getByRole("link", { name: "Incidents" });

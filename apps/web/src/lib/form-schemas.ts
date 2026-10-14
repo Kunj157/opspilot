@@ -38,7 +38,10 @@ export const serviceSchema = z.object({
   repository_url: optional(z.url({ protocol: /^https?$/, error: "Use an http(s) URL." })),
   namespace: optional(z.string().max(63, "Use at most 63 characters.").regex(DNS_LABEL, lowercase)),
   deployment_name: optional(
-    z.string().max(253, "Use at most 253 characters.").regex(DNS_SUBDOMAIN, "Use lowercase letters, numbers, dots, and hyphens."),
+    z
+      .string()
+      .max(253, "Use at most 253 characters.")
+      .regex(DNS_SUBDOMAIN, "Use lowercase letters, numbers, dots, and hyphens."),
   ),
 });
 export type ServiceValues = z.infer<typeof serviceSchema>;
@@ -46,7 +49,10 @@ export type ServiceValues = z.infer<typeof serviceSchema>;
 export const runbookSchema = z.object({
   content: z
     .string()
-    .refine((value) => value.trimStart().startsWith("---"), "Invalid runbook: start with front matter between --- lines (title, services, symptoms)."),
+    .refine(
+      (value) => value.trimStart().startsWith("---"),
+      "Invalid runbook: start with front matter between --- lines (title, services, symptoms).",
+    ),
 });
 export type RunbookValues = z.infer<typeof runbookSchema>;
 
