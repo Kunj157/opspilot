@@ -9,23 +9,26 @@ without changing anything.
 """
 
 import asyncio
-import contextlib
-import signal
 import time
 import uuid
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta
 
 import structlog
-from prometheus_client import Counter, Histogram, start_http_server
+from prometheus_client import Counter, Histogram
 from sqlalchemy import select, update
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from opspilot_api.config import Settings, get_settings
-from opspilot_api.db.models import DetectorCheckpoint, HealthStatus, Service, ServiceDependency
+from opspilot_api.agents.queue import enqueue
+from opspilot_api.db.models import (
+    DetectorCheckpoint,
+    HealthStatus,
+    IncidentStatus,
+    Service,
+    ServiceDependency,
+)
 from opspilot_api.detection.rules import Decision, DetectorState, ErrorRateRule, Outcome, Window
 from opspilot_api.detection.service import apply_decision, apply_impact
-from opspilot_api.logging import configure_logging
-from opspilot_api.telemetry import MetricsProvider, PrometheusMetrics, TelemetryUnavailable
+from opspilot_api.telemetry import MetricsProvider, TelemetryUnavailable
 
 log = structlog.get_logger("opspilot.detection")
 
@@ -48,12 +51,15 @@ class DetectionWorker:
         *,
         rule: ErrorRateRule | None = None,
         lag: timedelta = timedelta(seconds=30),
+        auto_investigate: bool = False,
     ) -> None:
         self.sessions = sessions
         self.metrics = metrics
         self.rule = rule or ErrorRateRule()
         # Evaluate slightly in the past so late scrapes are already in.
         self.lag = lag
+        # Queue an agent investigation for every new detector incident.
+        self.auto_investigate = auto_investigate
 
     async def _rates(self, at: datetime) -> dict[tuple[str, str], Window]:
         requests, errors = await asyncio.gather(
@@ -189,6 +195,12 @@ class DetectionWorker:
             service = await session.get_one(Service, service_id, with_for_update=True)
             if cause_id is None:
                 incident = await apply_decision(session, service, self.rule, decision, **window)
+                if (
+                    self.auto_investigate
+                    and incident is not None
+                    and incident.status is IncidentStatus.DETECTED
+                ):
+                    await enqueue(session, incident, f"detector:{self.rule.name}")
             else:
                 cause = await session.get_one(Service, cause_id)
                 incident = await apply_impact(
@@ -206,42 +218,3 @@ class DetectionWorker:
             caused_by=str(cause_id) if cause_id else None,
             **decision.features,
         )
-
-
-async def run(settings: Settings) -> None:
-    if not settings.database_url or not settings.prometheus_url:
-        raise SystemExit("DATABASE_URL and PROMETHEUS_URL are required")
-    engine = create_async_engine(settings.database_url, pool_pre_ping=True)
-    metrics = PrometheusMetrics(settings.prometheus_url, timeout=settings.telemetry_timeout_seconds)
-    worker = DetectionWorker(
-        async_sessionmaker(engine, expire_on_commit=False),
-        metrics,
-        lag=timedelta(seconds=settings.detection_lag_seconds),
-    )
-    stop = asyncio.Event()
-    loop = asyncio.get_running_loop()
-    for sig in (signal.SIGINT, signal.SIGTERM):
-        loop.add_signal_handler(sig, stop.set)
-    log.info("detection worker started", interval=settings.detection_interval_seconds)
-    try:
-        while not stop.is_set():
-            try:
-                await worker.cycle(datetime.now(UTC))
-            except Exception:
-                # A bad cycle must not kill the worker; the next one starts clean.
-                log.exception("detection cycle failed")
-                CYCLES.labels("error").inc()
-            with contextlib.suppress(TimeoutError):
-                await asyncio.wait_for(stop.wait(), settings.detection_interval_seconds)
-    finally:
-        await metrics.aclose()
-        await engine.dispose()
-        log.info("detection worker stopped")
-
-
-def main() -> None:
-    settings = get_settings()
-    configure_logging(settings.model_copy(update={"service_name": "worker"}))
-    if settings.worker_metrics_port:
-        start_http_server(settings.worker_metrics_port, addr="127.0.0.1")
-    asyncio.run(run(settings))

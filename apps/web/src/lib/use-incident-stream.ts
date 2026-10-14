@@ -8,6 +8,11 @@ export const INCIDENT_EVENT_TYPES = [
   "incident.status_changed",
   "incident.acknowledged",
   "incident.updated",
+  "incident.signal_recovered",
+  "incident.impact_detected",
+  "incident.agent_update",
+  "incident.remediation_proposed",
+  "incident.investigation_finished",
 ] as const;
 
 export type StreamState = "connecting" | "live" | "reconnecting";

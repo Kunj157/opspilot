@@ -16,7 +16,7 @@ DEMO_IMAGE := opspilot-demo:dev
 API := cd apps/api && uv run
 DEMO := cd demo/services && uv run
 
-.PHONY: db-upgrade db-downgrade db-revision keycloak-smoke token api-client web-dev dev build test-e2e test-lighthouse kind-create kind-delete docker-build deploy-local observability-up load-normal load-stop inject-failure reset-demo seed seed-runbooks test-telemetry test-detection worker help infra-up infra-down stop secrets-scan install api-dev format lint typecheck test test-unit test-integration test-agent
+.PHONY: db-upgrade db-downgrade db-revision keycloak-smoke token api-client web-dev dev build test-e2e test-lighthouse kind-create kind-delete docker-build deploy-local observability-up load-normal load-stop inject-failure reset-demo seed seed-runbooks test-telemetry test-detection worker help infra-up infra-down llm-up stop secrets-scan install api-dev format lint typecheck test test-unit test-integration test-agent
 
 help: ## List available targets
 	@grep -hE '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | sort | \
@@ -24,6 +24,10 @@ help: ## List available targets
 
 infra-up: ## Start PostgreSQL, Redis, and Keycloak and wait until healthy
 	$(COMPOSE) up -d --wait postgres redis keycloak
+
+llm-up: ## Start the local LLM (Ollama, GPU when available) and pull the agent model
+	$(COMPOSE) --profile llm up -d --wait ollama
+	$(COMPOSE) exec ollama ollama pull $${LLM_MODEL:-qwen2.5:7b-instruct}
 
 infra-down: ## Stop local infrastructure (keeps data)
 	$(COMPOSE) down
@@ -72,8 +76,8 @@ test-unit: ## Unit tests
 test-integration: ## Integration tests against real containers (needs Docker)
 	$(API) pytest tests/integration
 
-test-agent: ## Agent and retrieval evals (tests/agent-evals); results in test-results/agent-evals
-	$(API) pytest tests/evals -s
+test-agent: ## Agent and retrieval evals (tests/agent-evals); LLM=ollama|anthropic for a real model
+	cd apps/api && EVAL_LLM=$(or $(LLM),scripted) uv run pytest tests/evals -s
 
 api-client: ## Regenerate the typed API client from the API's OpenAPI schema
 	cd apps/api && uv run python -c "import json; from opspilot_api.config import Settings; \
