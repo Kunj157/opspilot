@@ -154,8 +154,15 @@ async def test_runbook_search_treats_injection_as_text(
         headers=caller.headers,
     )
 
-    assert by_query.status_code == by_service.status_code == 200
-    assert by_service.json()["items"], "the search still works"
+    control = await client.get(
+        "/api/v1/runbooks/search",
+        params={"q": "checkout errors", "service": "checkout"},
+        headers=caller.headers,
+    )
+
+    assert by_query.status_code == by_service.status_code == control.status_code == 200
+    assert by_service.json()["items"] == [], "the payload is matched as a service name"
+    assert control.json()["items"], "the search still works"
     for response in (by_query, by_service):
         assert {h["runbook_id"] for h in response.json()["items"]} <= {own.json()["id"]}
     assert await table_rows(sessions, "incidents") > 0
