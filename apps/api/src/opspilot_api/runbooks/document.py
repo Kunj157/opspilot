@@ -18,6 +18,9 @@ REQUIRED_SECTIONS = (
     "Rollback",
     "Escalation",
 )
+# Runbooks that apply everywhere; any other value names one environment.
+ALL_ENVIRONMENTS = "all"
+_ENVIRONMENT = re.compile(r"^[a-z][a-z0-9-]{0,31}$")
 
 
 class RunbookDocumentError(ValueError):
@@ -37,6 +40,7 @@ class RunbookDocument:
     owner: str | None
     version: int
     sections: list[Section]
+    environment: str = ALL_ENVIRONMENTS
 
 
 def _front_matter(text: str) -> tuple[dict[str, str | list[str]], str]:
@@ -72,6 +76,11 @@ def parse(text: str) -> RunbookDocument:
     if not isinstance(version, str) or not version.isdigit():
         raise RunbookDocumentError("version must be a positive integer")
     owner = meta.get("owner")
+    environment = meta.get("environment", ALL_ENVIRONMENTS)
+    if not isinstance(environment, str) or not _ENVIRONMENT.match(environment):
+        raise RunbookDocumentError(
+            "environment must be one lowercase name, e.g. production, or 'all'"
+        )
 
     sections = []
     for match in re.finditer(r"^## +(.+?)\s*$\n(.*?)(?=^## |\Z)", body, re.MULTILINE | re.DOTALL):
@@ -82,4 +91,5 @@ def parse(text: str) -> RunbookDocument:
         owner=owner if isinstance(owner, str) else None,
         version=int(version),
         sections=sections,
+        environment=environment,
     )

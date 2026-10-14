@@ -52,6 +52,44 @@ anyone's behalf.
 - Migrations run as a Job per image between the databases and the workloads
   (sync waves).
 
+## Releases: staging and production
+
+```
+tag vX.Y.Z on main → release.yml: images for that commit exist, signatures and SBOM attestations verify
+                   → every pull-request check reruns on the tag (agent evals and e2e included)
+                   → digests, SBOMs, and release-metadata.json are attached to the GitHub release
+                   → environment "staging": env/staging moves to the commit → Argo CD syncs staging
+                   → environment "production" (required reviewer): approve → env/production moves
+```
+
+- No image is rebuilt for a release: staging and production run the exact
+  digests that main built, signed, and development already ran.
+- `applications/opspilot-staging.yaml` and `opspilot-production.yaml` are
+  applied to each environment's own cluster (one Argo CD per cluster) and use
+  `environments/staging|production/values.yaml`: managed databases through
+  the `opspilot` Secret, slower canaries in production (5 minute pauses).
+- The GitHub environments `staging` and `production` accept only `v*` tags;
+  `production` waits for an approval in the Actions run.
+- Create the release (notes) by hand as usual; the workflow waits up to ten
+  minutes for it and then uploads `release-metadata.json` (version, commit,
+  signer identity, image digests) and `sbom-api.spdx.json` /
+  `sbom-web.spdx.json`.
+
+### Rollback
+
+- **During a canary**: the analysis aborts it on its own; by hand,
+  `kubectl argo rollouts abort opspilot-api -n opspilot` (and `opspilot-web`)
+  returns all traffic to the stable version.
+- **After promotion**: move the environment tag back to the previous release,
+  then Argo CD rolls that version out as a canary:
+  `git push -f origin vPREV^{commit}:refs/tags/env/production`, or re-run
+  the "Promote to production" job of the previous release's workflow run.
+  `kubectl argo rollouts undo` alone is reverted by Argo CD's self-heal,
+  because git still names the newer version.
+- Rolling back does not downgrade the database: migrations have to stay
+  compatible with the previous release (expand now, contract in a later
+  release) so the older version runs against the newer schema.
+
 ## On the local kind cluster
 
 There is no registry or CI on a laptop, so `scripts/gitops-local.sh [branch]`

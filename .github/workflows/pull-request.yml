@@ -5,6 +5,8 @@ on:
     branches: [dev, main]
   push:
     branches: [dev, main]
+  # The release pipeline reruns every check on the tagged commit.
+  workflow_call:
 
 permissions:
   contents: read

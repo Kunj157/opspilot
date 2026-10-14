@@ -1,0 +1,132 @@
+name: release
+
+# On a version tag: prove the commit's images exist and carry images.yml's
+# keyless signature and SBOM, rerun every check (evals and e2e included) on
+# the tagged commit, publish the image digests and SBOMs as release assets,
+# then promote the same images to staging and — after a manual approval in
+# the production environment — to production. Promotion moves the git tags
+# env/staging and env/production, which the Argo CD Applications track.
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: promote-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  REGISTRY: ghcr.io/kunj157
+  SIGNER: https://github.com/Kunj157/opspilot/.github/workflows/images.yml@refs/heads/main
+  ISSUER: https://token.actions.githubusercontent.com
+
+jobs:
+  verify:
+    name: Images exist and are signed
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      packages: read
+    steps:
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+      - uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+      - name: Resolve digests, verify signatures and SBOM attestations
+        run: |
+          mkdir -p release
+          echo '[]' > release/images.json
+          for image in api web; do
+            ref="$REGISTRY/opspilot-$image:$GITHUB_SHA"
+            digest="$(docker buildx imagetools inspect "$ref" --format '{{json .Manifest}}' | jq -r .digest)"
+            pinned="$REGISTRY/opspilot-$image@$digest"
+            cosign verify "$pinned" \
+              --certificate-identity "$SIGNER" --certificate-oidc-issuer "$ISSUER" > /dev/null
+            cosign verify-attestation "$pinned" --type spdxjson \
+              --certificate-identity "$SIGNER" --certificate-oidc-issuer "$ISSUER" \
+              | head -n 1 | jq -r .payload | base64 -d | jq .predicate > "release/sbom-$image.spdx.json"
+            jq --arg name "$image" --arg ref "$ref" --arg digest "$digest" \
+              --arg sbom "sbom-$image.spdx.json" \
+              '. + [{name: $name, tag: $ref, digest: $digest, sbom: $sbom}]' \
+              release/images.json > release/images.tmp && mv release/images.tmp release/images.json
+            echo "verified $pinned"
+          done
+          jq --arg version "$GITHUB_REF_NAME" --arg commit "$GITHUB_SHA" \
+            --arg signer "$SIGNER" --arg issuer "$ISSUER" \
+            '{version: $version, commit: $commit, signer: {identity: $signer, issuer: $issuer}, images: .}' \
+            release/images.json > release/release-metadata.json
+          rm release/images.json
+          cat release/release-metadata.json >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: release-metadata
+          path: release/
+          retention-days: 90
+
+  checks:
+    name: Checks
+    uses: ./.github/workflows/pull-request.yml
+    permissions:
+      contents: read
+
+  publish:
+    name: Release assets
+    needs: verify
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: write # upload assets to the release
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: release-metadata
+          path: release
+      - name: Attach digests and SBOMs to the release
+        # The release itself is created by hand (with its notes); wait for it.
+        run: |
+          for _ in $(seq 60); do
+            gh release view "$GITHUB_REF_NAME" > /dev/null 2>&1 && break
+            sleep 10
+          done
+          gh release upload "$GITHUB_REF_NAME" release/* --clobber
+
+  staging:
+    name: Promote to staging
+    needs: [verify, checks]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    environment:
+      name: staging
+    permissions:
+      contents: write # push the env/staging tag ref (no commits)
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Move env/staging to this release
+        run: |
+          git push -f origin "$GITHUB_SHA:refs/tags/env/staging"
+          echo "env/staging -> $GITHUB_REF_NAME ($GITHUB_SHA)" >> "$GITHUB_STEP_SUMMARY"
+
+  production:
+    name: Promote to production
+    needs: staging
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    # Required reviewers on the environment: the run waits for an approval.
+    environment:
+      name: production
+    permissions:
+      contents: write # push the env/production tag ref (no commits)
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Move env/production to this release
+        run: |
+          git push -f origin "$GITHUB_SHA:refs/tags/env/production"
+          echo "env/production -> $GITHUB_REF_NAME ($GITHUB_SHA)" >> "$GITHUB_STEP_SUMMARY"

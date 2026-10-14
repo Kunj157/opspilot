@@ -1,0 +1,26 @@
+# Production: managed PostgreSQL and Redis (the opspilot Secret comes from
+# External Secrets), more replicas, and slower canary steps so the analysis
+# sees real traffic before each weight increase.
+image:
+  api: { repository: ghcr.io/kunj157/opspilot-api }
+  web: { repository: ghcr.io/kunj157/opspilot-web }
+
+config:
+  APP_ENV: production
+  LOG_LEVEL: info
+
+rollouts:
+  enabled: true
+  steps: [10, 25, 50]
+  pause: 5m
+
+devDatabases:
+  enabled: false
+
+api:
+  autoscaling: { enabled: true, minReplicas: 3, maxReplicas: 10, targetCPU: 70 }
+web:
+  autoscaling: { enabled: true, minReplicas: 3, maxReplicas: 6, targetCPU: 70 }
+# Leases and idempotency keys make concurrent workers safe.
+worker:
+  replicas: 2
