@@ -133,6 +133,7 @@ async def run(settings: Settings) -> None:
         kube=writer,
         embedder=build_embedder(settings.embedding_model, settings.embedding_cache_dir),
         allowed_namespaces=settings.allowed_namespaces,
+        environment=settings.app_env,
     )
     runner = InvestigationRunner(
         sessions,
