@@ -1950,10 +1950,14 @@ source = { editable = "." }
 dependencies = [
     { name = "httpx" },
     { name = "joblib" },
-    { name = "mlflow" },
     { name = "numpy" },
     { name = "pandas" },
     { name = "scikit-learn" },
+]
+
+[package.optional-dependencies]
+train = [
+    { name = "mlflow" },
 ]
 
 [package.dev-dependencies]
@@ -1968,11 +1972,12 @@ dev = [
 requires-dist = [
     { name = "httpx", specifier = ">=0.28" },
     { name = "joblib", specifier = ">=1.4" },
-    { name = "mlflow", specifier = ">=3.0" },
+    { name = "mlflow", marker = "extra == 'train'", specifier = ">=3.0" },
     { name = "numpy", specifier = ">=2.1" },
     { name = "pandas", specifier = ">=2.2" },
     { name = "scikit-learn", specifier = ">=1.5" },
 ]
+provides-extras = ["train"]
 
 [package.metadata.requires-dev]
 dev = [

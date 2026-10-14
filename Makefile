@@ -91,7 +91,7 @@ ml-dataset: ## Read the labelled runs back from Prometheus into feature windows
 	cd ml && uv run python pipelines/build_dataset.py
 
 ml-train: ## Train and evaluate the detectors, track them in MLflow, write the report
-	cd ml && uv run python training/train.py
+	cd ml && uv run --extra train python training/train.py
 
 api-client: ## Regenerate the typed API client from the API's OpenAPI schema
 	cd apps/api && uv run python -c "import json; from opspilot_api.config import Settings; \

@@ -27,6 +27,7 @@ from opspilot_api.config import Settings, get_settings
 from opspilot_api.detection.worker import DetectionWorker
 from opspilot_api.kube import KubernetesWriter
 from opspilot_api.logging import configure_logging
+from opspilot_api.ml.shadow import ShadowScorer
 from opspilot_api.remediation.executor import claim as claim_execution
 from opspilot_api.remediation.executor import execute
 from opspilot_api.remediation.verification import pending as pending_verifications
@@ -80,6 +81,17 @@ async def run(settings: Settings) -> None:
             return False
 
         loops.append(_loop(stop, "detection", detect, settings.detection_interval_seconds))
+
+        shadow = ShadowScorer.for_prometheus(
+            sessions, settings.prometheus_url, settings.allowed_namespaces
+        )
+
+        async def score_shadow() -> bool:
+            """The ML detector's opinion on every service; stored, never acted on."""
+            await shadow.cycle(datetime.now(UTC))
+            return False
+
+        loops.append(_loop(stop, "shadow", score_shadow, settings.detection_interval_seconds))
 
     # Reads for investigations and verification; the three safe actions for remediation.
     writer = KubernetesWriter(
