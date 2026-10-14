@@ -74,6 +74,25 @@ async def sessions(migrated_database_url: str) -> AsyncIterator[async_sessionmak
     await engine.dispose()
 
 
+@pytest.fixture(autouse=True)
+async def no_other_approved_work(sessions: async_sessionmaker[AsyncSession]) -> None:
+    """The executor claims any approved proposal; other tests in the session leave some."""
+    async with sessions() as session:
+        await session.execute(
+            sa.update(RemediationProposal)
+            .where(
+                RemediationProposal.status.in_([ProposalStatus.APPROVED, ProposalStatus.EXECUTING])
+            )
+            .values(status=ProposalStatus.EXPIRED)
+        )
+        await session.execute(
+            sa.update(RemediationExecution)
+            .where(RemediationExecution.status == ExecutionStatus.RUNNING)
+            .values(status=ExecutionStatus.FAILED)
+        )
+        await session.commit()
+
+
 async def approved(
     sessions: async_sessionmaker[AsyncSession],
     *,
