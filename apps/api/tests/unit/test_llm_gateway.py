@@ -169,3 +169,33 @@ async def test_anthropic_refusals_are_errors() -> None:
     llm = AnthropicLLM("k", "claude-opus-5-5", transport=httpx2.MockTransport(handler))
     with pytest.raises(LLMError, match="refus"):
         await llm.complete_json("s", "p", Finding)
+
+
+def test_agent_schemas_accept_percentages_and_cited_lines() -> None:
+    from opspilot_api.agents.schemas import ProposalDraft, Synthesis
+
+    synthesis = Synthesis.model_validate(
+        {
+            "summary": "s",
+            "hypotheses": [
+                {
+                    "description": "bad release",
+                    "confidence": 80,
+                    "supporting_evidence": ["E4 [kubernetes] revision 14 ...", "E2", "E4"],
+                }
+            ],
+            "enough_evidence": True,
+        }
+    )
+    draft = ProposalDraft.model_validate(
+        {
+            "action_type": "NO_ACTION",
+            "target_service": "x",
+            "reason": "r",
+            "evidence": ["E1 [loki] ..."],
+        }
+    )
+
+    assert synthesis.hypotheses[0].confidence == 0.8
+    assert synthesis.hypotheses[0].supporting_evidence == ["E4", "E2"]
+    assert draft.evidence == ["E1"]
