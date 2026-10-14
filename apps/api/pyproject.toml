@@ -1,6 +1,6 @@
 [project]
 name = "opspilot-api"
-version = "0.10.0"
+version = "0.11.0"
 description = "OpsPilot API service"
 
 authors = [
@@ -26,6 +26,8 @@ dependencies = [
     "sqlalchemy[asyncio]>=2.1.4",
     "structlog>=26.1.0",
     "uvicorn>=0.54.0",
+    "aiokafka>=0.12",
+    "opentelemetry-api>=1.30",
 ]
 
 [project.scripts]
@@ -65,7 +67,7 @@ python_version = "3.12"
 files = ["src", "tests"]
 
 [[tool.mypy.overrides]]
-module = ["testcontainers.*", "asgi_lifespan.*"]
+module = ["testcontainers.*", "asgi_lifespan.*", "aiokafka.*"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]

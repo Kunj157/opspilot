@@ -5,10 +5,11 @@ incidents in a cloud application, investigates them with AI agents and
 machine learning, proposes safe remediation, runs human-approved runbooks,
 verifies recovery, and writes the postmortem.
 
-> **Status:** v0.10.0 released. The full incident loop works on the demo, from
+> **Status:** v0.11.0 released. The full incident loop works on the demo, from
 > detection through agent investigation, approved rollback, verification,
-> and postmortem, and an ML detector runs in shadow mode next to the rules.
-> Phase 11, event-driven processing, is next. See the [roadmap](#roadmap).
+> and postmortem; an ML detector runs in shadow mode; and incident events
+> flow through Redpanda with idempotent consumers. Phase 12, cloud
+> infrastructure, is next. See the [roadmap](#roadmap).
 
 ## What it does today
 
@@ -76,6 +77,14 @@ verifies recovery, and writes the postmortem.
   ML detector page, but it never opens incidents. On the held-out runs the
   baseline wins (F1 0.97, no false alerts, 23 s delay), so the Isolation
   Forest stays unpromoted. See [`ml/`](ml/README.md).
+- **Event-driven processing:** the incident timeline doubles as a
+  transactional outbox. A relay publishes it to versioned Redpanda topics
+  (envelope v1, keyed by incident, trace context in headers). Consumers are
+  idempotent by event ID, retry with backoff, and park poison or failing
+  messages on dead-letter topics, which can be replayed safely. Detector
+  incidents can be investigated from `incident.created.v1` events instead
+  of a direct call (`make events-up`, `KAFKA_BOOTSTRAP_SERVERS`,
+  `EVENT_DRIVEN_INVESTIGATIONS`).
 - **Design system:** Graphite & Iris tokens with contrast checked in CI,
   shared primitives (buttons, tilting cards, tabs, drawer, toasts), and
   Lighthouse budgets on primary pages.
@@ -103,7 +112,8 @@ verifies recovery, and writes the postmortem.
 | Typed client (`packages/api-client`) | Generated from the API's OpenAPI schema |
 | Agents | LangGraph, Ollama (local, default) or the Anthropic API |
 | ML (`ml/`) | pandas, scikit-learn, MLflow |
-| Planned | Redpanda, Terraform on AWS, Argo CD |
+| Events | Redpanda (Kafka API), aiokafka |
+| Planned | Terraform on AWS, Argo CD |
 
 Design notes and decisions live in [`docs/`](docs): the
 [architecture overview](docs/architecture/overview.md), [SLOs](docs/architecture/slos.md),
@@ -126,8 +136,8 @@ Each phase ends with a tagged release.
 | 8 | Multi-agent investigation | ✅ v0.8.0 |
 | 9 | Approval and safe remediation | ✅ v0.9.0 |
 | 10 | ML anomaly detection | ✅ v0.10.0 |
-| 11 | Event-driven processing | 🚧 next |
-| 12 | Cloud infrastructure (AWS, Terraform) | planned |
+| 11 | Event-driven processing | ✅ v0.11.0 |
+| 12 | Cloud infrastructure (AWS, Terraform) | 🚧 next |
 | 13 | Containers, Kubernetes, and GitOps | planned |
 
 ## Local development
