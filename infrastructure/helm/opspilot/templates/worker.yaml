@@ -4,6 +4,9 @@ kind: ServiceAccount
 metadata:
   name: {{ $name }}
   labels: {{- include "opspilot.labels" . | nindent 4 }}
+  {{- with .Values.serviceAccounts.worker.annotations }}
+  annotations: {{- toYaml . | nindent 4 }}
+  {{- end }}
 # The worker talks to the Kubernetes API (investigations and remediation).
 automountServiceAccountToken: true
 {{- range .Values.worker.allowedNamespaces }}

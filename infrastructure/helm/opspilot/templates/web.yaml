@@ -11,6 +11,9 @@ kind: Service
 metadata:
   name: {{ $name }}
   labels: {{- include "opspilot.labels" . | nindent 4 }}
+  annotations:
+    # ALB target health (ignored by other controllers): same path as readiness.
+    alb.ingress.kubernetes.io/healthcheck-path: /login
 spec:
   selector: {{- include "opspilot.selector" $name | nindent 4 }}
   ports:
