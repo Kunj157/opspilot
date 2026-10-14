@@ -1,7 +1,7 @@
 # Architecture Overview
 
-Status: initial (Phase 0). Updated in the same PR as any change that moves a
-component, a data flow, or a trust boundary.
+Status: current as of v0.15 (phases 0–15). Updated in the same PR as any
+change that moves a component, a data flow, or a trust boundary.
 
 ## 1. System context
 
@@ -9,11 +9,12 @@ component, a data flow, or a trust boundary.
 flowchart LR
     SRE[SRE / incident commander] -->|HTTPS, OIDC session| OPS[OpsPilot]
     OPS -->|OIDC| IDP[Identity provider]
-    OPS -->|HTTPS, prompts without secrets| LLM[Hosted LLM provider]
+    OPS -->|redacted prompts| LLM[LLM: local Ollama or Anthropic API]
     OPS -->|allow-listed calls| K8S[Kubernetes API]
     DEMO[Demo system in Kubernetes] -->|OTLP| OPS
-    GH[GitHub Actions] -->|images, manifests| REG[Container registry]
-    ARGO[Argo CD] -->|syncs| K8S
+    GH[GitHub Actions] -->|signed images + SBOM| REG[GHCR]
+    GH -->|moves env/* tags| GIT[Git repository]
+    ARGO[Argo CD] -->|syncs env/* tag| K8S
 ```
 
 OpsPilot observes a demo microservice system, detects incidents, investigates
@@ -22,20 +23,22 @@ remediation against Kubernetes.
 
 ## 2. Components
 
-| Component | Tech | Responsibility | Plan ref |
-|---|---|---|---|
-| `web` | Next.js, React, TanStack Query, R3F | UI, live timeline via SSE, approvals, dashboards | §6.1 |
-| `api` | FastAPI, SQLAlchemy | AuthN/Z, CRUD, incident state machine, approvals, SSE, audit log, job submission | §6.2 |
-| `worker` | Celery (one project, separate queues) | Telemetry queries, detection, agent orchestration (LangGraph), runbook ingestion, remediation, verification, postmortems | §6.3 |
-| `ml-service` | FastAPI, scikit-learn, MLflow | Feature processing, anomaly scoring, model versions | §6.4 |
-| PostgreSQL + pgvector | | System of record, embeddings | §12 |
-| Redis | | Queue broker, cache, web sessions | §4.2 |
-| Live updates | PostgreSQL `LISTEN/NOTIFY` → SSE | Commit-time incident notifications fanned out to streams (ADR-004) | §13 |
-| Observability stack | OTel Collector, Prometheus, Loki, Tempo, Grafana | Telemetry for the demo system **and** OpsPilot itself | §4.4 |
-| Redpanda | | Event bus — added in Phase 11 only | §15 |
-| Demo system | storefront, checkout, payment, inventory, notification | Failure-injectable target | §6.5 |
+| Component | Tech | Responsibility |
+|---|---|---|
+| `web` | Next.js 16, React 19, TanStack Query, Tailwind 4, Motion, React Three Fiber | UI (interface v2), server-side OIDC session, same-origin API proxy, live timeline via SSE, approvals, dashboards, ⌘K palette, 2D/3D topology |
+| `api` | FastAPI, SQLAlchemy, Alembic | AuthN/Z, incident state machine, approvals, SSE, audit log, evaluations, rate limits, idempotency, ML scoring endpoint, outbox |
+| `worker` (`opspilot-worker`) | One asyncio process, PostgreSQL leases | Detection loop, ML shadow scoring, LangGraph investigations, remediation execution, recovery verification, postmortems; event consumers when Redpanda is configured |
+| ML (`ml/`) | pandas, scikit-learn, MLflow | Offline dataset, training, and evaluation; the trained model is loaded in-process by the API/worker (no separate ML service) |
+| PostgreSQL + pgvector | | System of record, runbook embeddings, job leases, transactional outbox |
+| Redis | | Web sessions, API rate limits |
+| Live updates | PostgreSQL `LISTEN/NOTIFY` → SSE | Commit-time incident notifications fanned out to streams; one read per wake-up shared by all subscribers (ADR-004) |
+| Redpanda (optional) | Kafka API, aiokafka | Versioned event topics from the outbox; idempotent consumers with retries, dead-letter topics, and replay |
+| Observability stack | OTel Collector, Prometheus, Alertmanager, Loki, Tempo, Grafana | Telemetry for the demo system and for OpsPilot; alert rules with runbooks |
+| Demo system | storefront, checkout, payment, inventory, notification | Failure-injectable target on kind |
 
-The deployable unit count is deliberately small (see ADR-002).
+The deployable unit count is deliberately small (ADR-002): web, api, worker.
+Background work is claimed from PostgreSQL with leases rather than a separate
+queue broker, so a crashed worker's job is taken over after its lease expires.
 
 ## 3. Core incident flow
 
@@ -57,7 +60,7 @@ sequenceDiagram
     W->>P: query error rate (windowed)
     W->>A: create incident (dedup key)
     A-->>UI: SSE incident.created
-    A->>G: enqueue investigation
+    A->>G: investigation queued (lease or incident.created.v1 event)
     G->>P: tools: metrics / logs / traces
     G->>L: prompts (redacted, structured output)
     G->>A: evidence + remediation proposal
@@ -87,7 +90,6 @@ flowchart TB
     subgraph App["OpsPilot trust zone"]
         API[api]
         WK[worker]
-        ML[ml-service]
         DB[(PostgreSQL)]
         RD[(Redis)]
     end
@@ -110,7 +112,6 @@ flowchart TB
     WK --> DB
     API --> RD
     WK --> RD
-    WK --> ML
 ```
 
 | ID | Boundary | Threats | Controls |
@@ -120,9 +121,9 @@ flowchart TB
 | TB3 | Worker → LLM provider | Secret / PII leakage in prompts, provider outage, cost runaway | Redaction before every call, no secrets in prompts, timeouts and retries, per-incident token and cost budgets, prompt versioning |
 | TB4 | Runbooks / telemetry → agents | Prompt injection, instructions disguised as data | Retrieved content marked untrusted, tool permissions enforced in code not prompts, schema-validated tool args, adversarial eval cases |
 | TB5 | Remediation worker → Kubernetes | Destructive or out-of-scope actions, replayed approvals | Allow-listed actions only, namespace/resource allow-list, parameter bounds, human approval bound to proposal version, idempotent execution, dedicated least-privilege service account |
-| TB6 | CI/CD → registry / cluster | Supply-chain compromise, leaked credentials | OIDC-federated CI credentials, signed images, SBOM, Trivy/Semgrep/Gitleaks, GitOps-only deploys |
+| TB6 | CI/CD → registry / cluster | Supply-chain compromise, leaked credentials | OIDC-federated CI credentials, digest-pinned base images, Trivy on every PR, cosign-signed images with SBOM attestations, Kyverno signature verification at admission, GitOps-only deploys via `env/*` tags |
 
-Internal traffic between `api`, `worker`, `ml-service`, PostgreSQL and Redis
+Internal traffic between `api`, `worker`, PostgreSQL, Redis, and Redpanda
 is inside the trust zone but still uses per-workload credentials and
 Kubernetes network policies (plan §25).
 
@@ -131,7 +132,7 @@ Kubernetes network policies (plan §25).
 - `api` owns all writes to incidents, approvals and audit logs. Workers
   report results through the same domain services, so every state
   transition goes through one code path (plan §13).
-- Audit logs are append-only at the application level.
+- Audit logs are append-only, enforced by the database.
 - Evidence stores summaries and source references; raw secrets never reach
   the database or the LLM.
 
@@ -139,9 +140,14 @@ Kubernetes network policies (plan §25).
 
 | Phase | Architectural change |
 |---|---|
-| 1–3 | `web` + `api` + PostgreSQL + Redis, synchronous flows |
+| 1–3 | `web` + `api` + PostgreSQL + Redis |
 | 5–6 | Demo system, observability stack, detector in `worker` |
 | 7–9 | RAG, LangGraph agents, approval and remediation |
-| 10 | `ml-service` in shadow mode |
-| 11 | Redpanda; direct calls migrated to events one stage at a time |
-| 12–13 | AWS (EKS, RDS, ElastiCache), Terraform, Argo CD, Argo Rollouts |
+| 10 | ML detector in shadow mode (in-process, not a separate service) |
+| 11 | Redpanda; investigation, remediation, and verification migrated to events (on by default when a broker is configured) |
+| 12–13 | AWS (EKS, RDS, ElastiCache) in Terraform, Helm, Argo CD, Argo Rollouts |
+| 14 | Production hardening: rate limits, secure headers, alerts, backups, chaos and load tests, release pipeline, Kyverno, Karpenter |
+| 15 | Interface v2 |
+
+See also: [threat model](../threat-model/threat-model.md), [SLOs](slos.md),
+[alerts](../operations/alerts.md), [disaster recovery](../operations/disaster-recovery.md).
