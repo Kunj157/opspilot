@@ -148,8 +148,8 @@ inject-failure: ## Ship a faulty release: make inject-failure SCENARIO=checkout-
 	./scripts/inject-failure.sh $(SCENARIO)
 
 reset-demo: ## Restore every demo service to its healthy release (keeps load running)
-	$(KUBECTL) -n demo annotate deployment --all --overwrite kubernetes.io/change-cause="reset to the healthy release"
-	$(HELM) upgrade demo-shop infrastructure/helm/demo-shop --namespace demo --reuse-values --force-conflicts --wait
+	$(HELM) upgrade demo-shop infrastructure/helm/demo-shop --namespace demo --reuse-values --force-conflicts --wait \
+		--set changeCause="reset to the healthy release"
 
 seed: ## Register the demo shop in the service catalog (API must be running)
 	cd apps/api && uv run python -m opspilot_api.demo_seed \
