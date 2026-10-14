@@ -37,6 +37,13 @@ class Settings(BaseSettings):
     detection_lag_seconds: float = 15.0
     worker_metrics_port: int | None = None
 
+    # Investigation agents: "ollama" (local, default), "anthropic", or "scripted" (tests).
+    llm_provider: str = "ollama"
+    llm_model: str = "qwen2.5:7b-instruct"
+    llm_base_url: str | None = None
+    llm_api_key: str | None = None
+    llm_timeout_seconds: float = 120.0
+
     readiness_timeout_seconds: float = 2.0
     sse_heartbeat_seconds: float = 15.0
 
