@@ -32,6 +32,14 @@ terraform init -backend-config=../backend.hcl
 terraform plan -out=tfplan && terraform apply tfplan
 ```
 
+Check the result with `make infra-smoke ENV=development` (wraps
+`scripts/infra-smoke.sh`). Through a throwaway kubeconfig, it checks that
+all nodes are Ready and the add-ons have rolled out (CoreDNS, VPC CNI,
+metrics-server, Karpenter, load balancer controller, cert-manager, External
+Secrets). It also checks that the node class, node pool, ClusterIssuer, and
+ClusterSecretStore report Ready, that the app ExternalSecret has synced
+once the chart is installed, and that a pod can reach PostgreSQL.
+
 Then delegate the environment's domain to the `name_servers` output, put the
 OIDC client secret and model API key into the Secrets Manager entries
 (`opspilot-<env>/...`), and point CI at the `ci_role_arn` output.
@@ -45,6 +53,9 @@ staging have deletion protection off. Production refuses to drop its
 database, takes a final snapshot, and keeps the state bucket.
 
 ## Security
+
+Every role, its trust, and its permissions, with the reason for each, are
+listed in [docs/security/iam-review.md](../../docs/security/iam-review.md).
 
 - Every store is encrypted with a customer-managed KMS key that rotates
   yearly: state, flow logs, EKS secrets, node disks, RDS, Redis, buckets,
