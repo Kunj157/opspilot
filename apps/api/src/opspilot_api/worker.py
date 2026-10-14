@@ -119,6 +119,7 @@ async def run(settings: Settings) -> None:
     finally:
         for backend in (metrics, logs, traces):
             await backend.aclose()
+        await llm.aclose()
         await engine.dispose()
         log.info("worker stopped")
 
