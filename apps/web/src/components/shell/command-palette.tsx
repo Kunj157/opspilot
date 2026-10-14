@@ -92,6 +92,13 @@ function useCommands(navigate: (href: string) => void): Command[] {
       hint: service.health_status,
       run: go(`/services/${service.id}`),
     })),
+    ...(services.data ?? []).map((service) => ({
+      id: `map:${service.id}`,
+      group: "Services",
+      label: `Show ${service.name} on the map`,
+      keywords: `${service.slug} topology focus`,
+      run: go(`/?focus=${service.id}`),
+    })),
   ];
 }
 
