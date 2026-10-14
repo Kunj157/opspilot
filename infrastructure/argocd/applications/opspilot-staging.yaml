@@ -1,0 +1,34 @@
+# The staging environment follows the env/staging tag, which the release
+# workflow moves to a version tag's commit once its images are verified
+# (signature and SBOM) and every check passed on it. Applied to the staging
+# cluster's Argo CD; pods run the images of that commit (tag = commit SHA).
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: opspilot-staging
+  namespace: argocd
+  finalizers: [resources-finalizer.argocd.argoproj.io]
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/Kunj157/opspilot.git
+    targetRevision: env/staging
+    path: infrastructure/helm/opspilot
+    helm:
+      valueFiles: [../../environments/staging/values.yaml]
+      parameters:
+        - { name: image.api.tag, value: $ARGOCD_APP_REVISION }
+        - { name: image.web.tag, value: $ARGOCD_APP_REVISION }
+  # The HPAs own the replica counts.
+  ignoreDifferences:
+    - { group: argoproj.io, kind: Rollout, jsonPointers: [/spec/replicas] }
+    - { group: apps, kind: Deployment, jsonPointers: [/spec/replicas] }
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: opspilot
+  syncPolicy:
+    automated: { prune: true, selfHeal: true }
+    syncOptions: [CreateNamespace=true, ServerSideApply=true, RespectIgnoreDifferences=true]
+    retry:
+      limit: 5
+      backoff: { duration: 30s, factor: 2, maxDuration: 5m }
