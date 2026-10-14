@@ -180,7 +180,7 @@ jobs:
         run: |
           curl -sSL https://github.com/yannh/kubeconform/releases/download/v0.7.0/kubeconform-linux-amd64.tar.gz | tar xz kubeconform
           helm template ci infrastructure/helm/opspilot --namespace opspilot \
-            --set rollouts.enabled=true --set devDatabases.enabled=true \
+            --set rollouts.enabled=true --set devDatabases.enabled=true --set monitoring.prometheusRule.enabled=true \
             | ./kubeconform -strict -summary -kubernetes-version 1.34.0 \
               -schema-location default \
               -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json'
@@ -190,6 +190,25 @@ jobs:
             | ./kubeconform -strict -summary -kubernetes-version 1.34.0 \
               -schema-location default \
               -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json'
+
+  alerts:
+    name: Observability · alert rules (promtool)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    env:
+      PROMETHEUS_VERSION: 3.15.0
+      ALERTMANAGER_VERSION: 0.34.1
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Install promtool and amtool
+        run: |
+          curl -sSL "https://github.com/prometheus/prometheus/releases/download/v${PROMETHEUS_VERSION}/prometheus-${PROMETHEUS_VERSION}.linux-amd64.tar.gz" \
+            | tar -xz --strip-components=1 "prometheus-${PROMETHEUS_VERSION}.linux-amd64/promtool"
+          curl -sSL "https://github.com/prometheus/alertmanager/releases/download/v${ALERTMANAGER_VERSION}/alertmanager-${ALERTMANAGER_VERSION}.linux-amd64.tar.gz" \
+            | tar -xz --strip-components=1 "alertmanager-${ALERTMANAGER_VERSION}.linux-amd64/amtool"
+          echo "$PWD" >> "$GITHUB_PATH"
+      - name: Check and unit-test the rules and the Alertmanager config
+        run: make test-alerts
 
   web:
     name: Web · lint, types, tests, build

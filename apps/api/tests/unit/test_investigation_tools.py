@@ -10,7 +10,13 @@ from opspilot_api.agents.tools import (
     ToolContext,
     run_tool,
 )
-from opspilot_api.kube import NamespaceNotAllowed, Revision, RolloutStatus, check_namespace
+from opspilot_api.kube import (
+    ConfigMapInfo,
+    NamespaceNotAllowed,
+    Revision,
+    RolloutStatus,
+    check_namespace,
+)
 from opspilot_api.telemetry import (
     LogLine,
     Sample,
@@ -103,13 +109,33 @@ class Kube:
                 "release checkout 1.4.2 (checkout-http-500)",
                 "1.4.2",
                 "img",
+                env={
+                    "SERVICE_VERSION": "1.4.2",
+                    "FAULT_ERROR_RATE": "0.5",
+                    "DB_PASSWORD": "[REDACTED]",
+                },
+                config_refs=("configmap/shop", "secret/db"),
             ),
-            Revision(3, NOW - timedelta(days=1), None, "1.0.0", "img"),
+            Revision(
+                3,
+                NOW - timedelta(days=1),
+                None,
+                "1.0.0",
+                "img",
+                env={"SERVICE_VERSION": "1.0.0", "FAULT_ERROR_RATE": "0", "LOG_LEVEL": "info"},
+                config_refs=("configmap/shop",),
+            ),
         ]
 
     async def rollout_status(self, namespace: str, deployment: str) -> RolloutStatus:
         check_namespace(namespace, self.allowed)
         return RolloutStatus(2, 2, 2, 2, True, ["Available=True"])
+
+    async def config_maps(self, namespace: str, names: list[str]) -> list[ConfigMapInfo]:
+        check_namespace(namespace, self.allowed)
+        return [
+            ConfigMapInfo(n, NOW - timedelta(minutes=10), ("feature.flags",)) for n in names
+        ] + [ConfigMapInfo("old", NOW - timedelta(days=3), ())]
 
 
 def context(**overrides: Any) -> ToolContext:
@@ -175,6 +201,32 @@ async def test_recent_deployments_flag_a_release_in_the_window() -> None:
     assert result.data["previous"]["version"] == "1.0.0"
     assert "1.4.2" in result.summary
     assert "3 minutes ago" in result.summary
+
+
+async def test_configuration_changes_compare_the_latest_two_revisions() -> None:
+    result = await run_tool(context(), "get_recent_configuration_changes", {"service": "checkout"})
+
+    assert result.ok, result.error
+    assert result.data["env_changes"] == [
+        {"name": "DB_PASSWORD", "change": "added", "before": None, "after": "[REDACTED]"},
+        {"name": "FAULT_ERROR_RATE", "change": "changed", "before": "0", "after": "0.5"},
+        {"name": "LOG_LEVEL", "change": "removed", "before": "info", "after": None},
+        {"name": "SERVICE_VERSION", "change": "changed", "before": "1.0.0", "after": "1.4.2"},
+    ]
+    assert result.data["references_added"] == ["secret/db"]
+    assert [c["name"] for c in result.data["config_maps_updated"]] == ["shop"]
+    assert "FAULT_ERROR_RATE 0 -> 0.5" in result.summary
+    assert "now uses secret/db" in result.summary
+    assert "configmap shop updated 10 minutes ago" in result.summary
+    assert result.evidence is not None
+    assert result.evidence.evidence_type == "configuration"
+
+
+async def test_configuration_changes_refuse_services_outside_allowed_namespaces() -> None:
+    result = await run_tool(context(), "get_recent_configuration_changes", {"service": "dns"})
+
+    assert not result.ok
+    assert "not allowed" in (result.error or "")
 
 
 async def test_rollout_status() -> None:
