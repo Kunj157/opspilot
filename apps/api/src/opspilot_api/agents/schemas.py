@@ -29,10 +29,13 @@ ToolName = Literal[
     "get_kubernetes_rollout_status",
     "get_recent_configuration_changes",
     "search_runbooks",
+    "get_runbook",
     "search_similar_incidents",
 ]
 
-ActionType = Literal["ROLLBACK_DEPLOYMENT", "RESTART_DEPLOYMENT", "SCALE_DEPLOYMENT", "NO_ACTION"]
+ActionType = Literal[
+    "ROLLBACK_DEPLOYMENT", "RESTART_DEPLOYMENT", "SCALE_DEPLOYMENT", "PAUSE_ROLLOUT", "NO_ACTION"
+]
 
 
 class Strict(BaseModel):
@@ -44,6 +47,7 @@ class PlannedCall(Strict):
     service: str | None = Field(default=None, max_length=63)
     minutes: int | None = Field(default=None, ge=1, le=180)
     query: str | None = Field(default=None, max_length=300)
+    runbook: str | None = Field(default=None, max_length=63)
     reason: str = Field(max_length=300)
 
 

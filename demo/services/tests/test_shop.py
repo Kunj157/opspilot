@@ -1,5 +1,6 @@
 import json
 import logging
+import sys
 
 import httpx
 import pytest
@@ -51,6 +52,34 @@ async def test_spans_carry_the_required_resource_attributes(
     span = next(s for s in spans.get_finished_spans() if s.kind.name == "SERVER")
     for key in ("service.name", "service.version", "deployment.environment"):
         assert key in span.resource.attributes
+
+
+async def test_spans_use_the_stable_http_semantic_conventions(
+    shop: Shop, spans: InMemorySpanExporter
+) -> None:
+    await shop().get("/api/products")
+
+    span = next(
+        s
+        for s in spans.get_finished_spans()
+        if s.kind.name == "SERVER" and s.resource.attributes["service.name"] == "storefront"
+    )
+    assert span.attributes is not None
+    assert span.attributes["http.request.method"] == "GET"
+    assert span.attributes["http.response.status_code"] == 200
+    assert span.attributes["url.path"] == "/api/products"
+    assert span.attributes["http.route"] == "/api/products"
+    for deprecated in ("http.method", "http.status_code", "http.target"):
+        assert deprecated not in span.attributes
+
+
+@pytest.mark.skipif(not sys.platform.startswith("linux"), reason="process metrics read /proc")
+async def test_process_cpu_and_memory_are_exported_per_service(shop: Shop) -> None:
+    text = (await shop().get("/metrics")).text
+
+    assert metric(text, "process_resident_memory_bytes", service="storefront") > 0
+    assert metric(text, "process_cpu_seconds_total", service="storefront") > 0
+    assert metric(text, "process_open_fds", service="storefront") > 0
 
 
 async def test_requests_are_counted_and_timed(shop: Shop) -> None:
@@ -114,7 +143,8 @@ async def test_an_injected_error_rate_returns_500_and_marks_the_span(
     ]
     assert failed[0].status.status_code is StatusCode.ERROR
     assert failed[0].attributes is not None
-    assert failed[0].attributes["error.type"] == "InjectedFault"
+    assert failed[0].attributes["error.type"] == "500"
+    assert failed[0].attributes["fault.injected"] is True
 
 
 async def test_errors_are_counted(shop: Shop) -> None:

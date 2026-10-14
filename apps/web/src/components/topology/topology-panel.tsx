@@ -116,6 +116,12 @@ function ViewToggle({ view, onChange }: { view: View; onChange: (view: View) => 
   );
 }
 
+/** `/?focus=<service id>` (e.g. from the command palette) selects a service and brings the map into view. */
+function focusFromUrl(): string | null {
+  const id = new URLSearchParams(window.location.search).get("focus");
+  return id && /^[0-9a-f-]{1,36}$/i.test(id) ? id : null;
+}
+
 export function TopologyPanel() {
   const router = useRouter();
   const [selected, setSelected] = useState<string | null>(null);
@@ -128,6 +134,11 @@ export function TopologyPanel() {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- WebGL can only be probed in the browser
     setWebgl(available ? "available" : "failed");
     if (available) setView("3d");
+    const focus = focusFromUrl();
+    if (focus) {
+      setSelected(focus);
+      document.getElementById("topology")?.scrollIntoView({ block: "start" });
+    }
   }, []);
   const fail = () => {
     setWebgl("failed");
@@ -145,12 +156,23 @@ export function TopologyPanel() {
   });
 
   return (
-    <Card as="section" aria-labelledby="topology-heading" className="shadow-3">
+    <Card as="section" id="topology" aria-labelledby="topology-heading" className="scroll-mt-16 shadow-3">
       <div className="flex items-center justify-between gap-3 border-b border-border px-5 py-3">
         <h2 id="topology-heading" className="text-sm font-medium text-fg-secondary">
           Service topology
         </h2>
-        {webgl === "available" && <ViewToggle view={view} onChange={setView} />}
+        <div className="flex items-center gap-2">
+          {selected && (
+            <button
+              type="button"
+              onClick={() => setSelected(null)}
+              className="rounded-sm px-2 py-1 text-xs text-fg-secondary transition-colors hover:bg-surface-3 hover:text-fg"
+            >
+              Reset view
+            </button>
+          )}
+          {webgl === "available" && <ViewToggle view={view} onChange={setView} />}
+        </div>
       </div>
       {webgl === "failed" && (
         <p role="status" className="px-5 pt-4 text-xs text-fg-muted">

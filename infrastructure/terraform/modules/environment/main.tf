@@ -43,6 +43,28 @@ data "aws_iam_policy_document" "kms" {
       identifiers = ["logs.${data.aws_region.current.region}.amazonaws.com"]
     }
   }
+  # Encrypted node disks: EC2 (and the Auto Scaling / Spot service-linked roles
+  # acting for the node group and Karpenter) may use the key only through EC2
+  # in this account.
+  statement {
+    sid       = "NodeVolumesThroughEc2"
+    actions   = ["kms:Encrypt", "kms:Decrypt", "kms:ReEncrypt*", "kms:GenerateDataKey*", "kms:CreateGrant", "kms:DescribeKey"]
+    resources = ["*"]
+    principals {
+      type        = "AWS"
+      identifiers = ["*"]
+    }
+    condition {
+      test     = "StringEquals"
+      variable = "kms:CallerAccount"
+      values   = [data.aws_caller_identity.current.account_id]
+    }
+    condition {
+      test     = "StringEquals"
+      variable = "kms:ViaService"
+      values   = ["ec2.${data.aws_region.current.region}.amazonaws.com"]
+    }
+  }
 }
 
 module "network" {
@@ -66,6 +88,20 @@ module "eks" {
   kms_key_arn           = aws_kms_key.platform.arn
   log_retention_days    = var.log_retention_days
   node_groups           = var.node_groups
+}
+
+module "karpenter" {
+  source              = "../karpenter"
+  name                = local.name
+  cluster_name        = module.eks.cluster_name
+  cluster_endpoint    = module.eks.cluster_endpoint
+  oidc_provider_arn   = module.eks.oidc_provider_arn
+  subnet_ids          = module.network.private_subnet_ids
+  security_group_ids  = [module.eks.cluster_security_group_id]
+  kms_key_arn         = aws_kms_key.platform.arn
+  controller_replicas = var.karpenter.controller_replicas
+  capacity_types      = var.karpenter.capacity_types
+  cpu_limit           = var.karpenter.cpu_limit
 }
 
 module "rds" {
@@ -97,6 +133,7 @@ module "ecr" {
   prefix       = local.name
   repositories = ["api", "web", "worker", "demo-shop"]
   kms_key_arn  = aws_kms_key.platform.arn
+  force_delete = !var.deletion_protection
 }
 
 module "backups" {
@@ -120,7 +157,9 @@ module "ml_models" {
 module "secrets" {
   source  = "../secrets"
   name    = local.name
-  secrets = ["oidc-client-secret", "llm-api-key", "session-secret"]
+  secrets = ["app", "oidc-client-secret", "llm-api-key", "session-secret"]
+  # Temporary environments delete secrets at once, so a re-create can reuse the names.
+  recovery_window_in_days = var.deletion_protection ? 30 : 0
 }
 
 module "dns" {
@@ -135,6 +174,19 @@ module "observability" {
   alert_emails       = var.alert_emails
   log_retention_days = var.log_retention_days
   rds_instance_id    = local.name
+}
+
+module "addons" {
+  source              = "../addons"
+  name                = local.name
+  cluster_name        = module.eks.cluster_name
+  oidc_provider_arn   = module.eks.oidc_provider_arn
+  vpc_id              = module.network.vpc_id
+  domain              = var.domain
+  zone_id             = module.dns.zone_id
+  acme_email          = var.alert_emails[0]
+  secrets_kms_key_arn = module.secrets.kms_key_arn
+  replicas            = var.karpenter.controller_replicas
 }
 
 module "iam" {

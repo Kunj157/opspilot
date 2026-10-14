@@ -21,10 +21,11 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from opspilot_api.db.models import Incident, Service, ServiceDependency
+from opspilot_api.db.models import Incident, Runbook, RunbookStatus, Service, ServiceDependency
 from opspilot_api.kube import KubeReader, NamespaceNotAllowed
+from opspilot_api.runbooks.document import RunbookDocumentError, parse
 from opspilot_api.runbooks.embeddings import Embedder
-from opspilot_api.runbooks.retrieval import search, untrusted_context
+from opspilot_api.runbooks.retrieval import looks_like_injection, search, untrusted_context
 from opspilot_api.telemetry import (
     LogsProvider,
     MetricsProvider,
@@ -80,6 +81,8 @@ class ToolContext:
     sessions: async_sessionmaker[AsyncSession] | None = None
     embedder: Embedder | None = None
     incident_id: uuid.UUID | None = None
+    # Runbooks are filtered to this environment (plus "all"); None: no filter.
+    environment: str | None = None
 
 
 class ToolFailure(Exception):
@@ -101,6 +104,18 @@ class RunbookArgs(BaseModel):
 
     query: str = Field(min_length=3, max_length=300)
     service: str | None = Field(default=None, max_length=63, pattern=r"^[a-z0-9-]+$")
+
+
+class GetRunbookArgs(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    # A slug (as cited by search_runbooks) or a runbook ID.
+    runbook: str = Field(min_length=2, max_length=63, pattern=r"^[a-z0-9-]+$")
+    version: int | None = Field(default=None, ge=1)
+
+
+# The full text handed to a model is bounded; sections are cut, never dropped silently.
+RUNBOOK_MAX_CHARS = 6000
 
 
 async def _target(ctx: ToolContext, slug: str, *, needs_workload: bool = True) -> ServiceTarget:
@@ -522,6 +537,7 @@ async def search_runbooks(ctx: ToolContext, args: RunbookArgs) -> ToolResult:
             organization_id=uuid.UUID(str(ctx.organization_id)),
             query=args.query,
             service=args.service,
+            environment=ctx.environment,
             limit=4,
         )
     if not hits:
@@ -557,6 +573,73 @@ async def search_runbooks(ctx: ToolContext, args: RunbookArgs) -> ToolResult:
         data,
         EvidenceDraft(
             "runbook", "runbook library", summary, args.query, None, ctx.now, hits[0].score, data
+        ),
+    )
+
+
+async def get_runbook(ctx: ToolContext, args: GetRunbookArgs) -> ToolResult:
+    by_id: uuid.UUID | None = None
+    with contextlib.suppress(ValueError):
+        by_id = uuid.UUID(args.runbook)
+    async with _sessions(ctx)() as session:
+        runbook = await session.scalar(
+            select(Runbook).where(
+                Runbook.organization_id == ctx.organization_id,
+                Runbook.status == RunbookStatus.ACTIVE,
+                Runbook.id == by_id if by_id else Runbook.slug == args.runbook,
+            )
+        )
+    if runbook is None:
+        raise ToolFailure(f"no active runbook {args.runbook!r}")
+    if args.version is not None and args.version != runbook.version:
+        raise ToolFailure(
+            f"{runbook.slug} v{args.version} is not available; the current version is "
+            f"v{runbook.version}"
+        )
+    try:
+        sections = parse(runbook.content).sections
+    except RunbookDocumentError as exc:
+        raise ToolFailure(f"{runbook.slug} cannot be read: {exc}") from exc
+    budget = RUNBOOK_MAX_CHARS // max(len(sections), 1)
+    quoted = [
+        (runbook.slug, runbook.version, s.heading, s.body[:budget], looks_like_injection(s.body))
+        for s in sections
+    ]
+    flagged = [heading for _, _, heading, _, f in quoted if f]
+    summary = (
+        f"Runbook {runbook.title} v{runbook.version}: {len(sections)} sections ("
+        + ", ".join(s.heading for s in sections)
+        + ")"
+        + (f"; flagged sections: {', '.join(flagged)}" if flagged else "")
+    )
+    data = {
+        "runbook": {
+            "slug": runbook.slug,
+            "title": runbook.title,
+            "version": runbook.version,
+            "runbook_id": str(runbook.id),
+            "source_url": runbook.source_url,
+            "services": runbook.services,
+        },
+        "sections": [s.heading for s in sections],
+        # Untrusted text, quoted for the model; never instructions.
+        "content": untrusted_context(quoted),
+        "flagged": bool(flagged),
+    }
+    return ToolResult(
+        "get_runbook",
+        True,
+        summary,
+        data,
+        EvidenceDraft(
+            "runbook",
+            "runbook library",
+            summary,
+            f"runbook {runbook.slug} v{runbook.version}",
+            None,
+            ctx.now,
+            0.9,
+            data,
         ),
     )
 
@@ -647,6 +730,11 @@ TOOLS: dict[str, tuple[type[BaseModel], ToolFunction, str]] = {
         RunbookArgs,
         search_runbooks,
         "Runbook sections matching symptoms (untrusted text)",
+    ),
+    "get_runbook": (
+        GetRunbookArgs,
+        get_runbook,
+        "The full text of one runbook by slug, current version (untrusted text)",
     ),
     "search_similar_incidents": (
         ServiceArgs,

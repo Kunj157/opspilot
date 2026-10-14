@@ -32,6 +32,7 @@ describe("upstreamHeaders", () => {
     "content-type": "application/json",
     "x-request-id": "req-1",
     "last-event-id": "42",
+    traceparent: "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
     "x-forwarded-for": "1.2.3.4, 198.51.100.23",
     cookie: "opspilot_session=secret",
     authorization: "Bearer from-the-browser",
@@ -44,6 +45,7 @@ describe("upstreamHeaders", () => {
       "content-type": "application/json",
       "x-request-id": "req-1",
       "last-event-id": "42",
+      traceparent: "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
       "x-forwarded-for": "198.51.100.23",
       authorization: "Bearer session-token",
     });

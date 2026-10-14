@@ -1,7 +1,7 @@
 """Structured JSON logging.
 
 Every entry carries timestamp, level, service, environment, and message;
-request-scoped fields (request_id, later trace_id, user_id, organization_id)
+request-scoped fields (request_id, trace_id, span_id, user_id, organization_id)
 are bound through structlog context variables.
 """
 

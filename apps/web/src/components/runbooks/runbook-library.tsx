@@ -6,12 +6,12 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { type FormEvent, useState } from "react";
 
+import { RunbookForm } from "@/components/forms/lazy-forms";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import { Modal } from "@/components/ui/modal";
 import { useToast } from "@/components/ui/toast";
-
-import { RunbookForm } from "./runbook-form";
 
 export const RUNBOOKS_KEY = ["runbooks"] as const;
 
@@ -103,7 +103,7 @@ export function RunbookLibrary({ canManage }: { canManage: boolean }) {
           <label htmlFor="runbook-search" className="sr-only">
             Search runbooks
           </label>
-          <input
+          <Input
             id="runbook-search"
             type="search"
             value={draft}
@@ -112,7 +112,7 @@ export function RunbookLibrary({ canManage }: { canManage: boolean }) {
               if (!e.target.value) setQuery("");
             }}
             placeholder="Describe the incident, e.g. checkout errors after a release"
-            className="h-9 min-w-0 flex-1 rounded-sm border border-border bg-surface-1 px-3 text-sm placeholder:text-fg-muted focus:border-accent focus:outline-none"
+            className="min-w-0 flex-1"
           />
           <Button type="submit" variant="secondary" disabled={draft.trim().length < 2}>
             Search
@@ -125,7 +125,7 @@ export function RunbookLibrary({ canManage }: { canManage: boolean }) {
         <SearchResults query={query} />
       ) : (
         <>
-          {runbooks.isPending && <div aria-hidden className="h-40 animate-pulse rounded-card bg-surface-2" />}
+          {runbooks.isPending && <div aria-hidden className="h-40 skeleton rounded-card" />}
           {runbooks.isError && (
             <p role="alert" className="text-sm text-critical">
               Runbooks could not be loaded.
@@ -137,7 +137,7 @@ export function RunbookLibrary({ canManage }: { canManage: boolean }) {
             </p>
           )}
           {runbooks.isSuccess && runbooks.data.length > 0 && (
-            <ul aria-label="Runbooks" className="divide-y divide-border rounded-card border border-border bg-surface-2">
+            <ul aria-label="Runbooks" className="surface-raised divide-y divide-border rounded-card border border-border">
               {runbooks.data.map((rb) => (
                 <li key={rb.id} className="flex flex-col gap-1.5 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
                   <Link href={`/runbooks/${rb.id}`} className="font-medium hover:text-accent">

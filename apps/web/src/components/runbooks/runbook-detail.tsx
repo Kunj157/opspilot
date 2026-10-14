@@ -6,14 +6,15 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useState } from "react";
 
+import { RunbookForm } from "@/components/forms/lazy-forms";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Modal } from "@/components/ui/modal";
 import { useToast } from "@/components/ui/toast";
 import { MarkdownLite } from "@/lib/markdown-lite";
+import { safeHref } from "@/lib/safe-href";
 
 import { RUNBOOKS_KEY } from "./runbook-library";
-import { RunbookForm } from "./runbook-form";
 
 export function RunbookDetail({ canManage }: { canManage: boolean }) {
   const { runbookId } = useParams<{ runbookId: string }>();
@@ -34,7 +35,7 @@ export function RunbookDetail({ canManage }: { canManage: boolean }) {
     },
   });
 
-  if (runbook.isPending) return <div aria-hidden className="h-64 animate-pulse rounded-card bg-surface-2" />;
+  if (runbook.isPending) return <div aria-hidden className="h-64 skeleton rounded-card" />;
   if (runbook.isError)
     return (
       <p role="alert" className="text-sm text-critical">
@@ -52,6 +53,7 @@ export function RunbookDetail({ canManage }: { canManage: boolean }) {
     );
 
   const rb = runbook.data;
+  const source = safeHref(rb.source_url);
   async function archive() {
     const { data } = await createApiClient(window.location.origin).POST("/api/v1/runbooks/{runbook_id}/archive", {
       params: { path: { runbook_id: rb.id } },
@@ -67,7 +69,7 @@ export function RunbookDetail({ canManage }: { canManage: boolean }) {
     <article className="flex flex-col gap-8">
       <header className="flex flex-col gap-4">
         <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">{rb.title}</h1>
-        <dl className="grid grid-cols-2 gap-5 rounded-card border border-border bg-surface-2 p-5 shadow-2 lg:grid-cols-4">
+        <dl className="grid grid-cols-2 gap-5 surface-raised rounded-card border border-border p-5 lg:grid-cols-4">
           <div>
             <dt className="text-xs text-fg-muted">Version</dt>
             <dd className="mt-1 font-mono text-sm">v{rb.version}</dd>
@@ -92,8 +94,8 @@ export function RunbookDetail({ canManage }: { canManage: boolean }) {
               Archive
             </Button>
           )}
-          {rb.source_url && (
-            <a href={rb.source_url} target="_blank" rel="noreferrer" className="text-sm text-accent hover:underline">
+          {source && (
+            <a href={source} target="_blank" rel="noreferrer" className="text-sm text-accent hover:underline">
               Source ↗
             </a>
           )}

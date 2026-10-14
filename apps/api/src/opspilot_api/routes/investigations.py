@@ -5,6 +5,7 @@ from datetime import datetime
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, HTTPException, Response, status
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -31,6 +32,7 @@ from opspilot_api.db.models import (
     RemediationProposal,
 )
 from opspilot_api.db.session import get_session
+from opspilot_api.idempotency import IdempotencyDep
 
 router = APIRouter(prefix="/api/v1", tags=["investigations"])
 
@@ -196,8 +198,11 @@ async def start_investigation(
     response: Response,
     principal: Annotated[Principal, Depends(require(Permission.START_INVESTIGATION))],
     session: Annotated[AsyncSession, Depends(get_session)],
-) -> InvestigationOut:
+    idempotency: IdempotencyDep,
+) -> InvestigationOut | JSONResponse:
     """Queue an agent investigation; returns the running one if there already is one."""
+    if replay := await idempotency.replay(None):
+        return replay
     incident = await _incident(session, incident_id, principal)
     investigation, created = await enqueue(session, incident, f"user:{principal.user_id}")
     if created:
@@ -212,9 +217,11 @@ async def start_investigation(
         )
     else:
         response.status_code = status.HTTP_200_OK
-    await session.commit()
+    await session.flush()
     await session.refresh(investigation)
-    return InvestigationOut.model_validate(investigation)
+    out = InvestigationOut.model_validate(investigation)
+    await idempotency.commit(response.status_code or status.HTTP_202_ACCEPTED, out)
+    return out
 
 
 @router.get("/incidents/{incident_id}/investigation", response_model=InvestigationOut)
@@ -327,8 +334,11 @@ async def request_postmortem(
     incident_id: uuid.UUID,
     principal: Annotated[Principal, Depends(require(Permission.MANAGE_INCIDENTS))],
     session: Annotated[AsyncSession, Depends(get_session)],
-) -> PostmortemOut:
+    idempotency: IdempotencyDep,
+) -> PostmortemOut | JSONResponse:
     """Ask the worker to (re)draft the postmortem of a resolved incident."""
+    if replay := await idempotency.replay(None):
+        return replay
     incident = await _incident(session, incident_id, principal)
     if incident.status is not IncidentStatus.RESOLVED:
         raise HTTPException(status.HTTP_409_CONFLICT, "Only resolved incidents get a postmortem")
@@ -347,6 +357,8 @@ async def request_postmortem(
         resource_type="incident",
         resource_id=str(incident.id),
     )
-    await session.commit()
+    await session.flush()
     await session.refresh(postmortem)
-    return PostmortemOut.model_validate(postmortem)
+    out = PostmortemOut.model_validate(postmortem)
+    await idempotency.commit(status.HTTP_202_ACCEPTED, out)
+    return out

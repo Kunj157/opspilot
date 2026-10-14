@@ -23,8 +23,15 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from opspilot_api.agents import prompts
+from opspilot_api.agents.grounding import ground_summary
 from opspilot_api.agents.llm import LLM, LLMError, Usage, as_json
-from opspilot_api.agents.policy import PROPOSAL_TTL, VERIFICATION_PLAN, Approved, Rejected, evaluate
+from opspilot_api.agents.policy import (
+    PROPOSAL_TTL,
+    Approved,
+    Rejected,
+    evaluate,
+    verification_plan,
+)
 from opspilot_api.agents.schemas import (
     PlannedCall,
     ProposalDraft,
@@ -63,7 +70,7 @@ AGENT_TOOLS: dict[str, set[str]] = {
         "get_kubernetes_rollout_status",
         "get_recent_configuration_changes",
     },
-    "runbook": {"search_runbooks", "search_similar_incidents"},
+    "runbook": {"search_runbooks", "get_runbook", "search_similar_incidents"},
 }
 ORDER = ["triage", "observability", "deployment", "runbook", "synthesis", "remediation"]
 
@@ -93,6 +100,7 @@ class State(TypedDict, total=False):
     runbooks: list[dict[str, Any]]
     deployments: dict[str, dict[str, Any]]
     runbook_excerpts: str
+    runbook_document: str
     proposal_id: str | None
     outcome: str
     notes: list[str]
@@ -140,7 +148,9 @@ class Investigator:
         async def run(state: State) -> State:
             self._check_limits()
             handler = getattr(self, f"_{name}")
+            collected = len(state.get("evidence", []))
             updated: State = await handler(state)
+            await self._evidence_collected(updated["evidence"][collected:], name)
             await self._persist(updated, name)
             return updated
 
@@ -267,7 +277,14 @@ class Investigator:
                 reason="matching procedure",
             )
         ]
-        await self._plan_and_execute(state, "runbook", "runbook retrieval", default)
+        run_id = await self._plan_and_execute(state, "runbook", "runbook retrieval", default)
+        if state["runbooks"] and not state.get("runbook_document"):
+            # Read the best match in full: excerpts alone can miss the verification
+            # and rollback steps the proposal should follow.
+            top = PlannedCall(
+                tool="get_runbook", runbook=state["runbooks"][0]["slug"], reason="full procedure"
+            )
+            await self._execute(state, "runbook", run_id, [top])
         state["next"] = "synthesis"
         return state
 
@@ -301,7 +318,12 @@ class Investigator:
             h.model_dump() for h in sorted(grounded, key=lambda h: -h.confidence)
         ]
         state["unknowns"] = synthesis.unknowns
-        state["summary"] = synthesis.summary
+        grounded_summary = ground_summary(synthesis.summary, known)
+        state["summary"] = grounded_summary.summary
+        if grounded_summary.dropped:
+            state["notes"].append(
+                f"Dropped {grounded_summary.dropped} summary claim(s) citing unknown evidence"
+            )
         enough = synthesis.enough_evidence and bool(grounded)
         state["enough_evidence"] = enough
         if grounded:
@@ -370,7 +392,7 @@ class Investigator:
 
     async def _plan_and_execute(
         self, state: State, role: str, label: str, default: list[PlannedCall]
-    ) -> None:
+    ) -> uuid.UUID:
         prompt = (
             f"Incident: {state['title']}\nSuspected service: {state.get('service')}\n"
             f"Allowed tools: {self._tool_list(role)}\n"
@@ -384,6 +406,7 @@ class Investigator:
         if len(state["evidence"]) == before:
             # The plan was empty or produced nothing usable: fall back to the fixed plan.
             await self._execute(state, role, run_id, default)
+        return run_id
 
     @staticmethod
     def _complete(call: PlannedCall, default: list[PlannedCall]) -> PlannedCall:
@@ -523,8 +546,15 @@ class Investigator:
                 if tool == "search_runbooks":
                     state["runbooks"] = result.data.get("runbooks", [])
                     state["runbook_excerpts"] = result.data.get("excerpts", "")
-                if tool == "get_recent_deployments":
-                    state["deployments"][arguments.get("service", "")] = result.data
+                if tool == "get_runbook":
+                    state["runbook_document"] = result.data.get("content", "")
+                # What the policy needs about a service's rollouts, merged across both tools.
+                if tool in {"get_recent_deployments", "get_kubernetes_rollout_status"}:
+                    known = state["deployments"].setdefault(arguments.get("service", ""), {})
+                    if tool == "get_recent_deployments":
+                        known.update(result.data)
+                    else:
+                        known["rollout"] = result.data
             await session.commit()
 
     async def _store_proposal(
@@ -548,7 +578,7 @@ class Investigator:
                 description=draft.reason[:2000],
                 parameters=decision.parameters,
                 risk_level=decision.risk_level,
-                verification_plan=VERIFICATION_PLAN,
+                verification_plan=verification_plan(decision.action),
                 evidence_ids=decision.evidence_ids,
                 created_by_agent_run_id=run_id,
                 expires_at=datetime.now(UTC) + PROPOSAL_TTL,
@@ -580,6 +610,28 @@ class Investigator:
                 )
             await session.commit()
             return str(proposal.id)
+
+    async def _evidence_collected(self, items: list[dict[str, Any]], agent: str) -> None:
+        """One timeline event per node that found evidence (incident.evidence.collected.v1)."""
+        if not items:
+            return
+        async with self.sessions() as session:
+            incident = await session.get_one(Incident, self.context.incident_id)
+            await incidents.note(
+                session,
+                incident,
+                self._actor(incident.organization_id, agent),
+                event_type="incident.evidence_collected",
+                title=f"{agent.capitalize()} agent collected {len(items)} evidence item(s)",
+                metadata={
+                    "investigation_id": str(self.investigation_id),
+                    "agent": agent,
+                    "evidence_count": len(items),
+                    "evidence_ids": [e["id"] for e in items],
+                    "evidence_types": sorted({e["type"] for e in items}),
+                },
+            )
+            await session.commit()
 
     async def _note(self, state: State, agent: str, title: str) -> None:
         async with self.sessions() as session:
@@ -674,7 +726,8 @@ class Investigator:
 
     @staticmethod
     def _runbook_text(state: State) -> str:
-        return (state.get("runbook_excerpts") or "none")[:4000]
+        """The full top runbook when it was read, otherwise the matched excerpts."""
+        return (state.get("runbook_document") or state.get("runbook_excerpts") or "none")[:6000]
 
     @staticmethod
     def _actor(organization_id: uuid.UUID, agent: str) -> incidents.Actor:

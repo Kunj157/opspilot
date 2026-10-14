@@ -2,6 +2,8 @@
 
 import json
 import logging
+import os
+from collections.abc import Iterator
 from datetime import UTC, datetime
 
 from opentelemetry import trace
@@ -9,9 +11,16 @@ from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExport
 from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor, SimpleSpanProcessor, SpanExporter
-from prometheus_client import CollectorRegistry, Counter, Histogram
+from prometheus_client import CollectorRegistry, Counter, Histogram, ProcessCollector
+from prometheus_client.metrics_core import Metric
+from prometheus_client.registry import Collector
 
 from opspilot_demo.settings import Settings
+
+# Current HTTP semantic conventions on spans (http.request.method,
+# http.response.status_code, url.path) instead of the deprecated names. Read by
+# the instrumentation when it first instruments, so set before any app is built.
+os.environ.setdefault("OTEL_SEMCONV_STABILITY_OPT_IN", "http")
 
 
 class TraceContextFilter(logging.Filter):
@@ -47,11 +56,29 @@ def tracer_provider(settings: Settings, exporter: SpanExporter | None = None) ->
     return provider
 
 
-class Metrics:
-    """The plan's required HTTP metrics, in a registry owned by one app."""
+class ServiceProcessCollector(Collector):
+    """Process CPU, memory, and open files, labelled with the service like the HTTP metrics."""
 
-    def __init__(self) -> None:
+    def __init__(self, service: str) -> None:
+        self.service = service
+        self.process = ProcessCollector(registry=None)
+
+    def collect(self) -> Iterator[Metric]:
+        for family in self.process.collect():
+            labelled = Metric(family.name, family.documentation, family.type, family.unit)
+            for sample in family.samples:
+                labelled.add_sample(
+                    sample.name, {**sample.labels, "service": self.service}, sample.value
+                )
+            yield labelled
+
+
+class Metrics:
+    """The plan's required HTTP metrics plus process resources, in a registry owned by one app."""
+
+    def __init__(self, service: str) -> None:
         self.registry = CollectorRegistry()
+        self.registry.register(ServiceProcessCollector(service))
         labels = ["service", "method", "route", "status"]
         self.requests = Counter(
             "http_requests", "HTTP requests served", labels, registry=self.registry

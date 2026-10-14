@@ -106,7 +106,7 @@ export function SystemStatus() {
   return (
     <section
       aria-labelledby="system-status-heading"
-      className="relative overflow-hidden rounded-card border border-border bg-surface-2 shadow-3"
+      className="relative overflow-hidden surface-raised rounded-card border border-border"
     >
       <div aria-hidden className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/15 to-transparent" />
       <header className="flex items-start justify-between gap-4 border-b border-border px-6 py-5">
