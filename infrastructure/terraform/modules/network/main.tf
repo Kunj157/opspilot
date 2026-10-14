@@ -53,6 +53,7 @@ resource "aws_subnet" "database" {
 }
 
 resource "aws_eip" "nat" {
+  #checkov:skip=CKV2_AWS_19: each address is attached to its NAT gateway (aws_nat_gateway.this[count.index]), not to an instance
   count  = var.single_nat_gateway ? 1 : length(var.azs)
   domain = "vpc"
   tags   = { Name = "${var.name}-nat-${count.index}" }
