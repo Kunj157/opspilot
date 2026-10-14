@@ -19,6 +19,7 @@ from opspilot_api.db.models import (
     AgentToolCall,
     Approval,
     Evidence,
+    ExecutionStatus,
     Incident,
     IncidentStatus,
     Investigation,
@@ -26,6 +27,7 @@ from opspilot_api.db.models import (
     Postmortem,
     ProposalStatus,
     RemediationAction,
+    RemediationExecution,
     RemediationProposal,
 )
 from opspilot_api.db.session import get_session
@@ -111,6 +113,18 @@ class DecisionOut(BaseModel):
     reviewed_at: datetime
 
 
+class ExecutionOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    status: ExecutionStatus
+    attempts: int
+    started_at: datetime
+    completed_at: datetime | None
+    output: dict[str, Any]
+    error_message: str | None
+
+
 class ProposalOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -127,16 +141,24 @@ class ProposalOut(BaseModel):
     expires_at: datetime | None
     created_at: datetime
     decision: DecisionOut | None = None
+    execution: ExecutionOut | None = None
 
 
 async def proposals_out(
     session: AsyncSession, proposals: list[RemediationProposal]
 ) -> list[ProposalOut]:
-    """Proposals with the decision taken on each, if any."""
+    """Proposals with the decision taken on each and its execution, if any."""
+    ids = [p.id for p in proposals]
     approvals = {
         a.proposal_id: a
-        for a in await session.scalars(
-            select(Approval).where(Approval.proposal_id.in_([p.id for p in proposals]))
+        for a in await session.scalars(select(Approval).where(Approval.proposal_id.in_(ids)))
+    }
+    executions = {
+        e.proposal_id: e
+        for e in await session.scalars(
+            select(RemediationExecution)
+            .where(RemediationExecution.proposal_id.in_(ids))
+            .order_by(RemediationExecution.created_at)
         )
     }
     out = []
@@ -144,6 +166,8 @@ async def proposals_out(
         item = ProposalOut.model_validate(proposal)
         if approval := approvals.get(proposal.id):
             item.decision = DecisionOut.model_validate(approval)
+        if execution := executions.get(proposal.id):
+            item.execution = ExecutionOut.model_validate(execution)
         out.append(item)
     return out
 

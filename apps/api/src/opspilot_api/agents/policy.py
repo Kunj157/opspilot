@@ -16,7 +16,6 @@ RISK = {
     RemediationAction.ROLLBACK_DEPLOYMENT: "medium",
     RemediationAction.RESTART_DEPLOYMENT: "medium",
     RemediationAction.SCALE_DEPLOYMENT: "medium",
-    RemediationAction.PAUSE_ROLLOUT: "low",
 }
 MAX_REPLICAS = 6
 # A rollback must undo a release that introduced the errors: low before it, high after.

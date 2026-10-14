@@ -2862,6 +2862,75 @@
         ],
         "title": "EvidenceOut"
       },
+      "ExecutionOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "status": {
+            "$ref": "#/components/schemas/ExecutionStatus"
+          },
+          "attempts": {
+            "type": "integer",
+            "title": "Attempts"
+          },
+          "started_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Started At"
+          },
+          "completed_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Completed At"
+          },
+          "output": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Output"
+          },
+          "error_message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Message"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "status",
+          "attempts",
+          "started_at",
+          "completed_at",
+          "output",
+          "error_message"
+        ],
+        "title": "ExecutionOut"
+      },
+      "ExecutionStatus": {
+        "type": "string",
+        "enum": [
+          "running",
+          "succeeded",
+          "failed"
+        ],
+        "title": "ExecutionStatus"
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -3677,6 +3746,16 @@
             "anyOf": [
               {
                 "$ref": "#/components/schemas/DecisionOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "execution": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ExecutionOut"
               },
               {
                 "type": "null"
