@@ -3,6 +3,7 @@ import { Suspense } from "react";
 
 import { AppMobileNav, AppNav, AppNavSkeleton } from "@/components/app-nav";
 import { Breadcrumbs } from "@/components/shell/breadcrumbs";
+import { CommandPaletteProvider, CommandPaletteTrigger } from "@/components/shell/command-palette-context";
 import { UserMenu, UserMenuSkeleton } from "@/components/user-menu";
 
 function Logo() {
@@ -19,6 +20,7 @@ function Logo() {
 
 export default function AppLayout({ children }: LayoutProps<"/">) {
   return (
+    <CommandPaletteProvider>
     <div className="flex min-h-full flex-1">
       <aside className="sticky top-0 hidden h-dvh w-60 shrink-0 flex-col gap-8 border-r border-border bg-surface-1/70 bg-(image:--surface-sheen) p-4 backdrop-blur md:flex">
         <div className="px-2 pt-1">
@@ -47,6 +49,7 @@ export default function AppLayout({ children }: LayoutProps<"/">) {
             </span>
           </div>
           <div className="flex items-center gap-2">
+            <CommandPaletteTrigger />
             <span className="md:hidden">
               <Suspense fallback={<div className="size-9" />}>
                 <AppMobileNav />
@@ -57,5 +60,6 @@ export default function AppLayout({ children }: LayoutProps<"/">) {
         {children}
       </div>
     </div>
+    </CommandPaletteProvider>
   );
 }
