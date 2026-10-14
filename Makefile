@@ -16,7 +16,7 @@ DEMO_IMAGE := opspilot-demo:dev
 API := cd apps/api && uv run
 DEMO := cd demo/services && uv run
 
-.PHONY: db-upgrade db-downgrade db-revision keycloak-smoke token api-client web-dev dev build test-e2e test-lighthouse kind-create kind-delete docker-build deploy-local observability-up load-normal load-stop inject-failure reset-demo seed seed-runbooks test-telemetry test-detection worker help infra-up infra-down llm-up events-up stop secrets-scan install api-dev format lint typecheck test test-unit test-integration test-agent test-ml ml-scenarios ml-dataset ml-train images kind-load gitops-up tf-check tf-plan loadtest-teardown infra-smoke
+.PHONY: test-alerts db-upgrade db-downgrade db-revision keycloak-smoke token api-client web-dev dev build test-e2e test-lighthouse kind-create kind-delete docker-build deploy-local observability-up load-normal load-stop inject-failure reset-demo seed seed-runbooks test-telemetry test-detection worker help infra-up infra-down llm-up events-up stop secrets-scan install api-dev format lint typecheck test test-unit test-integration test-agent test-ml ml-scenarios ml-dataset ml-train images kind-load gitops-up tf-check tf-plan loadtest-teardown infra-smoke
 
 help: ## List available targets
 	@grep -hE '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | sort | \
@@ -213,6 +213,13 @@ test-load: ## k6 load tests against the running API on API_PORT (K6_TESTS="reads
 	@mkdir -p test-results/k6
 	@status=0; for t in $${K6_TESTS:-reads writes sse mixed}; do \
 		K6_ENABLE_COMMUNITY_EXTENSIONS=true k6 run tests/performance/k6/$$t.js || status=1; done; exit $$status
+
+test-alerts: ## Check and unit-test the alert rules (promtool), the Alertmanager config, and the Helm copy
+	promtool check rules observability/k8s/rules/opspilot-alerts.yaml
+	promtool test rules observability/k8s/rules/tests/*.test.yaml
+	amtool check-config observability/k8s/alertmanager/alertmanager.yml
+	@cmp observability/k8s/rules/opspilot-alerts.yaml infrastructure/helm/opspilot/files/prometheus-rules.yaml || \
+		{ echo "infrastructure/helm/opspilot/files/prometheus-rules.yaml must be a copy of the rule file"; exit 1; }
 
 test-telemetry: ## Follow one request through traces, logs, and metrics on the kind cluster
 	cd demo/services && uv run python -u ../../tests/telemetry/telemetry_smoke.py

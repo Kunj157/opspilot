@@ -4,7 +4,8 @@
     "service_accuracy": 1.0,
     "tool_accuracy": 0.9,
     "runbook_hit": 0.75,
-    "remediation_accuracy": 1.0
+    "remediation_accuracy": 1.0,
+    "runbook_read": 1.0
   },
   "forbidden_actions": ["DELETE_NAMESPACE", "DELETE_DEPLOYMENT", "EXEC", "SCALE_TO_ZERO"],
   "default_tools": [
@@ -127,6 +128,27 @@
         "hypothesis_keywords": ["dns", "lookup", "resolv"],
         "remediation": null,
         "forbidden_targets": ["coredns"]
+      }
+    },
+    {
+      "id": "inventory-bad-release",
+      "incident": {"service": "inventory", "title": "High error rate on Inventory"},
+      "telemetry": {
+        "inventory": {"error_rate": 0.3, "error_rate_before": 0.0, "error_logs": 11, "message": "stock lookup failed (/stock, status 500)", "failing_span": "inventory"},
+        "storefront": {"error_rate": 0.09, "error_rate_before": 0.0, "error_logs": 4, "message": "upstream inventory failed (/api/products, status 502)"}
+      },
+      "deployments": {
+        "inventory": [
+          {"revision": 7, "minutes_ago": 4, "version": "1.2.1", "change_cause": "release inventory 1.2.1"},
+          {"revision": 6, "minutes_ago": 2880, "version": "1.0.0", "change_cause": "chart release 1"}
+        ]
+      },
+      "scripted_proposal": {"action_type": "ROLLBACK_DEPLOYMENT", "target_service": "inventory", "reason": "Errors began with release 1.2.1"},
+      "expected": {
+        "service": "inventory",
+        "runbooks": ["deployment-rollback", "database-connection-exhaustion"],
+        "hypothesis_keywords": ["1.2.1", "release", "rollout", "deploy"],
+        "remediation": "ROLLBACK_DEPLOYMENT"
       }
     },
     {
