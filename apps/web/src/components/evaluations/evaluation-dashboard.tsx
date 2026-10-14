@@ -33,7 +33,17 @@ export function costPerInvestigation(data: Evaluations): number | null {
   return data.investigations.total ? data.agents.cost_usd / data.investigations.total : null;
 }
 
-function Metric({ label, value, format, hint }: { label: string; value: number | null; format?: (n: number) => string; hint?: string }) {
+function Metric({
+  label,
+  value,
+  format,
+  hint,
+}: {
+  label: string;
+  value: number | null;
+  format?: (n: number) => string;
+  hint?: string;
+}) {
   return (
     <div role="group" aria-label={label} className="min-w-0">
       <p className="text-xs text-fg-secondary">{label}</p>
@@ -71,7 +81,11 @@ function Outcomes({ data }: { data: Evaluations["investigations"] }) {
       <div aria-hidden className="flex h-2.5 overflow-hidden rounded-full bg-surface-3">
         {OUTCOMES.map((o) =>
           data[o.key] > 0 ? (
-            <span key={o.key} className={`${o.bar} bar-grow-x`} style={{ width: `${(data[o.key] / Math.max(1, data.total)) * 100}%` }} />
+            <span
+              key={o.key}
+              className={`${o.bar} bar-grow-x`}
+              style={{ width: `${(data[o.key] / Math.max(1, data.total)) * 100}%` }}
+            />
           ) : null,
         )}
       </div>
@@ -108,7 +122,9 @@ function RangePicker({ days, onChange }: { days: RangeDays; onChange: (days: Ran
               days === option ? "text-accent" : "text-fg-secondary hover:text-fg"
             }`}
           >
-            {days === option && <ActiveHighlight layoutId="evaluation-range" className="rounded-[6px] bg-accent-subtle" />}
+            {days === option && (
+              <ActiveHighlight layoutId="evaluation-range" className="rounded-[6px] bg-accent-subtle" />
+            )}
             {option}d
           </button>
         ))}
@@ -141,7 +157,10 @@ export function EvaluationDashboard() {
   const header = (
     <div className="flex flex-wrap items-center justify-between gap-3">
       <p className="text-sm text-fg-secondary">Last {days} days</p>
-      <RangePicker days={days} onChange={(next) => router.replace(`${pathname}${next === 30 ? "" : `?days=${next}`}`, { scroll: false })} />
+      <RangePicker
+        days={days}
+        onChange={(next) => router.replace(`${pathname}${next === 30 ? "" : `?days=${next}`}`, { scroll: false })}
+      />
     </div>
   );
 
@@ -166,27 +185,67 @@ export function EvaluationDashboard() {
 
   const data = evaluations.data;
   const toolAccuracy = data.agents.tool_error_rate === null ? null : 1 - data.agents.tool_error_rate;
-  const investigationSuccess = data.investigations.total ? data.investigations.succeeded / data.investigations.total : null;
+  const investigationSuccess = data.investigations.total
+    ? data.investigations.succeeded / data.investigations.total
+    : null;
   return (
     <div className="flex flex-col gap-6">
       {header}
       <div className="grid gap-4 lg:grid-cols-2">
         <Panel title="Agents" description="Model calls and the tools they used during investigations.">
-          <Metric label="Agent success rate" value={data.agents.success_rate} format={percent} hint={`${data.agents.runs} runs`} />
-          <Metric label="Tool-call accuracy" value={toolAccuracy} format={percent} hint={`${data.agents.tool_calls} tool calls`} />
+          <Metric
+            label="Agent success rate"
+            value={data.agents.success_rate}
+            format={percent}
+            hint={`${data.agents.runs} runs`}
+          />
+          <Metric
+            label="Tool-call accuracy"
+            value={toolAccuracy}
+            format={percent}
+            hint={`${data.agents.tool_calls} tool calls`}
+          />
         </Panel>
         <Panel title="Investigations" description="How agent investigations ended.">
-          <Metric label="Investigation success rate" value={investigationSuccess} format={percent} hint={`${data.investigations.total} investigations`} />
-          <Metric label="Cost per investigation" value={costPerInvestigation(data)} format={usd} hint="Estimated from token usage" />
+          <Metric
+            label="Investigation success rate"
+            value={investigationSuccess}
+            format={percent}
+            hint={`${data.investigations.total} investigations`}
+          />
+          <Metric
+            label="Cost per investigation"
+            value={costPerInvestigation(data)}
+            format={usd}
+            hint="Estimated from token usage"
+          />
           <Outcomes data={data.investigations} />
         </Panel>
         <Panel title="Detection" description="From the first anomalous window to the incident opening.">
           <Metric label="Detector incidents" value={data.detection.incidents} />
-          <Metric label="Detection delay p50" value={data.detection.delay_p50_seconds} format={formatSeconds} hint={`p95 ${formatSeconds(data.detection.delay_p95_seconds)}`} />
+          <Metric
+            label="Detection delay p50"
+            value={data.detection.delay_p50_seconds}
+            format={formatSeconds}
+            hint={`p95 ${formatSeconds(data.detection.delay_p95_seconds)}`}
+          />
         </Panel>
-        <Panel title="Remediation and response" description="Human decisions on proposals, and time to acknowledge and resolve.">
-          <Metric label="Approval rate" value={data.remediation.approval_rate} format={percent} hint={`${data.remediation.decisions} decisions`} />
-          <Metric label="Mean time to resolve" value={data.response.mttr_seconds} format={formatSeconds} hint={`MTTA ${formatSeconds(data.response.mtta_seconds)}`} />
+        <Panel
+          title="Remediation and response"
+          description="Human decisions on proposals, and time to acknowledge and resolve."
+        >
+          <Metric
+            label="Approval rate"
+            value={data.remediation.approval_rate}
+            format={percent}
+            hint={`${data.remediation.decisions} decisions`}
+          />
+          <Metric
+            label="Mean time to resolve"
+            value={data.response.mttr_seconds}
+            format={formatSeconds}
+            hint={`MTTA ${formatSeconds(data.response.mtta_seconds)}`}
+          />
         </Panel>
       </div>
       <Card as="section" aria-label="Token usage" className="grid gap-5 p-5 sm:grid-cols-3">
