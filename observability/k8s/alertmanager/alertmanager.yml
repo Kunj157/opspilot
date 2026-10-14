@@ -1,0 +1,37 @@
+# Default routing for the OpsPilot alerts (docs/operations/alerts.md).
+# Receivers have no integrations here: add webhook_configs, slack_configs,
+# or pagerduty_configs per environment (credentials from a Secret, never
+# committed). Validate with `amtool check-config` (part of make test-alerts).
+route:
+  receiver: default
+  group_by: [alertname, severity]
+  group_wait: 30s
+  group_interval: 5m
+  repeat_interval: 4h
+  routes:
+    - matchers: ['severity="page"']
+      receiver: pager
+      repeat_interval: 1h
+    - matchers: ['severity="ticket"']
+      receiver: tickets
+      group_wait: 5m
+      repeat_interval: 24h
+
+inhibit_rules:
+  # A paging burn-rate alert covers its slow-burn ticket for the same SLO.
+  # (Matching on slo=~".+" so alerts without an slo label never inhibit.)
+  - source_matchers: ['severity="page"', 'slo=~".+"']
+    target_matchers: ['severity="ticket"', 'slo=~".+"']
+    equal: [slo]
+  # An imminent certificate expiry covers the two-week warning.
+  - source_matchers: ['alertname="OpsPilotCertificateExpiryImminent"']
+    target_matchers: ['alertname="OpsPilotCertificateExpiringSoon"']
+    equal: [namespace, name, instance]
+  # A stopped detection worker explains missing detection telemetry.
+  - source_matchers: ['alertname="OpsPilotDetectionWorkerStopped"']
+    target_matchers: ['alertname="OpsPilotDetectionTelemetryUnavailable"']
+
+receivers:
+  - name: default
+  - name: pager
+  - name: tickets
