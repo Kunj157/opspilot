@@ -4,7 +4,7 @@ import { createApiClient } from "@opspilot/api-client";
 import { useQuery } from "@tanstack/react-query";
 import dynamic from "next/dynamic";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 
 import { HealthBadge } from "@/components/services/health-badge";
@@ -122,9 +122,8 @@ function ViewToggle({ view, onChange }: { view: View; onChange: (view: View) => 
   );
 }
 
-/** `/?focus=<service id>` (e.g. from the command palette) selects a service and brings the map into view. */
-function focusFromUrl(): string | null {
-  const id = new URLSearchParams(window.location.search).get("focus");
+/** `?focus=<service id>` (e.g. from the command palette) selects a service and brings the map into view. */
+function validFocus(id: string | null): string | null {
   return id && /^[0-9a-f-]{1,36}$/i.test(id) ? id : null;
 }
 
@@ -140,12 +139,15 @@ export function TopologyPanel() {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- WebGL can only be probed in the browser
     setWebgl(available ? "available" : "failed");
     if (available) setView("3d");
-    const focus = focusFromUrl();
-    if (focus) {
-      setSelected(focus);
-      document.getElementById("topology")?.scrollIntoView({ block: "start" });
-    }
   }, []);
+  // Also on client navigations to this page (the palette from the command center itself).
+  const focus = validFocus(useSearchParams().get("focus"));
+  useEffect(() => {
+    if (!focus) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- follows the URL
+    setSelected(focus);
+    document.getElementById("topology")?.scrollIntoView({ block: "start" });
+  }, [focus]);
   const fail = () => {
     setWebgl("failed");
     setView("2d");
