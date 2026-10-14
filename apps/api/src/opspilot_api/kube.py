@@ -9,6 +9,7 @@ bounds, and pause a rollout. There is no generic API access.
 """
 
 import asyncio
+import re
 from dataclasses import dataclass, field, replace
 from datetime import datetime
 from typing import Any, Protocol
@@ -31,6 +32,8 @@ class Revision:
     env: dict[str, str] = field(default_factory=dict)
     # ConfigMaps and Secrets the pod template uses, e.g. "configmap/shop", "secret/db".
     config_refs: tuple[str, ...] = ()
+    # Source commit from pod template annotations: sha, author, message, pull_request, source.
+    commit: dict[str, str] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -113,6 +116,29 @@ def template_config(template: Any) -> tuple[dict[str, str], tuple[str, ...]]:
     return redact(env), tuple(sorted(refs))
 
 
+# Pod template annotation → commit field; the first one present wins.
+COMMIT_ANNOTATIONS = {
+    "sha": ("opspilot.io/commit-sha", "org.opencontainers.image.revision"),
+    "author": ("opspilot.io/commit-author",),
+    "message": ("opspilot.io/commit-message",),
+    "pull_request": ("opspilot.io/pull-request",),
+    "source": ("opspilot.io/source", "org.opencontainers.image.source"),
+}
+MAX_COMMIT_MESSAGE = 200
+
+
+def template_commit(annotations: dict[str, str] | None) -> dict[str, str]:
+    """The commit a revision was built from; e-mail addresses are dropped."""
+    commit: dict[str, str] = {}
+    for key, names in COMMIT_ANNOTATIONS.items():
+        value = next((v for n in names if (v := (annotations or {}).get(n, "").strip())), "")
+        if key == "author":
+            value = re.sub(r"\s*<[^>]*>|\S+@\S+", "", value).strip()
+        if value:
+            commit[key] = value[:MAX_COMMIT_MESSAGE] if key == "message" else value[:300]
+    return commit
+
+
 class KubernetesReader:
     """The official client, run in a thread; config is loaded on first use."""
 
@@ -162,6 +188,9 @@ class KubernetesReader:
                     image=container.image,
                     env=env,
                     config_refs=refs,
+                    commit=template_commit(
+                        rs.spec.template.metadata.annotations if rs.spec.template.metadata else None
+                    ),
                 )
             )
         revisions.sort(key=lambda r: r.revision, reverse=True)

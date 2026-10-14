@@ -7,7 +7,12 @@ import pytest
 from kubernetes import client
 from kubernetes.client.exceptions import ApiException
 
-from opspilot_api.kube import KubernetesReader, NamespaceNotAllowed, template_config
+from opspilot_api.kube import (
+    KubernetesReader,
+    NamespaceNotAllowed,
+    template_commit,
+    template_config,
+)
 
 T1 = datetime(2026, 10, 14, 10, 0, tzinfo=UTC)
 T2 = datetime(2026, 10, 14, 11, 30, tzinfo=UTC)
@@ -118,3 +123,28 @@ async def test_config_maps_outside_allowed_namespaces_are_refused_without_api_ca
         await r.config_maps("kube-system", ["coredns"])
 
     core.read_namespaced_config_map.assert_not_called()
+
+
+def test_template_commit_reads_annotations_and_drops_email_addresses() -> None:
+    commit = template_commit(
+        {
+            "opspilot.io/commit-sha": "abc123",
+            "opspilot.io/commit-author": "Dana Developer <dana@example.com>",
+            "opspilot.io/commit-message": "x" * 300,
+            "opspilot.io/pull-request": "",
+            "org.opencontainers.image.source": "https://example.com/shop",
+        }
+    )
+
+    assert commit == {
+        "sha": "abc123",
+        "author": "Dana Developer",
+        "message": "x" * 200,
+        "source": "https://example.com/shop",
+    }
+
+
+def test_template_commit_falls_back_to_oci_annotations_and_ignores_empty_values() -> None:
+    assert template_commit({"org.opencontainers.image.revision": "def456"}) == {"sha": "def456"}
+    assert template_commit({"opspilot.io/commit-sha": "  "}) == {}
+    assert template_commit(None) == {}

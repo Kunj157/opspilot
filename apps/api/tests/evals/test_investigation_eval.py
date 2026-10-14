@@ -137,6 +137,7 @@ class Kube:
                 d["version"],
                 f"opspilot/demo-shop:{d['version']}",
                 env=d.get("env", {}),
+                commit=d.get("commit", {}),
             )
             for d in self.world.deployments.get(deployment, [])
         ]

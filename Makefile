@@ -15,6 +15,10 @@ HELM := helm --kube-context kind-opspilot
 DEMO_IMAGE := opspilot-demo:dev
 API := cd apps/api && uv run
 DEMO := cd demo/services && uv run
+# The demo shop's commit metadata (read by the deployment agent): this repository's HEAD.
+DEMO_RELEASE = --set-string release.commit="$$(git rev-parse HEAD)" \
+	--set-literal release.author="$$(git log -1 --format=%an)" \
+	--set-literal release.message="$$(git log -1 --format=%s)"
 
 .PHONY: test-alerts db-upgrade db-downgrade db-revision keycloak-smoke token api-client web-dev dev build test-e2e test-lighthouse kind-create kind-delete docker-build deploy-local observability-up load-normal load-stop inject-failure reset-demo seed seed-runbooks test-telemetry test-detection worker help infra-up infra-down llm-up events-up stop secrets-scan install api-dev format lint typecheck test test-unit test-integration test-agent test-ml ml-scenarios ml-dataset ml-train images kind-load gitops-up tf-check tf-plan loadtest-teardown infra-smoke
 
@@ -178,7 +182,8 @@ observability-up: kind-create ## Deploy the collector, Prometheus, Loki, Tempo, 
 	$(KUBECTL) -n observability rollout status deploy,daemonset --timeout=5m
 
 deploy-local: observability-up docker-build ## Deploy observability and the demo shop to the kind cluster
-	$(HELM) upgrade --install demo-shop infrastructure/helm/demo-shop --namespace demo --create-namespace --wait --timeout 5m
+	$(HELM) upgrade --install demo-shop infrastructure/helm/demo-shop --namespace demo --create-namespace --wait --timeout 5m \
+		$(DEMO_RELEASE)
 
 load-normal: ## Start steady synthetic traffic against the demo shop (RPS=5)
 	$(HELM) upgrade demo-shop infrastructure/helm/demo-shop --namespace demo --reuse-values \
@@ -193,7 +198,7 @@ inject-failure: ## Ship a faulty release: make inject-failure SCENARIO=checkout-
 
 reset-demo: ## Restore every demo service to its healthy release (keeps load running)
 	$(HELM) upgrade demo-shop infrastructure/helm/demo-shop --namespace demo --reuse-values --force-conflicts --wait \
-		--set changeCause="reset to the healthy release"
+		--set changeCause="reset to the healthy release" $(DEMO_RELEASE)
 
 seed: ## Register the demo shop in the service catalog (API must be running)
 	cd apps/api && uv run python -m opspilot_api.demo_seed \

@@ -28,6 +28,7 @@ ToolName = Literal[
     "get_recent_deployments",
     "get_kubernetes_rollout_status",
     "get_recent_configuration_changes",
+    "get_commit_metadata",
     "search_runbooks",
     "get_runbook",
     "search_similar_incidents",
