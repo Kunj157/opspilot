@@ -48,6 +48,28 @@ jobs:
       - name: Agent evals (retrieval, real embedding model)
         run: uv run pytest tests/evals -s
 
+  ml:
+    name: ML · lint, types, tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: ml
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          enable-cache: true
+      - run: uv sync
+      - name: Format
+        run: uv run ruff format --check .
+      - name: Lint
+        run: uv run ruff check .
+      - name: Type check
+        run: uv run mypy opspilot_ml
+      - name: Tests (schema, missing values, leakage, determinism, artifacts)
+        run: uv run pytest
+
   terraform:
     name: Terraform · fmt, validate, tflint, checkov
     runs-on: ubuntu-24.04

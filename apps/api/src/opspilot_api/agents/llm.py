@@ -91,6 +91,8 @@ class LLM(Protocol):
         self, system: str, prompt: str, schema: type[T]
     ) -> Completion[T]: ...
 
+    async def aclose(self) -> None: ...
+
 
 def _strict_schema(schema: type[BaseModel]) -> dict[str, Any]:
     """JSON schema with additionalProperties: false everywhere (structured-output rules)."""
@@ -191,6 +193,9 @@ class OllamaLLM(_Base):
             transport=transport,
         )
 
+    async def aclose(self) -> None:
+        await self.client.aclose()
+
     async def _call(self, system: str, prompt: str, schema: dict[str, Any]) -> Raw:
         try:
             response = await self.client.post(
@@ -240,6 +245,9 @@ class AnthropicLLM(_Base):
             api_key=api_key, timeout=timeout, max_retries=0, http_client=http_client
         )
 
+    async def aclose(self) -> None:
+        await self.client.close()
+
     async def _call(self, system: str, prompt: str, schema: dict[str, Any]) -> Raw:
         try:
             response = await self.client.messages.create(
@@ -277,6 +285,9 @@ class ScriptedLLM:
     ) -> None:
         self.script = script
         self.prompts: list[tuple[str, str]] = []
+
+    async def aclose(self) -> None:
+        pass
 
     async def complete_json[T: BaseModel](
         self, system: str, prompt: str, schema: type[T]

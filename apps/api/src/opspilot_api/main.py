@@ -23,6 +23,8 @@ from opspilot_api.routes import (
     incidents,
     investigations,
     me,
+    ml,
+    remediation,
     runbooks,
     services,
     topology,
@@ -98,5 +100,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(incident_metrics.router)
     app.include_router(detections.router)
     app.include_router(investigations.router)
+    app.include_router(remediation.router)
     app.include_router(runbooks.router)
+    app.include_router(ml.router)
     return app

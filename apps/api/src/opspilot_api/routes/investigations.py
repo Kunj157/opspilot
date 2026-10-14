@@ -17,12 +17,17 @@ from opspilot_api.auth.tenancy import get_owned_or_404
 from opspilot_api.db.models import (
     AgentRun,
     AgentToolCall,
+    Approval,
     Evidence,
+    ExecutionStatus,
     Incident,
+    IncidentStatus,
     Investigation,
     InvestigationStatus,
+    Postmortem,
     ProposalStatus,
     RemediationAction,
+    RemediationExecution,
     RemediationProposal,
 )
 from opspilot_api.db.session import get_session
@@ -97,6 +102,32 @@ class AgentRunOut(BaseModel):
     tool_calls: list[ToolCallOut] = []
 
 
+class DecisionOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    decision: str
+    proposal_version: int
+    reviewed_by: uuid.UUID
+    reviewer_name: str
+    comment: str | None
+    reviewed_at: datetime
+
+
+class ExecutionOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    status: ExecutionStatus
+    attempts: int
+    started_at: datetime
+    completed_at: datetime | None
+    output: dict[str, Any]
+    error_message: str | None
+    verification_status: str | None
+    verification: dict[str, Any]
+    verified_at: datetime | None
+
+
 class ProposalOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -112,6 +143,36 @@ class ProposalOut(BaseModel):
     version: int
     expires_at: datetime | None
     created_at: datetime
+    decision: DecisionOut | None = None
+    execution: ExecutionOut | None = None
+
+
+async def proposals_out(
+    session: AsyncSession, proposals: list[RemediationProposal]
+) -> list[ProposalOut]:
+    """Proposals with the decision taken on each and its execution, if any."""
+    ids = [p.id for p in proposals]
+    approvals = {
+        a.proposal_id: a
+        for a in await session.scalars(select(Approval).where(Approval.proposal_id.in_(ids)))
+    }
+    executions = {
+        e.proposal_id: e
+        for e in await session.scalars(
+            select(RemediationExecution)
+            .where(RemediationExecution.proposal_id.in_(ids))
+            .order_by(RemediationExecution.created_at)
+        )
+    }
+    out = []
+    for proposal in proposals:
+        item = ProposalOut.model_validate(proposal)
+        if approval := approvals.get(proposal.id):
+            item.decision = DecisionOut.model_validate(approval)
+        if execution := executions.get(proposal.id):
+            item.execution = ExecutionOut.model_validate(execution)
+        out.append(item)
+    return out
 
 
 class Items[T](BaseModel):
@@ -228,4 +289,64 @@ async def list_proposals(
         .where(RemediationProposal.incident_id == incident_id)
         .order_by(RemediationProposal.created_at.desc())
     )
-    return Items[ProposalOut](items=[ProposalOut.model_validate(r) for r in rows])
+    return Items[ProposalOut](items=await proposals_out(session, list(rows)))
+
+
+class PostmortemOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    status: str
+    content: dict[str, Any] | None
+    generated_by: str | None
+    prompt_version: str | None
+    updated_at: datetime
+
+
+@router.get("/incidents/{incident_id}/postmortem", response_model=PostmortemOut)
+async def get_postmortem(
+    incident_id: uuid.UUID,
+    principal: Annotated[Principal, Depends(require(Permission.VIEW_INCIDENTS))],
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> PostmortemOut:
+    await _incident(session, incident_id, principal)
+    postmortem = await session.scalar(
+        select(Postmortem).where(Postmortem.incident_id == incident_id)
+    )
+    if postmortem is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "No postmortem yet")
+    return PostmortemOut.model_validate(postmortem)
+
+
+@router.post(
+    "/incidents/{incident_id}/postmortem",
+    response_model=PostmortemOut,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+async def request_postmortem(
+    incident_id: uuid.UUID,
+    principal: Annotated[Principal, Depends(require(Permission.MANAGE_INCIDENTS))],
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> PostmortemOut:
+    """Ask the worker to (re)draft the postmortem of a resolved incident."""
+    incident = await _incident(session, incident_id, principal)
+    if incident.status is not IncidentStatus.RESOLVED:
+        raise HTTPException(status.HTTP_409_CONFLICT, "Only resolved incidents get a postmortem")
+    postmortem = await session.scalar(
+        select(Postmortem).where(Postmortem.incident_id == incident_id)
+    )
+    if postmortem is None:
+        postmortem = Postmortem(organization_id=incident.organization_id, incident_id=incident.id)
+        session.add(postmortem)
+    postmortem.status = "pending"
+    await session.flush()
+    await record(
+        session,
+        principal=principal,
+        action="postmortem.requested",
+        resource_type="incident",
+        resource_id=str(incident.id),
+    )
+    await session.commit()
+    await session.refresh(postmortem)
+    return PostmortemOut.model_validate(postmortem)

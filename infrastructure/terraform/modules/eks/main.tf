@@ -43,6 +43,9 @@ resource "aws_cloudwatch_log_group" "cluster" {
   kms_key_id        = var.kms_key_arn
 }
 
+# Private by default: the public endpoint opens only for listed CIDRs, and the
+# variable rejects 0.0.0.0/0.
+# nosemgrep: terraform.lang.security.eks-public-endpoint-enabled.eks-public-endpoint-enabled
 resource "aws_eks_cluster" "this" {
   #checkov:skip=CKV_AWS_38: public access is off unless CIDRs are given, and the variable rejects 0.0.0.0/0
   name     = var.name
