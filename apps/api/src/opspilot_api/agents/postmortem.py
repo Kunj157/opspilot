@@ -31,7 +31,7 @@ log = structlog.get_logger("opspilot.postmortem")
 SYSTEM = (
     "You are OpsPilot's postmortem writer. Draft a blameless postmortem from the record below. "
     "Use only the evidence given. Every finding and the root cause must list the references "
-    "they rely on in their evidence field (for example [\"E4\", \"E7\"]); a statement without "
+    'they rely on in their evidence field (for example ["E4", "E7"]); a statement without '
     "references counts as unknown. Label each: confirmed (directly shown by evidence), "
     "strong_hypothesis, weak_hypothesis, or unknown. "
     "Never invent numbers, times, or causes. Answer with JSON only."
