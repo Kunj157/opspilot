@@ -17,6 +17,7 @@ from sqlalchemy.ext.asyncio import (
 
 from opspilot_api.agents.investigation import Investigator, Limits
 from opspilot_api.agents.llm import LLMError, ScriptedLLM
+from opspilot_api.agents.prompts import PROMPT_VERSION
 from opspilot_api.agents.queue import enqueue
 from opspilot_api.agents.schemas import ProposalDraft, Synthesis, ToolPlan, TriageOutput
 from opspilot_api.agents.tools import ServiceTarget, ToolContext
@@ -287,7 +288,7 @@ async def test_a_bad_release_is_investigated_and_a_rollback_proposed(
         "synthesis",
         "remediation",
     }
-    assert all(r.prompt_version == "v1" for r in data["runs"])
+    assert all(r.prompt_version == PROMPT_VERSION for r in data["runs"])
     assert "incident.remediation_proposed" in data["events"]
     assert data["events"][-1] == "incident.investigation_finished"
     result = data["investigation"].result
