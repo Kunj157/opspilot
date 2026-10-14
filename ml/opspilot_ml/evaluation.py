@@ -63,6 +63,9 @@ def evaluate(detector: Detector, frame: pd.DataFrame, runs: list[Any]) -> dict[s
         else:
             delays.append((hits["time"].min() - run.fault_start).total_seconds())
 
+    # Callers of a failing service and the recovery tail are neither hits nor false alerts.
+    if "fault_active" in frame:
+        grace |= (frame["fault_active"] == 1) & ~truth
     scored = ~grace
     tp = int((alerts & truth & scored).sum())
     fp = int((alerts & ~truth & scored).sum())
