@@ -16,3 +16,9 @@ variable "keep_images" {
 variable "kms_key_arn" {
   type = string
 }
+
+variable "force_delete" {
+  description = "Delete repositories that still hold images (temporary environments only)"
+  type        = bool
+  default     = false
+}

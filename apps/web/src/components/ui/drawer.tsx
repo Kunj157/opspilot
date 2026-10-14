@@ -42,7 +42,7 @@ export function Drawer({
       ref={dialog}
       aria-label={title}
       onClose={() => open && onClose()}
-      className="fixed inset-y-0 right-0 left-auto m-0 h-dvh max-h-none w-[min(28rem,100vw)] border-l border-border bg-surface-glass p-0 text-fg shadow-3 backdrop-blur-md backdrop:bg-black/40"
+      className="drawer-dialog fixed inset-y-0 right-0 left-auto m-0 h-dvh max-h-none w-[min(28rem,100vw)] border-l border-border bg-surface-glass p-0 text-fg shadow-3 backdrop-blur-md backdrop:bg-black/40"
     >
       {open && (
         <div className="flex h-full flex-col">

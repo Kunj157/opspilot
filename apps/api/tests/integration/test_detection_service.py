@@ -119,6 +119,16 @@ async def test_a_trigger_opens_a_detector_incident(
     assert incident.detection_score == pytest.approx(8.0)
     assert incident.dedup_key == f"{service.id}:error-rate:high_error_rate"
     async with sessions() as session:
+        anomaly = await session.scalar(
+            sa.select(IncidentEvent).where(
+                IncidentEvent.incident_id == incident.id,
+                IncidentEvent.event_type == "incident.anomaly_detected",
+            )
+        )
+    assert anomaly is not None
+    assert anomaly.metadata_json["detector"] == "error-rate"
+    assert anomaly.metadata_json["service_id"] == str(service.id)
+    async with sessions() as session:
         svc = await session.get_one(Service, service.id)
         assert svc.health_status is HealthStatus.CRITICAL
 
@@ -144,7 +154,7 @@ async def test_ongoing_breaches_reuse_the_open_incident_quietly(
     assert again.id == first.id
     assert again.version == first.version
     assert len(await open_incidents(sessions, service)) == 1
-    assert await timeline(sessions, first) == ["incident.created"]
+    assert await timeline(sessions, first) == ["incident.created", "incident.anomaly_detected"]
 
 
 async def test_concurrent_triggers_create_exactly_one_incident(
@@ -164,7 +174,11 @@ async def test_recovery_notes_the_incident_and_restores_health(
 
     await apply(sessions, service, Outcome.RECOVERED, rate=0.0)
 
-    assert await timeline(sessions, incident) == ["incident.created", "incident.signal_recovered"]
+    assert await timeline(sessions, incident) == [
+        "incident.created",
+        "incident.anomaly_detected",
+        "incident.signal_recovered",
+    ]
     async with sessions() as session:
         svc = await session.get_one(Service, service.id)
         assert svc.health_status is HealthStatus.HEALTHY

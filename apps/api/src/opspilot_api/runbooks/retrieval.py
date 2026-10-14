@@ -10,13 +10,14 @@ import re
 import uuid
 from dataclasses import dataclass
 
-from sqlalchemy import select
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from opspilot_api.db.models import Runbook, RunbookChunk, RunbookStatus
+from opspilot_api.runbooks.document import ALL_ENVIRONMENTS
 from opspilot_api.runbooks.embeddings import Embedder, embed_query
 
-# How much a runbook written for the queried service is preferred.
+# How much a runbook written for the queried service is preferred over a generic one.
 SERVICE_BOOST = 0.05
 # Flagged (instruction-like) sections are pushed down so they cannot crowd out
 # real procedures; they stay visible, marked, for reviewers.
@@ -63,20 +64,35 @@ async def search(
     organization_id: uuid.UUID,
     query: str,
     service: str | None = None,
+    environment: str | None = None,
     limit: int = 5,
 ) -> list[RunbookHit]:
-    """Best-matching sections of the organization's active runbooks, current versions only."""
+    """Best-matching sections of the organization's active runbooks, current versions only.
+
+    `service` keeps runbooks written for that service plus generic ones (no
+    services listed); `environment` keeps runbooks for that environment plus
+    the ones for all environments.
+    """
     vector = await embed_query(embedder, query)
     distance = RunbookChunk.embedding.cosine_distance(vector)
+    filters = [
+        Runbook.organization_id == organization_id,
+        RunbookChunk.organization_id == organization_id,
+        Runbook.status == RunbookStatus.ACTIVE,
+        RunbookChunk.version == Runbook.version,
+    ]
+    if service:
+        filters.append(
+            or_(
+                Runbook.services.contains([service]), func.jsonb_array_length(Runbook.services) == 0
+            )
+        )
+    if environment:
+        filters.append(Runbook.environment.in_([environment, ALL_ENVIRONMENTS]))
     rows = await session.execute(
         select(RunbookChunk, Runbook, distance.label("distance"))
         .join(Runbook, Runbook.id == RunbookChunk.runbook_id)
-        .where(
-            Runbook.organization_id == organization_id,
-            RunbookChunk.organization_id == organization_id,
-            Runbook.status == RunbookStatus.ACTIVE,
-            RunbookChunk.version == Runbook.version,
-        )
+        .where(*filters)
         .order_by(distance)
         .limit(limit * 4)
     )

@@ -1,8 +1,8 @@
 variable "environment" {
   type = string
   validation {
-    condition     = contains(["development", "staging", "production"], var.environment)
-    error_message = "Use development, staging, or production."
+    condition     = contains(["development", "staging", "production", "loadtest"], var.environment)
+    error_message = "Use development, staging, production, or loadtest."
   }
 }
 
@@ -37,6 +37,15 @@ variable "node_groups" {
     max            = number
     desired        = number
   }))
+}
+
+variable "karpenter" {
+  description = "Application capacity launched by Karpenter (the node groups run system add-ons)"
+  type = object({
+    capacity_types      = list(string)
+    cpu_limit           = number
+    controller_replicas = optional(number, 2)
+  })
 }
 
 variable "db_instance_class" {
@@ -74,7 +83,12 @@ variable "domain" {
 }
 
 variable "alert_emails" {
-  type = list(string)
+  description = "Alarm and budget recipients; the first is also the Let's Encrypt contact"
+  type        = list(string)
+  validation {
+    condition     = length(var.alert_emails) > 0
+    error_message = "List at least one alert e-mail."
+  }
 }
 
 variable "log_retention_days" {
@@ -102,7 +116,7 @@ variable "monthly_budget_usd" {
 }
 
 variable "office_hours" {
-  description = "Scale the nodes to zero outside these hours (null keeps them running)"
+  description = "Scale the node groups to zero outside these hours (null keeps them running). Only for environments without Karpenter nodes to clean up: Karpenter runs on these groups."
   type = object({
     time_zone  = string
     start_cron = string
@@ -111,4 +125,10 @@ variable "office_hours" {
     max        = number
   })
   default = null
+}
+
+variable "app_namespace" {
+  description = "Namespace of the OpsPilot release; the application roles trust its service accounts"
+  type        = string
+  default     = "opspilot"
 }

@@ -5,6 +5,7 @@ from collections.abc import AsyncIterator, Callable
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
+import httpx
 import pytest
 import sqlalchemy as sa
 from pydantic import BaseModel
@@ -16,7 +17,7 @@ from sqlalchemy.ext.asyncio import (
 )
 
 from opspilot_api.agents.investigation import Investigator, Limits
-from opspilot_api.agents.llm import LLMError, ScriptedLLM
+from opspilot_api.agents.llm import LLMError, OllamaLLM, ScriptedLLM
 from opspilot_api.agents.prompts import PROMPT_VERSION
 from opspilot_api.agents.queue import enqueue
 from opspilot_api.agents.schemas import ProposalDraft, Synthesis, ToolPlan, TriageOutput
@@ -121,7 +122,7 @@ def happy_model(
             return {"calls": []}  # use the default plan
         if schema is Synthesis:
             return synthesis or {
-                "summary": "Checkout 1.4.2 fails half of orders since its rollout.",
+                "summary": "Checkout 1.4.2 fails half of orders since its rollout (E3, E6).",
                 "hypotheses": [
                     {
                         "description": "Release 1.4.2 broke checkout",
@@ -215,7 +216,8 @@ def investigator(
             incident_id=incident_id,
         )
 
-    return Investigator(sessions, ScriptedLLM(model), make_context, limits=limits)
+    llm = model if isinstance(model, OllamaLLM) else ScriptedLLM(model)
+    return Investigator(sessions, llm, make_context, limits=limits)
 
 
 async def load(
@@ -294,6 +296,9 @@ async def test_a_bad_release_is_investigated_and_a_rollback_proposed(
     assert all(r.prompt_version == PROMPT_VERSION for r in data["runs"])
     assert "incident.remediation_proposed" in data["events"]
     assert data["events"][-1] == "incident.investigation_finished"
+    # One evidence event per node that found something, never per evidence row.
+    agents = {e["agent"] for e in data["investigation"].state["evidence"]}
+    assert data["events"].count("incident.evidence_collected") == len(agents) >= 3
     result = data["investigation"].result
     assert result["hypotheses"][0]["supporting_evidence"] == ["E3", "E6"]
     assert result["manual_review"] is False
@@ -314,6 +319,31 @@ async def test_model_failure_keeps_evidence_and_proposes_nothing(
     assert data["proposals"] == []
     assert data["investigation"].result["manual_review"] is True
     assert {r.status for r in data["runs"] if r.agent_name == "synthesis"} == {"fallback"}
+
+
+async def test_model_timeouts_are_recorded_and_the_run_ends_partial(
+    sessions: async_sessionmaker[AsyncSession],
+) -> None:
+    investigation_id = await setup(sessions)
+    calls = {"n": 0}
+
+    def hangs(request: httpx.Request) -> httpx.Response:
+        calls["n"] += 1
+        raise httpx.ReadTimeout("timed out", request=request)
+
+    model = OllamaLLM("http://ollama:11434", "m", transport=httpx.MockTransport(hangs), backoff=0)
+    status = await investigator(sessions, model).run(investigation_id)
+    await model.aclose()
+
+    data = await load(sessions, investigation_id)
+    assert status is InvestigationStatus.PARTIAL
+    assert data["runs"]
+    assert {r.status for r in data["runs"]} == {"fallback"}
+    assert {r.error_code for r in data["runs"]} == {"ollama unavailable: ReadTimeout"}
+    assert calls["n"] == 3 * len(data["runs"])  # every call retried three times
+    assert data["evidence"], "fixed tool plans still collect evidence"
+    assert data["proposals"] == []
+    assert data["investigation"].result["manual_review"] is True
 
 
 async def test_ungrounded_hypotheses_are_dropped_and_the_run_stops_at_max_rounds(
@@ -337,6 +367,29 @@ async def test_ungrounded_hypotheses_are_dropped_and_the_run_stops_at_max_rounds
     assert data["investigation"].round == 1
     assert data["investigation"].result["hypotheses"] == []
     assert data["proposals"] == []
+
+
+async def test_summary_claims_citing_unknown_evidence_are_dropped_and_uncited_marked(
+    sessions: async_sessionmaker[AsyncSession],
+) -> None:
+    investigation_id = await setup(sessions)
+    synthesis = {
+        "summary": "Checkout 1.4.2 broke orders (E3). The database is saturated (E99). "
+        "Traffic doubled overnight. Unknown: why 1.4.2 fails.",
+        "hypotheses": [
+            {"description": "Release 1.4.2", "confidence": 0.9, "supporting_evidence": ["E3"]}
+        ],
+        "enough_evidence": True,
+    }
+
+    await investigator(sessions, happy_model(synthesis=synthesis)).run(investigation_id)
+
+    result = (await load(sessions, investigation_id))["investigation"].result
+    assert result["summary"] == (
+        "Checkout 1.4.2 broke orders (E3). Unverified: Traffic doubled overnight. "
+        "Unknown: why 1.4.2 fails."
+    )
+    assert "Dropped 1 summary claim(s) citing unknown evidence" in result["notes"]
 
 
 async def test_policy_rejects_targets_outside_the_catalog(

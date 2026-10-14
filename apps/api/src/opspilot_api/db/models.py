@@ -303,6 +303,8 @@ class Runbook(UUIDPrimaryKey, Timestamps, OrganizationScoped, Base):
     title: Mapped[str] = mapped_column(String(200))
     # Slugs of the catalog services the runbook applies to (from its front matter).
     services: Mapped[list[str]] = mapped_column(JSONB, server_default="[]")
+    # The environment the runbook applies to, or "all" (from its front matter).
+    environment: Mapped[str] = mapped_column(String(32), server_default="all")
     owner: Mapped[str | None] = mapped_column(String(100))
     content: Mapped[str] = mapped_column(Text)
     content_hash: Mapped[str] = mapped_column(String(64))

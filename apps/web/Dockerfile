@@ -1,6 +1,6 @@
 # The web app as a Next.js standalone server.
 # Build from the repository root: docker build -f apps/web/Dockerfile .
-FROM node:22-trixie-slim AS build
+FROM node:22-trixie-slim@sha256:154ba2f4d6fec323d28e4f4bb86bba4677f1223391a1979cf521304e03a98dfa AS build
 ENV NEXT_TELEMETRY_DISABLED=1 COREPACK_ENABLE_DOWNLOAD_PROMPT=0
 RUN corepack enable
 WORKDIR /src
@@ -12,7 +12,7 @@ COPY packages/api-client packages/api-client
 COPY apps/web apps/web
 RUN pnpm --filter @opspilot/web build
 
-FROM node:22-trixie-slim
+FROM node:22-trixie-slim@sha256:154ba2f4d6fec323d28e4f4bb86bba4677f1223391a1979cf521304e03a98dfa
 # The server needs only node: drop the package managers and their dependencies.
 RUN rm -rf /usr/local/lib/node_modules /usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/corepack /opt/yarn* /usr/local/bin/yarn*
 ENV NODE_ENV=production NEXT_TELEMETRY_DISABLED=1 HOSTNAME=0.0.0.0 PORT=3000

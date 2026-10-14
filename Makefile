@@ -20,7 +20,7 @@ DEMO_RELEASE = --set-string release.commit="$$(git rev-parse HEAD)" \
 	--set-literal release.author="$$(git log -1 --format=%an)" \
 	--set-literal release.message="$$(git log -1 --format=%s)"
 
-.PHONY: db-upgrade db-downgrade db-revision keycloak-smoke token api-client web-dev dev build test-e2e test-lighthouse kind-create kind-delete docker-build deploy-local observability-up load-normal load-stop inject-failure reset-demo seed seed-runbooks test-telemetry test-detection worker help infra-up infra-down llm-up events-up stop secrets-scan install api-dev format lint typecheck test test-unit test-integration test-agent test-ml ml-scenarios ml-dataset ml-train images kind-load gitops-up
+.PHONY: db-upgrade db-downgrade db-revision keycloak-smoke token api-client web-dev dev build test-e2e test-lighthouse kind-create kind-delete docker-build deploy-local observability-up load-normal load-stop inject-failure reset-demo seed seed-runbooks test-telemetry test-detection worker help infra-up infra-down llm-up events-up stop secrets-scan install api-dev format lint typecheck test test-unit test-integration test-agent test-ml ml-scenarios ml-dataset ml-train images kind-load gitops-up tf-check tf-plan loadtest-teardown infra-smoke
 
 help: ## List available targets
 	@grep -hE '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | sort | \
@@ -31,7 +31,8 @@ infra-up: ## Start PostgreSQL, Redis, and Keycloak and wait until healthy
 
 events-up: ## Start the event broker (Redpanda) and create the incident topics
 	$(COMPOSE) --profile events up -d --wait redpanda
-	for t in incident.created.v1 incident.remediation.proposed.v1 incident.remediation.approved.v1 \
+	for t in telemetry.anomaly.detected.v1 incident.created.v1 incident.investigation.requested.v1 \
+		incident.evidence.collected.v1 incident.remediation.proposed.v1 incident.remediation.approved.v1 \
 		incident.remediation.completed.v1 incident.verification.completed.v1 incident.resolved.v1; do \
 		$(COMPOSE) exec -T redpanda rpk topic create $$t $$t.dlq -p 3 >/dev/null || true; done
 
@@ -211,3 +212,25 @@ test-detection: ## One sustained failure → exactly one incident, with detectio
 test-telemetry: ## Follow one request through traces, logs, and metrics on the kind cluster
 	cd demo/services && uv run python -u ../../tests/telemetry/telemetry_smoke.py
 
+TF_ENVS := $(notdir $(patsubst %/,%,$(wildcard infrastructure/terraform/environments/*/)))
+
+tf-check: ## Terraform fmt, validate, tflint, and checkov for every root and module, as CI runs them
+	cd infrastructure/terraform && terraform fmt -check -recursive
+	cd infrastructure/terraform && for dir in bootstrap environments/* modules/*; do \
+	  [ -d "$$dir" ] || continue; \
+	  (cd "$$dir" && terraform init -backend=false -input=false >/dev/null && terraform validate -no-color) || exit 1; \
+	done
+	cd infrastructure/terraform && tflint --init && tflint --recursive --config "$$PWD/.tflint.hcl"
+	cd infrastructure/terraform && uvx checkov==3.3.29 -d . --framework terraform --compact --quiet
+
+tf-plan: ## Plan an AWS environment: make tf-plan ENV=development (AWS credentials, environments/backend.hcl, terraform.tfvars)
+	@case " $(TF_ENVS) " in *" $(ENV) "*) ;; *) echo "ENV must be one of: $(TF_ENVS)"; exit 1;; esac
+	terraform -chdir=infrastructure/terraform/environments/$(ENV) init -input=false -backend-config=../backend.hcl
+	terraform -chdir=infrastructure/terraform/environments/$(ENV) plan -input=false -out=tfplan
+
+loadtest-teardown: ## Destroy the loadtest environment if its ttl has passed: ARGS="--dry-run" or "--force"
+	scripts/loadtest-teardown.sh $(ARGS)
+
+infra-smoke: ## After terraform apply: nodes, add-ons, secret sync, and database reachability: make infra-smoke ENV=development
+	@case " $(TF_ENVS) " in *" $(ENV) "*) ;; *) echo "ENV must be one of: $(TF_ENVS)"; exit 1;; esac
+	scripts/infra-smoke.sh $(ENV)

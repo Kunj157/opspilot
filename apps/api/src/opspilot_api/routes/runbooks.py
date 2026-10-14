@@ -7,6 +7,7 @@ from datetime import datetime
 from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from fastapi.responses import JSONResponse
 from pydantic import AnyHttpUrl, BaseModel, ConfigDict, Field
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
@@ -18,6 +19,7 @@ from opspilot_api.auth.principal import Principal
 from opspilot_api.auth.tenancy import get_owned_or_404, scoped
 from opspilot_api.db.models import Runbook, RunbookStatus
 from opspilot_api.db.session import get_session
+from opspilot_api.idempotency import Idempotency, IdempotencyDep
 from opspilot_api.runbooks.document import RunbookDocument, RunbookDocumentError, parse
 from opspilot_api.runbooks.embeddings import Embedder
 from opspilot_api.runbooks.ingest import ingest
@@ -48,6 +50,7 @@ class RunbookSummary(BaseModel):
     slug: str
     title: str
     services: list[str]
+    environment: str
     owner: str | None
     version: int
     status: RunbookStatus
@@ -143,19 +146,36 @@ async def list_runbooks(
     return RunbookList(items=[RunbookSummary.model_validate(r) for r in rows])
 
 
+async def _commit(
+    session: AsyncSession,
+    runbook: Runbook,
+    idempotency: Idempotency,
+    status_code: int = status.HTTP_200_OK,
+) -> RunbookOut:
+    await session.flush()
+    await session.refresh(runbook)
+    out = RunbookOut.of(runbook)
+    await idempotency.commit(status_code, out)
+    return out
+
+
 @router.post("/runbooks", response_model=RunbookOut, status_code=status.HTTP_201_CREATED)
 async def create_runbook(
     body: RunbookCreate,
     principal: Annotated[Principal, Depends(require(Permission.MANAGE_RUNBOOKS))],
     session: Annotated[AsyncSession, Depends(get_session)],
     embedder: Annotated[Embedder, Depends(get_embedder)],
-) -> RunbookOut:
+    idempotency: IdempotencyDep,
+) -> RunbookOut | JSONResponse:
+    if replay := await idempotency.replay(body):
+        return replay
     doc = _document(body.content)
     runbook = Runbook(
         organization_id=principal.organization_id,
         slug=body.slug or _slugify(doc.title),
         title=doc.title,
         services=doc.services,
+        environment=doc.environment,
         owner=doc.owner,
         content=body.content,
         content_hash=_hash(body.content),
@@ -179,9 +199,7 @@ async def create_runbook(
         resource_id=str(runbook.id),
         metadata={"slug": runbook.slug, "version": runbook.version},
     )
-    await session.commit()
-    await session.refresh(runbook)
-    return RunbookOut.of(runbook)
+    return await _commit(session, runbook, idempotency, status.HTTP_201_CREATED)
 
 
 # Declared before /runbooks/{runbook_id}, so "search" is never read as an ID.
@@ -192,14 +210,17 @@ async def search_runbooks(
     embedder: Annotated[Embedder, Depends(get_embedder)],
     q: Annotated[str, Query(min_length=2, max_length=500)],
     service: Annotated[str | None, Query(max_length=63)] = None,
+    environment: Annotated[str | None, Query(max_length=32)] = None,
     limit: Annotated[int, Query(ge=1, le=20)] = 5,
 ) -> RunbookHits:
+    """Runbooks for the service (or generic) and the environment (or all), best first."""
     hits = await search(
         session,
         embedder,
         organization_id=principal.organization_id,
         query=q,
         service=service,
+        environment=environment,
         limit=limit,
     )
     return RunbookHits(items=[RunbookHitOut.model_validate(h) for h in hits])
@@ -210,8 +231,11 @@ async def reindex_runbooks(
     principal: Annotated[Principal, Depends(require(Permission.MANAGE_RUNBOOKS))],
     session: Annotated[AsyncSession, Depends(get_session)],
     embedder: Annotated[Embedder, Depends(get_embedder)],
-) -> ReindexResult:
+    idempotency: IdempotencyDep,
+) -> ReindexResult | JSONResponse:
     """Re-embed every active runbook, e.g. after changing the embedding model."""
+    if replay := await idempotency.replay(None):
+        return replay
     runbooks = list(
         await session.scalars(
             scoped(select(Runbook), Runbook, principal).where(
@@ -229,8 +253,9 @@ async def reindex_runbooks(
         resource_type="runbook",
         metadata={"runbooks": len(runbooks), "chunks": total},
     )
-    await session.commit()
-    return ReindexResult(reindexed=len(runbooks), chunks=total)
+    out = ReindexResult(reindexed=len(runbooks), chunks=total)
+    await idempotency.commit(status.HTTP_200_OK, out)
+    return out
 
 
 @router.get("/runbooks/{runbook_id}", response_model=RunbookOut)
@@ -249,8 +274,11 @@ async def update_runbook(
     principal: Annotated[Principal, Depends(require(Permission.MANAGE_RUNBOOKS))],
     session: Annotated[AsyncSession, Depends(get_session)],
     embedder: Annotated[Embedder, Depends(get_embedder)],
-) -> RunbookOut:
+    idempotency: IdempotencyDep,
+) -> RunbookOut | JSONResponse:
     """Replace the content; a change creates the next version, an identical text changes nothing."""
+    if replay := await idempotency.replay(body):
+        return replay
     runbook = await get_owned_or_404(session, Runbook, runbook_id, principal)
     doc = _document(body.content)
     if _hash(body.content) == runbook.content_hash:
@@ -258,6 +286,7 @@ async def update_runbook(
     runbook.version = max(runbook.version + 1, doc.version)
     runbook.title = doc.title
     runbook.services = doc.services
+    runbook.environment = doc.environment
     runbook.owner = doc.owner
     runbook.content = body.content
     runbook.content_hash = _hash(body.content)
@@ -273,9 +302,7 @@ async def update_runbook(
         resource_id=str(runbook.id),
         metadata={"version": runbook.version},
     )
-    await session.commit()
-    await session.refresh(runbook)
-    return RunbookOut.of(runbook)
+    return await _commit(session, runbook, idempotency)
 
 
 @router.post("/runbooks/{runbook_id}/archive", response_model=RunbookOut)
@@ -283,7 +310,10 @@ async def archive_runbook(
     runbook_id: uuid.UUID,
     principal: Annotated[Principal, Depends(require(Permission.MANAGE_RUNBOOKS))],
     session: Annotated[AsyncSession, Depends(get_session)],
-) -> RunbookOut:
+    idempotency: IdempotencyDep,
+) -> RunbookOut | JSONResponse:
+    if replay := await idempotency.replay(None):
+        return replay
     runbook = await get_owned_or_404(session, Runbook, runbook_id, principal)
     runbook.status = RunbookStatus.ARCHIVED
     await record(
@@ -294,6 +324,4 @@ async def archive_runbook(
         resource_id=str(runbook.id),
         metadata={"version": runbook.version},
     )
-    await session.commit()
-    await session.refresh(runbook)
-    return RunbookOut.of(runbook)
+    return await _commit(session, runbook, idempotency)
