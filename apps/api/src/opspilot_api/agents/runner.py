@@ -17,6 +17,7 @@ from opspilot_api.agents.queue import claim
 from opspilot_api.agents.tools import ServiceTarget, ToolContext
 from opspilot_api.db.models import Service
 from opspilot_api.kube import KubeReader
+from opspilot_api.ops_metrics import AGENT_RUNS
 from opspilot_api.runbooks.embeddings import Embedder
 from opspilot_api.telemetry import LogsProvider, MetricsProvider, TracesProvider
 
@@ -96,6 +97,7 @@ class InvestigationRunner:
         except Exception:
             # Left running; the expired lease makes it claimable again (resumes at its last node).
             log.exception("investigation crashed", investigation_id=str(investigation.id))
+            AGENT_RUNS.labels("investigation", "crashed").inc()
             return True
         log.info(
             "investigation finished", investigation_id=str(investigation.id), status=status.value

@@ -38,6 +38,7 @@ from opspilot_api.db.models import (
 )
 from opspilot_api.incidents import service as incidents
 from opspilot_api.kube import KubeWriter, NamespaceNotAllowed, RemediationFailed
+from opspilot_api.ops_metrics import REMEDIATION_BLOCKED, REMEDIATIONS, blocked_reason
 
 log = structlog.get_logger("opspilot.remediation")
 
@@ -124,6 +125,7 @@ async def execute(
     try:
         problem = _recheck(proposal, approval, execution_id, allowed_namespaces)
         if problem:
+            REMEDIATION_BLOCKED.labels(blocked_reason(problem)).inc()
             raise RemediationFailed(problem)
         output = await _act(writer, proposal, started_at)
     except (RemediationFailed, NamespaceNotAllowed) as exc:
@@ -264,6 +266,8 @@ async def _finish(
             if not ok:
                 await reopen(session, incident, actor, f"remediation failed: {error}")
         await session.commit()
+        outcome = "succeeded" if ok else "failed"
+        REMEDIATIONS.labels(proposal.action_type.value.lower(), outcome).inc()
         log.info(
             "remediation finished",
             execution_id=str(execution.id),

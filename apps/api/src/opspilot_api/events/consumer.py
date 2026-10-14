@@ -12,6 +12,7 @@ is handled or parked.
 import asyncio
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
+from datetime import UTC, datetime
 
 import structlog
 from aiokafka import AIOKafkaConsumer, ConsumerRecord, TopicPartition
@@ -25,6 +26,7 @@ from opspilot_api.db.models import ProcessedEvent
 from opspilot_api.events.envelope import Envelope, dead_letter
 from opspilot_api.events.producer import Producer
 from opspilot_api.events.relay import decode
+from opspilot_api.ops_metrics import EVENT_DELAY
 
 log = structlog.get_logger("opspilot.events.consumer")
 
@@ -119,6 +121,10 @@ class EventProcessor:
                 await asyncio.sleep(self.backoff * 2 ** (attempt - 1))
                 continue
             HANDLED.labels(self.name, result.outcome).inc()
+            if result.outcome == "handled":
+                EVENT_DELAY.labels(self.name).observe(
+                    max((datetime.now(UTC) - envelope.occurred_at).total_seconds(), 0.0)
+                )
             return result
         raise AssertionError("unreachable")
 

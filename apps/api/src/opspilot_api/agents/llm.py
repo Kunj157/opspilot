@@ -22,6 +22,7 @@ import httpx
 import httpx2
 from pydantic import BaseModel, ValidationError
 
+from opspilot_api.ops_metrics import LLM_COST, LLM_REQUESTS, LLM_TOKENS
 from opspilot_api.redaction import redact
 
 # USD per million tokens (input, output). Local models cost nothing per call.
@@ -136,7 +137,25 @@ class _Base:
                 await asyncio.sleep(self.backoff * 2**attempt)
         raise AssertionError("unreachable")
 
+    def _account(self, raw: Raw) -> float:
+        cost = self._cost(raw)
+        LLM_TOKENS.labels(self.provider, self.model, "input").inc(raw.input_tokens)
+        LLM_TOKENS.labels(self.provider, self.model, "output").inc(raw.output_tokens)
+        LLM_COST.labels(self.provider, self.model).inc(cost)
+        return cost
+
     async def complete_json[T: BaseModel](
+        self, system: str, prompt: str, schema: type[T]
+    ) -> Completion[T]:
+        try:
+            completion = await self._complete_json(system, prompt, schema)
+        except LLMError:
+            LLM_REQUESTS.labels(self.provider, self.model, "error").inc()
+            raise
+        LLM_REQUESTS.labels(self.provider, self.model, "ok").inc()
+        return completion
+
+    async def _complete_json[T: BaseModel](
         self, system: str, prompt: str, schema: type[T]
     ) -> Completion[T]:
         usage = Usage()
@@ -151,7 +170,7 @@ class _Base:
                     input_tokens=raw.input_tokens,
                     output_tokens=raw.output_tokens,
                     latency_ms=(time.perf_counter() - started) * 1000,
-                    cost_usd=self._cost(raw),
+                    cost_usd=self._account(raw),
                 )
             )
             try:
