@@ -65,7 +65,11 @@ AGENT_TOOLS: dict[str, set[str]] = {
         "get_trace_summary",
         "get_service_dependencies",
     },
-    "deployment": {"get_recent_deployments", "get_kubernetes_rollout_status"},
+    "deployment": {
+        "get_recent_deployments",
+        "get_kubernetes_rollout_status",
+        "get_recent_configuration_changes",
+    },
     "runbook": {"search_runbooks", "get_runbook", "search_similar_incidents"},
 }
 ORDER = ["triage", "observability", "deployment", "runbook", "synthesis", "remediation"]
@@ -251,7 +255,11 @@ class Investigator:
     async def _deployment(self, state: State) -> State:
         default = [
             PlannedCall(tool=t, service=state.get("service"), reason="recent changes")
-            for t in ("get_recent_deployments", "get_kubernetes_rollout_status")
+            for t in (
+                "get_recent_deployments",
+                "get_kubernetes_rollout_status",
+                "get_recent_configuration_changes",
+            )
         ]
         await self._plan_and_execute(
             state, "deployment", "deployment: recent rollouts and status", default

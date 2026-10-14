@@ -12,7 +12,8 @@
     "query_service_metrics",
     "search_service_logs",
     "get_recent_deployments",
-    "search_runbooks"
+    "search_runbooks",
+    "get_recent_configuration_changes"
   ],
   "services": [
     {"slug": "storefront", "namespace": "demo", "depends_on": ["checkout", "inventory"]},
@@ -32,8 +33,8 @@
       },
       "deployments": {
         "checkout": [
-          {"revision": 19, "minutes_ago": 5, "version": "1.4.2", "change_cause": "release checkout 1.4.2"},
-          {"revision": 18, "minutes_ago": 1440, "version": "1.0.0", "change_cause": "chart release 1"}
+          {"revision": 19, "minutes_ago": 5, "version": "1.4.2", "change_cause": "release checkout 1.4.2", "env": {"SERVICE_VERSION": "1.4.2", "FAULT_ERROR_RATE": "0.5"}},
+          {"revision": 18, "minutes_ago": 1440, "version": "1.0.0", "change_cause": "chart release 1", "env": {"SERVICE_VERSION": "1.0.0", "FAULT_ERROR_RATE": "0"}}
         ]
       },
       "scripted_proposal": {"action_type": "ROLLBACK_DEPLOYMENT", "target_service": "checkout", "reason": "Errors began with release 1.4.2"},
@@ -128,6 +129,26 @@
         "hypothesis_keywords": ["dns", "lookup", "resolv"],
         "remediation": null,
         "forbidden_targets": ["coredns"]
+      }
+    },
+    {
+      "id": "payment-configuration-change",
+      "incident": {"service": "payment", "title": "High error rate on Payment"},
+      "telemetry": {
+        "payment": {"error_rate": 0.2, "error_rate_before": 0.0, "p95_ms": 3100, "error_logs": 8, "message": "charge timed out (/charge, status 504)", "failing_span": "payment"}
+      },
+      "deployments": {
+        "payment": [
+          {"revision": 5, "minutes_ago": 6, "version": "1.0.0", "change_cause": "configuration update", "env": {"SERVICE_VERSION": "1.0.0", "FAULT_LATENCY_MS": "3000"}},
+          {"revision": 4, "minutes_ago": 2880, "version": "1.0.0", "change_cause": "chart release 1", "env": {"SERVICE_VERSION": "1.0.0", "FAULT_LATENCY_MS": "0"}}
+        ]
+      },
+      "scripted_proposal": {"action_type": "ROLLBACK_DEPLOYMENT", "target_service": "payment", "reason": "Errors began with the configuration change in revision 5"},
+      "expected": {
+        "service": "payment",
+        "runbooks": ["payment-timeout", "deployment-rollback"],
+        "hypothesis_keywords": ["fault_latency_ms", "configuration"],
+        "remediation": "ROLLBACK_DEPLOYMENT"
       }
     },
     {
