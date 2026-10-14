@@ -136,6 +136,12 @@ jobs:
         run: helm lint --strict infrastructure/helm/*/
       - name: Render charts
         run: for chart in infrastructure/helm/*/; do helm template ci "$chart" > /dev/null; done
+      - name: Validate OpsPilot manifests against the Kubernetes schemas
+        run: |
+          curl -sSL https://github.com/yannh/kubeconform/releases/download/v0.7.0/kubeconform-linux-amd64.tar.gz | tar xz kubeconform
+          helm template ci infrastructure/helm/opspilot --namespace opspilot \
+            --set rollouts.enabled=true --set devDatabases.enabled=true \
+            | ./kubeconform -strict -summary -kubernetes-version 1.34.0 -ignore-missing-schemas
 
   web:
     name: Web · lint, types, tests, build
