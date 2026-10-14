@@ -63,7 +63,10 @@ function capitalize(value: string) {
 export function IncidentList({ canManage, currentUserId }: { canManage: boolean; currentUserId: string }) {
   const router = useRouter();
   const pathname = usePathname();
-  const filters = parseFilters(new URLSearchParams(useSearchParams().toString()));
+  const searchParams = useSearchParams();
+  const filters = parseFilters(new URLSearchParams(searchParams.toString()));
+  // The command palette's "New incident" action links here with ?new=1.
+  const requested = canManage && searchParams.get("new") === "1";
   const queryClient = useQueryClient();
   const toast = useToast();
   const [creating, setCreating] = useState(false);
@@ -275,7 +278,14 @@ export function IncidentList({ canManage, currentUserId }: { canManage: boolean;
         )}
       </section>
 
-      <Modal open={creating} title="New incident" onClose={() => setCreating(false)}>
+      <Modal
+        open={creating || requested}
+        title="New incident"
+        onClose={() => {
+          setCreating(false);
+          if (requested) router.replace(`${pathname}${filtersToSearch(filters)}`, { scroll: false });
+        }}
+      >
         <IncidentForm
           services={services.data ?? []}
           onCreated={(incident) => {

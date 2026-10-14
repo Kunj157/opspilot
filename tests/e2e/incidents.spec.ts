@@ -41,6 +41,17 @@ test("creates an incident from the dialog", async ({ page }) => {
   await expect(row).toContainText("Detected");
 });
 
+test("a ?new=1 link opens the new incident form and closing it tidies the URL", async ({ page }) => {
+  await page.goto("/incidents?new=1&severity=high");
+  const dialog = page.getByRole("dialog", { name: "New incident" });
+  await expect(dialog).toBeVisible();
+
+  await dialog.getByRole("button", { name: "Close" }).click();
+
+  await expect(dialog).toBeHidden();
+  await expect(page).toHaveURL(/\/incidents\?severity=high$/);
+});
+
 test("filters are kept in the URL and survive a reload", async ({ page, baseURL }) => {
   const stamp = Date.now();
   for (const severity of ["critical", "low"]) {
