@@ -17,7 +17,15 @@ const DATA = {
   range_end: "2026-10-14T00:00:00Z",
   detection: { incidents: 12, delay_p50_seconds: 95, delay_p95_seconds: 240 },
   investigations: { total: 10, succeeded: 7, partial: 2, failed: 1 },
-  agents: { runs: 40, success_rate: 0.9, tool_calls: 200, tool_error_rate: 0.05, input_tokens: 120000, output_tokens: 30000, cost_usd: 1.5 },
+  agents: {
+    runs: 40,
+    success_rate: 0.9,
+    tool_calls: 200,
+    tool_error_rate: 0.05,
+    input_tokens: 120000,
+    output_tokens: 30000,
+    cost_usd: 1.5,
+  },
   remediation: { decisions: 8, approval_rate: 0.75 },
   response: { mtta_seconds: 300, mttr_seconds: 3600 },
 };
@@ -29,7 +37,12 @@ beforeEach(() => {
   navigation.replace.mockReset();
   requests.length = 0;
   // Reduced motion: numbers render their final values at once.
-  vi.stubGlobal("matchMedia", (query: string) => ({ matches: query.includes("reduce"), media: query, addEventListener() {}, removeEventListener() {} }));
+  vi.stubGlobal("matchMedia", (query: string) => ({
+    matches: query.includes("reduce"),
+    media: query,
+    addEventListener() {},
+    removeEventListener() {},
+  }));
   vi.stubGlobal(
     "fetch",
     vi.fn(async (input: Request) => {
@@ -65,13 +78,17 @@ describe("EvaluationDashboard", () => {
   it("shows agent, investigation, detection, and remediation metrics", async () => {
     renderIt();
 
-    expect(within(await screen.findByRole("group", { name: "Agent success rate" })).getByText("90%")).toBeInTheDocument();
+    expect(
+      within(await screen.findByRole("group", { name: "Agent success rate" })).getByText("90%"),
+    ).toBeInTheDocument();
     expect(screen.getByRole("group", { name: "Tool-call accuracy" })).toHaveTextContent("95%");
     expect(screen.getByRole("group", { name: "Investigation success rate" })).toHaveTextContent("70%");
     expect(screen.getByRole("group", { name: "Cost per investigation" })).toHaveTextContent("$0.15");
     expect(screen.getByRole("group", { name: "Detection delay p50" })).toHaveTextContent("1m");
     expect(screen.getByRole("group", { name: "Approval rate" })).toHaveTextContent("75%");
-    expect(screen.getByRole("list", { name: "Investigation outcomes" })).toHaveTextContent(/Completed\s*7.*Stopped early\s*2.*Failed\s*1/);
+    expect(screen.getByRole("list", { name: "Investigation outcomes" })).toHaveTextContent(
+      /Completed\s*7.*Stopped early\s*2.*Failed\s*1/,
+    );
   });
 
   it("asks for the last 30 days by default and switches range through the URL", async () => {
