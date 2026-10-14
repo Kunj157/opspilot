@@ -27,7 +27,8 @@ infra-up: ## Start PostgreSQL, Redis, and Keycloak and wait until healthy
 
 events-up: ## Start the event broker (Redpanda) and create the incident topics
 	$(COMPOSE) --profile events up -d --wait redpanda
-	for t in incident.created.v1 incident.remediation.proposed.v1 incident.remediation.approved.v1 \
+	for t in telemetry.anomaly.detected.v1 incident.created.v1 incident.investigation.requested.v1 \
+		incident.evidence.collected.v1 incident.remediation.proposed.v1 incident.remediation.approved.v1 \
 		incident.remediation.completed.v1 incident.verification.completed.v1 incident.resolved.v1; do \
 		$(COMPOSE) exec -T redpanda rpk topic create $$t $$t.dlq -p 3 >/dev/null || true; done
 

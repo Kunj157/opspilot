@@ -136,7 +136,9 @@ class Investigator:
         async def run(state: State) -> State:
             self._check_limits()
             handler = getattr(self, f"_{name}")
+            collected = len(state.get("evidence", []))
             updated: State = await handler(state)
+            await self._evidence_collected(updated["evidence"][collected:], name)
             await self._persist(updated, name)
             return updated
 
@@ -572,6 +574,28 @@ class Investigator:
                 )
             await session.commit()
             return str(proposal.id)
+
+    async def _evidence_collected(self, items: list[dict[str, Any]], agent: str) -> None:
+        """One timeline event per node that found evidence (incident.evidence.collected.v1)."""
+        if not items:
+            return
+        async with self.sessions() as session:
+            incident = await session.get_one(Incident, self.context.incident_id)
+            await incidents.note(
+                session,
+                incident,
+                self._actor(incident.organization_id, agent),
+                event_type="incident.evidence_collected",
+                title=f"{agent.capitalize()} agent collected {len(items)} evidence item(s)",
+                metadata={
+                    "investigation_id": str(self.investigation_id),
+                    "agent": agent,
+                    "evidence_count": len(items),
+                    "evidence_ids": [e["id"] for e in items],
+                    "evidence_types": sorted({e["type"] for e in items}),
+                },
+            )
+            await session.commit()
 
     async def _note(self, state: State, agent: str, title: str) -> None:
         async with self.sessions() as session:
