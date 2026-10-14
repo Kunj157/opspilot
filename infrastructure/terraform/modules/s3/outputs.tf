@@ -1,7 +1,7 @@
-output "bucket_names" {
-  value = { for key, bucket in aws_s3_bucket.this : key => bucket.id }
+output "name" {
+  value = aws_s3_bucket.this.id
 }
 
-output "bucket_arns" {
-  value = { for key, bucket in aws_s3_bucket.this : key => bucket.arn }
+output "arn" {
+  value = aws_s3_bucket.this.arn
 }
