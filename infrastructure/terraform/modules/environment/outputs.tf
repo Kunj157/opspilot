@@ -6,6 +6,14 @@ output "cluster_endpoint" {
   value = module.eks.cluster_endpoint
 }
 
+output "cluster_certificate_authority" {
+  value = module.eks.cluster_certificate_authority
+}
+
+output "karpenter_controller_role_arn" {
+  value = module.karpenter.controller_role_arn
+}
+
 output "database_endpoint" {
   value = module.rds.endpoint
 }
