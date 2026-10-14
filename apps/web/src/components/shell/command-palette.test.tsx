@@ -68,7 +68,7 @@ describe("CommandPalette", () => {
 
     await user.type(input, "paym");
     const options = screen.getAllByRole("option");
-    expect(options).toHaveLength(1);
+    expect(options.map((o) => o.textContent)).toEqual(["Paymentsdegraded", "Show Payments on the map"]);
     expect(input).toHaveAttribute("aria-activedescendant", options[0].id);
     await user.keyboard("{Enter}");
 
