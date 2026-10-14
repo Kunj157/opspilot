@@ -48,7 +48,7 @@ spec:
           readinessProbe:
             httpGet: { path: /readyz, port: 8081 }
           livenessProbe:
-            httpGet: { path: /livez, port: 8081 }
+            httpGet: { path: /livez, port: 8080 }
           resources:
             requests: { cpu: 10m, memory: 32Mi }
             limits: { cpu: 200m, memory: 128Mi }
