@@ -22,6 +22,18 @@ from tests.support.tokens import TokenFactory
 
 pytestmark = pytest.mark.integration
 
+RUNBOOK = """---
+title: {title}
+services: [checkout]
+owner: shop-team
+version: 1
+---
+
+# {title}
+
+Roll back the latest release.
+"""
+
 Request = tuple[str, str, dict[str, object] | None]
 Setup = Callable[[httpx.AsyncClient, Caller, async_sessionmaker[AsyncSession]], Awaitable[Request]]
 
@@ -92,6 +104,15 @@ async def service(client: httpx.AsyncClient, caller: Caller) -> str:
     return str(created.json()["id"])
 
 
+async def runbook(client: httpx.AsyncClient, caller: Caller) -> str:
+    created = await client.post(
+        "/api/v1/runbooks",
+        json={"content": RUNBOOK.format(title="Checkout")},
+        headers=caller.headers,
+    )
+    return str(created.json()["id"])
+
+
 async def patch_incident(
     c: httpx.AsyncClient, u: Caller, s: async_sessionmaker[AsyncSession]
 ) -> Request:
@@ -118,6 +139,20 @@ def decision(action: str) -> Setup:
     return setup
 
 
+async def start_investigation(
+    c: httpx.AsyncClient, u: Caller, s: async_sessionmaker[AsyncSession]
+) -> Request:
+    incident_id, _ = await incident(c, u, s)
+    return "POST", f"/api/v1/incidents/{incident_id}/investigation", None
+
+
+async def request_postmortem(
+    c: httpx.AsyncClient, u: Caller, s: async_sessionmaker[AsyncSession]
+) -> Request:
+    incident_id, _ = await incident(c, u, s, IncidentStatus.RESOLVED)
+    return "POST", f"/api/v1/incidents/{incident_id}/postmortem", None
+
+
 async def patch_service(
     c: httpx.AsyncClient, u: Caller, _: async_sessionmaker[AsyncSession]
 ) -> Request:
@@ -131,6 +166,32 @@ async def put_dependencies(
     return "PUT", f"/api/v1/services/{source}/dependencies", {"target_ids": [target]}
 
 
+async def create_runbook(
+    c: httpx.AsyncClient, u: Caller, _: async_sessionmaker[AsyncSession]
+) -> Request:
+    return "POST", "/api/v1/runbooks", {"content": RUNBOOK.format(title="Payments")}
+
+
+async def update_runbook(
+    c: httpx.AsyncClient, u: Caller, _: async_sessionmaker[AsyncSession]
+) -> Request:
+    content = RUNBOOK.format(title="Checkout v2")
+    return "PUT", f"/api/v1/runbooks/{await runbook(c, u)}", {"content": content}
+
+
+async def archive_runbook(
+    c: httpx.AsyncClient, u: Caller, _: async_sessionmaker[AsyncSession]
+) -> Request:
+    return "POST", f"/api/v1/runbooks/{await runbook(c, u)}/archive", None
+
+
+async def reindex_runbooks(
+    c: httpx.AsyncClient, u: Caller, _: async_sessionmaker[AsyncSession]
+) -> Request:
+    await runbook(c, u)
+    return "POST", "/api/v1/runbooks/reindex", None
+
+
 ENDPOINTS: dict[str, Setup] = {
     "update incident": patch_incident,
     "acknowledge": transition("acknowledge"),
@@ -138,8 +199,14 @@ ENDPOINTS: dict[str, Setup] = {
     "resolve": transition("resolve", IncidentStatus.MONITORING),
     "approve proposal": decision("approve"),
     "reject proposal": decision("reject"),
+    "start investigation": start_investigation,
+    "request postmortem": request_postmortem,
     "update service": patch_service,
     "replace dependencies": put_dependencies,
+    "create runbook": create_runbook,
+    "update runbook": update_runbook,
+    "archive runbook": archive_runbook,
+    "reindex runbooks": reindex_runbooks,
 }
 
 
