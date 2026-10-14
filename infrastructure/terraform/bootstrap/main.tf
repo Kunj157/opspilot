@@ -29,6 +29,31 @@ variable "state_bucket" {
   type        = string
 }
 
+variable "admin_principal_arns" {
+  description = "IAM role/user ARNs (wildcards allowed, e.g. an SSO role path) that administer Terraform state"
+  type        = list(string)
+  validation {
+    condition     = length(var.admin_principal_arns) > 0 && !contains(var.admin_principal_arns, "*")
+    error_message = "Name at least one administrator principal, and not \"*\": everyone else is denied."
+  }
+}
+
+variable "ci_principal_arns" {
+  description = "CI role ARNs that run terraform plan/apply (e.g. the GitHub OIDC role)"
+  type        = list(string)
+  default     = []
+}
+
+variable "audit_bucket" {
+  description = "Globally unique name of the CloudTrail bucket"
+  type        = string
+}
+
+variable "enable_guardduty" {
+  type    = bool
+  default = false
+}
+
 data "aws_caller_identity" "current" {}
 
 data "aws_iam_policy_document" "kms" {
@@ -54,7 +79,7 @@ resource "aws_kms_key" "state" {
 }
 
 resource "aws_s3_bucket" "state" {
-  #checkov:skip=CKV_AWS_18: the bootstrap bucket is written only by Terraform; CloudTrail data events cover access
+  #checkov:skip=CKV_AWS_18: the bootstrap bucket is written only by Terraform; the audit trail records its object-level access
   #checkov:skip=CKV_AWS_144: state is versioned; cross-region replication is not worth its cost for this project
   #checkov:skip=CKV2_AWS_62: nothing consumes state bucket events
   bucket = var.state_bucket
@@ -122,9 +147,76 @@ data "aws_iam_policy_document" "state" {
   }
 }
 
+locals {
+  state_principals = concat(var.admin_principal_arns, var.ci_principal_arns)
+  state_resources  = [aws_s3_bucket.state.arn, "${aws_s3_bucket.state.arn}/*"]
+}
+
+data "aws_iam_policy_document" "state_access" {
+  source_policy_documents = [data.aws_iam_policy_document.state.json]
+
+  # Only the named principals may touch state at all (this also covers the
+  # AWS services: none of them needs this bucket).
+  statement {
+    sid       = "DenyUnlistedPrincipals"
+    effect    = "Deny"
+    actions   = ["s3:*"]
+    resources = local.state_resources
+    principals {
+      type        = "*"
+      identifiers = ["*"]
+    }
+    condition {
+      test     = "StringNotLike"
+      variable = "aws:PrincipalArn"
+      values   = local.state_principals
+    }
+  }
+
+  # Objects are encrypted with the state key: a put may omit the header (the
+  # bucket default applies) but may not ask for SSE-S3 or another key.
+  statement {
+    sid       = "DenyUnencryptedPuts"
+    effect    = "Deny"
+    actions   = ["s3:PutObject"]
+    resources = ["${aws_s3_bucket.state.arn}/*"]
+    principals {
+      type        = "*"
+      identifiers = ["*"]
+    }
+    condition {
+      test     = "StringNotEqualsIfExists"
+      variable = "s3:x-amz-server-side-encryption"
+      values   = ["aws:kms"]
+    }
+  }
+  statement {
+    sid       = "DenyOtherKeys"
+    effect    = "Deny"
+    actions   = ["s3:PutObject"]
+    resources = ["${aws_s3_bucket.state.arn}/*"]
+    principals {
+      type        = "*"
+      identifiers = ["*"]
+    }
+    condition {
+      test     = "StringNotEqualsIfExists"
+      variable = "s3:x-amz-server-side-encryption-aws-kms-key-id"
+      values   = [aws_kms_key.state.arn]
+    }
+  }
+}
+
 resource "aws_s3_bucket_policy" "state" {
   bucket = aws_s3_bucket.state.id
-  policy = data.aws_iam_policy_document.state.json
+  policy = data.aws_iam_policy_document.state_access.json
+}
+
+module "audit" {
+  source                 = "../modules/audit"
+  bucket_name            = var.audit_bucket
+  data_event_bucket_arns = [aws_s3_bucket.state.arn]
+  enable_guardduty       = var.enable_guardduty
 }
 
 output "state_bucket" {
@@ -133,4 +225,12 @@ output "state_bucket" {
 
 output "state_kms_key_arn" {
   value = aws_kms_key.state.arn
+}
+
+output "audit_trail_arn" {
+  value = module.audit.trail_arn
+}
+
+output "audit_bucket" {
+  value = module.audit.bucket
 }
