@@ -838,6 +838,35 @@ export interface components {
              */
             created_at: string;
         };
+        /** ExecutionOut */
+        ExecutionOut: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            status: components["schemas"]["ExecutionStatus"];
+            /** Attempts */
+            attempts: number;
+            /**
+             * Started At
+             * Format: date-time
+             */
+            started_at: string;
+            /** Completed At */
+            completed_at: string | null;
+            /** Output */
+            output: {
+                [key: string]: unknown;
+            };
+            /** Error Message */
+            error_message: string | null;
+        };
+        /**
+         * ExecutionStatus
+         * @enum {string}
+         */
+        ExecutionStatus: "running" | "succeeded" | "failed";
         /** HTTPValidationError */
         HTTPValidationError: {
             /** Detail */
@@ -1112,6 +1141,7 @@ export interface components {
              */
             created_at: string;
             decision?: components["schemas"]["DecisionOut"] | null;
+            execution?: components["schemas"]["ExecutionOut"] | null;
         };
         /**
          * ProposalStatus

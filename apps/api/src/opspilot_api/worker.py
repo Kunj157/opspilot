@@ -1,10 +1,11 @@
-"""The OpsPilot worker process: detection and agent investigations.
+"""The OpsPilot worker process: detection, investigations, remediation, and postmortems.
 
     opspilot-worker   (DATABASE_URL required; PROMETHEUS_URL for detection)
 
 Detection runs every DETECTION_INTERVAL_SECONDS. Investigations are claimed
 from the database queue as they arrive; with AUTO_INVESTIGATE, every new
-detector incident is queued automatically.
+detector incident is queued automatically. Approved remediations run as soon
+as they are approved, once each.
 """
 
 import asyncio
@@ -24,8 +25,10 @@ from opspilot_api.agents.postmortem import pending as pending_postmortems
 from opspilot_api.agents.runner import InvestigationRunner, context_factory
 from opspilot_api.config import Settings, get_settings
 from opspilot_api.detection.worker import DetectionWorker
-from opspilot_api.kube import KubernetesReader
+from opspilot_api.kube import KubernetesReader, KubernetesWriter
 from opspilot_api.logging import configure_logging
+from opspilot_api.remediation.executor import claim as claim_execution
+from opspilot_api.remediation.executor import execute
 from opspilot_api.runbooks.embeddings import build_embedder
 from opspilot_api.telemetry import LokiLogs, PrometheusMetrics, TempoTraces
 
@@ -110,6 +113,24 @@ async def run(settings: Settings) -> None:
         return bool(incident_ids)
 
     loops.append(_loop(stop, "postmortems", postmortems, 15.0))
+
+    writer = KubernetesWriter(
+        settings.allowed_namespaces,
+        context=settings.kubernetes_context,
+        config_file=settings.kubeconfig,
+    )
+
+    async def remediate() -> bool:
+        """Run one approved remediation, if any."""
+        execution_id = await claim_execution(sessions)
+        if execution_id is None:
+            return False
+        await execute(
+            sessions, writer, execution_id, allowed_namespaces=settings.allowed_namespaces
+        )
+        return True
+
+    loops.append(_loop(stop, "remediation", remediate, 2.0))
 
     log.info(
         "worker started", detection=bool(settings.prometheus_url), llm=f"{llm.provider}:{llm.model}"
