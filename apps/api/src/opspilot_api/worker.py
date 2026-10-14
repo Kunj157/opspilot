@@ -13,9 +13,11 @@ import contextlib
 import signal
 from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 
 import structlog
 from prometheus_client import start_http_server
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from opspilot_api.agents.investigation import Investigator
@@ -33,6 +35,7 @@ from opspilot_api.events.handlers import (
 )
 from opspilot_api.events.producer import KafkaProducer
 from opspilot_api.events.relay import OutboxRelay
+from opspilot_api.heartbeat import beat_if_healthy
 from opspilot_api.kube import KubernetesWriter
 from opspilot_api.logging import configure_logging
 from opspilot_api.ml.shadow import ShadowScorer
@@ -80,6 +83,20 @@ async def run(settings: Settings) -> None:
         loop.add_signal_handler(sig, stop.set)
 
     loops = []
+    if settings.worker_heartbeat_file:
+        heartbeat_file = Path(settings.worker_heartbeat_file)
+
+        async def database_reachable() -> None:
+            async with engine.connect() as connection:
+                await connection.execute(text("SELECT 1"))
+
+        async def heartbeat() -> bool:
+            """Ready while the database answers; a failure just skips the beat."""
+            await beat_if_healthy(heartbeat_file, database_reachable)
+            return False
+
+        loops.append(_loop(stop, "heartbeat", heartbeat, settings.worker_heartbeat_seconds))
+
     if settings.prometheus_url:
         detection = DetectionWorker(
             sessions,
@@ -123,6 +140,7 @@ async def run(settings: Settings) -> None:
         kube=writer,
         embedder=build_embedder(settings.embedding_model, settings.embedding_cache_dir),
         allowed_namespaces=settings.allowed_namespaces,
+        environment=settings.app_env,
     )
     runner = InvestigationRunner(
         sessions,

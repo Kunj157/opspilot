@@ -16,6 +16,8 @@ RISK = {
     RemediationAction.ROLLBACK_DEPLOYMENT: "medium",
     RemediationAction.RESTART_DEPLOYMENT: "medium",
     RemediationAction.SCALE_DEPLOYMENT: "medium",
+    # Pausing changes no pods: it only stops a rollout from going further, and resumes cleanly.
+    RemediationAction.PAUSE_ROLLOUT: "low",
 }
 MAX_REPLICAS = 6
 # A rollback must undo a release that introduced the errors: low before it, high after.
@@ -29,6 +31,18 @@ VERIFICATION_PLAN: dict[str, Any] = {
     "max_error_rate": 0.02,
     "max_p95_ratio_to_baseline": 1.5,
 }
+# A paused rollout never completes: verification waits for it to report paused instead.
+PAUSE_VERIFICATION_PLAN: dict[str, Any] = {
+    **VERIFICATION_PLAN,
+    "require_rollout_complete": False,
+    "require_paused": True,
+}
+
+
+def verification_plan(action: RemediationAction) -> dict[str, Any]:
+    return (
+        PAUSE_VERIFICATION_PLAN if action is RemediationAction.PAUSE_ROLLOUT else VERIFICATION_PLAN
+    )
 
 
 @dataclass(frozen=True)
@@ -81,6 +95,15 @@ def evaluate(
         parameters["to_revision"] = previous["revision"]
         parameters["from_version"] = (deployments or {}).get("latest", {}).get("version")
         parameters["to_version"] = previous.get("version")
+    if action is RemediationAction.PAUSE_ROLLOUT:
+        rollout = (deployments or {}).get("rollout")
+        if not rollout:
+            return Rejected("the rollout status is unknown")
+        if rollout.get("complete"):
+            return Rejected("the rollout is already complete; there is nothing to pause")
+        latest = (deployments or {}).get("latest") or {}
+        parameters["revision"] = latest.get("revision")
+        parameters["version"] = latest.get("version")
     if action is RemediationAction.SCALE_DEPLOYMENT:
         if draft.replicas is None or not 1 <= draft.replicas <= MAX_REPLICAS:
             return Rejected(f"scaling must name 1-{MAX_REPLICAS} replicas")

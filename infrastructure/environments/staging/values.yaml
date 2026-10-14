@@ -1,0 +1,29 @@
+# Staging: production-shaped (managed PostgreSQL and Redis through the
+# opspilot Secret from External Secrets), smaller, with faster canaries.
+image:
+  api: { repository: ghcr.io/kunj157/opspilot-api }
+  web: { repository: ghcr.io/kunj157/opspilot-web }
+
+config:
+  APP_ENV: staging
+  LOG_LEVEL: info
+
+rollouts:
+  enabled: true
+  steps: [10, 25, 50]
+  pause: 60s
+
+devDatabases:
+  enabled: false
+
+api:
+  autoscaling: { enabled: true, minReplicas: 2, maxReplicas: 4, targetCPU: 70 }
+web:
+  autoscaling: { enabled: true, minReplicas: 2, maxReplicas: 4, targetCPU: 70 }
+worker:
+  replicas: 1
+
+# Kyverno signature verification: only CI-signed images run.
+imageVerification:
+  enabled: true
+  failureAction: Enforce

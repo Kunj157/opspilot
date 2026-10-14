@@ -188,6 +188,7 @@ EXECUTABLE = {
     RemediationAction.ROLLBACK_DEPLOYMENT,
     RemediationAction.RESTART_DEPLOYMENT,
     RemediationAction.SCALE_DEPLOYMENT,
+    RemediationAction.PAUSE_ROLLOUT,
 }
 
 
@@ -209,6 +210,8 @@ async def _act(
             return await writer.restart_deployment(
                 namespace, deployment, restarted_at=started_at.isoformat()
             )
+        case RemediationAction.PAUSE_ROLLOUT:
+            return await writer.pause_rollout(namespace, deployment)
         case _:
             return await writer.scale_deployment_within_bounds(
                 namespace, deployment, p["replicas"], maximum=MAX_REPLICAS
@@ -310,5 +313,7 @@ def _title(proposal: RemediationProposal, output: dict[str, Any]) -> str:
             return f"Rolled back {p['deployment']} to revision {p['to_revision']}{version}"
         case RemediationAction.RESTART_DEPLOYMENT:
             return f"Restarted {p['deployment']}"
+        case RemediationAction.PAUSE_ROLLOUT:
+            return f"Paused the rollout of {p['deployment']}"
         case _:
             return f"Scaled {p['deployment']} to {p.get('replicas')} replicas"

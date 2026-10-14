@@ -5,6 +5,7 @@ import { useInfiniteQuery } from "@tanstack/react-query";
 import { type FormEvent, useState } from "react";
 
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
 const PAGE_SIZE = 25;
 
@@ -82,12 +83,7 @@ function Field({
   return (
     <label className="flex flex-col gap-1.5 text-xs text-fg-secondary">
       {label}
-      <input
-        name={name}
-        type={type}
-        placeholder={placeholder}
-        className="h-9 rounded-sm border border-border bg-surface-1 px-2.5 text-sm text-fg placeholder:text-fg-muted focus:border-accent focus:outline-none"
-      />
+      <Input name={name} type={type} placeholder={placeholder} />
     </label>
   );
 }
@@ -115,7 +111,7 @@ export function AuditLogExplorer() {
   const entries = query.data?.pages.flatMap((p) => p.items) ?? [];
 
   return (
-    <section className="overflow-hidden rounded-card border border-border bg-surface-2 shadow-3">
+    <section className="surface-raised overflow-clip rounded-card border border-border">
       <form
         onSubmit={applyFilters}
         aria-label="Filters"

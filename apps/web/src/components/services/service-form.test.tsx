@@ -45,18 +45,31 @@ describe("ServiceForm", () => {
     vi.stubGlobal(
       "fetch",
       vi.fn(async () =>
-        json({ detail: [{ loc: ["body", "namespace"], msg: "String should match pattern", type: "x" }] }, 422),
+        json({ detail: [{ loc: ["body", "namespace"], msg: "Namespace is reserved", type: "x" }] }, 422),
       ),
     );
+
+    render(<ServiceForm onSaved={vi.fn()} />);
+    await userEvent.type(screen.getByLabelText("Name"), "Checkout");
+    await userEvent.type(screen.getByLabelText("Namespace"), "kube-system");
+    await userEvent.click(screen.getByRole("button", { name: "Create service" }));
+
+    const namespace = await screen.findByLabelText("Namespace");
+    expect(namespace).toHaveAttribute("aria-invalid", "true");
+    expect(namespace).toHaveAccessibleDescription(/reserved/i);
+  });
+
+  it("explains invalid values before sending anything", async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
 
     render(<ServiceForm onSaved={vi.fn()} />);
     await userEvent.type(screen.getByLabelText("Name"), "Checkout");
     await userEvent.type(screen.getByLabelText("Namespace"), "Bad_NS");
     await userEvent.click(screen.getByRole("button", { name: "Create service" }));
 
-    const namespace = screen.getByLabelText("Namespace");
-    expect(namespace).toHaveAttribute("aria-invalid", "true");
-    expect(namespace).toHaveAccessibleDescription(/should match pattern/i);
+    expect(await screen.findByLabelText("Namespace")).toHaveAccessibleDescription(/lowercase/i);
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it("explains a slug that is already taken", async () => {

@@ -19,3 +19,8 @@ api:
   autoscaling: { enabled: true, minReplicas: 2, maxReplicas: 4, targetCPU: 70 }
 web:
   autoscaling: { enabled: true, minReplicas: 2, maxReplicas: 4, targetCPU: 70 }
+
+# Kyverno signature verification: report unsigned images, never block.
+imageVerification:
+  enabled: true
+  failureAction: Audit

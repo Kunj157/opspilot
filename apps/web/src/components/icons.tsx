@@ -72,6 +72,22 @@ export const icons = {
       <path d="M3 11.5a2 2 0 0 1 2-2h7.5M6 5.5h4" />
     </Icon>
   ),
+  chevron: (p: IconProps) => (
+    <Icon {...p}>
+      <path d="m4.5 6.5 3.5 3.5 3.5-3.5" />
+    </Icon>
+  ),
+  sort: (p: IconProps) => (
+    <Icon {...p}>
+      <path d="M8 3v10M4.5 9.5 8 13l3.5-3.5" />
+    </Icon>
+  ),
+  search: (p: IconProps) => (
+    <Icon {...p}>
+      <circle cx="7" cy="7" r="4.5" />
+      <path d="m10.5 10.5 3 3" />
+    </Icon>
+  ),
   close: (p: IconProps) => (
     <Icon {...p}>
       <path d="m4 4 8 8m0-8-8 8" />

@@ -41,6 +41,17 @@ test("creates an incident from the dialog", async ({ page }) => {
   await expect(row).toContainText("Detected");
 });
 
+test("a ?new=1 link opens the new incident form and closing it tidies the URL", async ({ page }) => {
+  await page.goto("/incidents?new=1&severity=high");
+  const dialog = page.getByRole("dialog", { name: "New incident" });
+  await expect(dialog).toBeVisible();
+
+  await dialog.getByRole("button", { name: "Close" }).click();
+
+  await expect(dialog).toBeHidden();
+  await expect(page).toHaveURL(/\/incidents\?severity=high$/);
+});
+
 test("filters are kept in the URL and survive a reload", async ({ page, baseURL }) => {
   const stamp = Date.now();
   for (const severity of ["critical", "low"]) {
@@ -66,6 +77,59 @@ test("filters are kept in the URL and survive a reload", async ({ page, baseURL 
   await page.getByLabel("Status").selectOption("RESOLVED");
   await expect(page).toHaveURL(/status=RESOLVED/);
   await expect(page.getByText(`Filter critical ${stamp}`, { exact: true })).toHaveCount(0);
+});
+
+test("filters by assignee", async ({ page, baseURL }) => {
+  const stamp = Date.now();
+  const headers = { Origin: baseURL! };
+  const me = (await (await page.request.get("/api/v1/me")).json()) as { id: string };
+  const make = async (title: string) => {
+    const response = await page.request.post("/api/v1/incidents", { headers, data: { title, severity: "low" } });
+    expect(response.status()).toBe(201);
+    return (await response.json()) as { id: string; version: number };
+  };
+  const mine = await make(`Assigned ${stamp}`);
+  await make(`Unassigned ${stamp}`);
+  const assigned = await page.request.patch(`/api/v1/incidents/${mine.id}`, {
+    headers,
+    data: { version: mine.version, assigned_user_id: me.id },
+  });
+  expect(assigned.status()).toBe(200);
+
+  await page.goto("/incidents");
+  await expect(page.getByText(`Unassigned ${stamp}`, { exact: true })).toBeVisible();
+  await page.getByLabel("Assignee").selectOption("me");
+
+  await expect(page).toHaveURL(/\/incidents\?mine=1$/);
+  await expect(page.getByText(`Assigned ${stamp}`, { exact: true })).toBeVisible();
+  await expect(page.getByText(`Unassigned ${stamp}`, { exact: true })).toHaveCount(0);
+});
+
+test("columns sort and the header stays visible while scrolling", async ({ page, baseURL }) => {
+  // Enough rows to scroll a short window, whatever else the suite has created.
+  for (const severity of ["critical", "high", "medium", "low", "low", "low", "low", "low"]) {
+    const response = await page.request.post("/api/v1/incidents", {
+      headers: { Origin: baseURL! },
+      data: { title: `Sort ${severity} ${Date.now()}`, severity },
+    });
+    expect(response.status()).toBe(201);
+  }
+  await page.setViewportSize({ width: 1280, height: 480 });
+  await page.goto("/incidents?status=all");
+  const table = page.getByRole("table", { name: "Incidents" });
+  const severity = table.getByRole("columnheader", { name: "Severity" });
+
+  await severity.getByRole("button").click();
+  await expect(severity).toHaveAttribute("aria-sort", "ascending");
+  await expect(table.getByRole("row").nth(1)).toContainText("Critical");
+  await severity.getByRole("button").click();
+  await expect(severity).toHaveAttribute("aria-sort", "descending");
+
+  await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+  const box = await severity.boundingBox();
+  // Pinned just below the 48px top bar.
+  expect(box?.y).toBeGreaterThanOrEqual(47);
+  expect(box?.y).toBeLessThanOrEqual(49);
 });
 
 test.describe("as a viewer", () => {
