@@ -1,0 +1,60 @@
+# Images are pinned by tag; CI writes the tag of each main build into the
+# environment values (GitOps).
+image:
+  api:
+    repository: ghcr.io/kunj157/opspilot-api
+    tag: dev
+  web:
+    repository: ghcr.io/kunj157/opspilot-web
+    tag: dev
+  pullPolicy: IfNotPresent
+
+# Non-secret configuration, passed as environment variables.
+config:
+  APP_ENV: production
+  LOG_LEVEL: info
+  JWT_AUDIENCE: opspilot-api
+  AGENT_ALLOWED_NAMESPACES: demo
+  AUTO_INVESTIGATE: "true"
+
+# A Secret with DATABASE_URL, REDIS_URL, JWT_ISSUER, OIDC_*, LLM_API_KEY, ...
+# created outside the chart (External Secrets in AWS, kubectl locally).
+existingSecret: opspilot
+
+api:
+  replicas: 2
+  resources:
+    requests: { cpu: 100m, memory: 384Mi }
+    limits: { cpu: "1", memory: 1Gi }
+  autoscaling: { enabled: true, minReplicas: 2, maxReplicas: 6, targetCPU: 70 }
+
+web:
+  replicas: 2
+  resources:
+    requests: { cpu: 50m, memory: 128Mi }
+    limits: { cpu: 500m, memory: 384Mi }
+  autoscaling: { enabled: true, minReplicas: 2, maxReplicas: 6, targetCPU: 70 }
+  env:
+    API_URL: http://opspilot-api:8000
+
+worker:
+  replicas: 1
+  resources:
+    requests: { cpu: 100m, memory: 512Mi }
+    limits: { cpu: "1", memory: 1536Mi }
+  # Namespaces the worker may read and remediate (its Role is created there).
+  allowedNamespaces: [demo]
+
+# Canary delivery with Argo Rollouts; plain Deployments when disabled.
+rollouts:
+  enabled: false
+  steps: [10, 25, 50]
+  pause: 60s
+  prometheusUrl: http://prometheus.observability:9090
+  maxErrorRate: "0.05"
+  maxP95Seconds: "0.5"
+
+# Development only: in-cluster PostgreSQL and Redis instead of managed ones.
+devDatabases:
+  enabled: false
+  postgresPassword: opspilot-dev

@@ -199,5 +199,5 @@ def main() -> None:
     settings = get_settings()
     configure_logging(settings.model_copy(update={"service_name": "worker"}))
     if settings.worker_metrics_port:
-        start_http_server(settings.worker_metrics_port, addr="127.0.0.1")
+        start_http_server(settings.worker_metrics_port, addr=settings.worker_metrics_host)
     asyncio.run(run(settings))

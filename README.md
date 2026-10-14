@@ -5,10 +5,11 @@ incidents in a cloud application, investigates them with AI agents and
 machine learning, proposes safe remediation, runs human-approved runbooks,
 verifies recovery, and writes the postmortem.
 
-> **Status:** v0.12.0 released. The full incident loop works on the demo, an
+> **Status:** v0.13.0 released. The full incident loop works on the demo, an
 > ML detector runs in shadow mode, incident events flow through Redpanda,
-> and Terraform describes complete AWS environments. Phase 13, containers,
-> Kubernetes, and GitOps, is next. See the [roadmap](#roadmap).
+> Terraform describes complete AWS environments, and OpsPilot ships as signed
+> images through a hardened Helm chart and Argo CD canary rollouts. See the
+> [roadmap](#roadmap).
 
 ## What it does today
 
@@ -91,6 +92,12 @@ verifies recovery, and writes the postmortem.
   off-hours scaling. Static checks run in CI (fmt, validate, tflint,
   checkov). Not applied yet: this project has no AWS account configured.
   See [`infrastructure/terraform`](infrastructure/terraform/README.md).
+- **Containers and GitOps:** multi-stage, non-root images for the API,
+  worker, and web, built, scanned (Trivy), signed (cosign), and given an SBOM
+  on `main`. A Helm chart deploys them with read-only filesystems, dedicated
+  service accounts, network policies, PDBs, and HPAs. Argo CD syncs the
+  chart and Argo Rollouts promotes the API and web through a 10/25/50/100
+  canary, aborting on 5xx rate or latency (`make gitops-up` on kind).
 - **Design system:** Graphite & Iris tokens with contrast checked in CI,
   shared primitives (buttons, tilting cards, tabs, drawer, toasts), and
   Lighthouse budgets on primary pages.
@@ -120,7 +127,7 @@ verifies recovery, and writes the postmortem.
 | ML (`ml/`) | pandas, scikit-learn, MLflow |
 | Events | Redpanda (Kafka API), aiokafka |
 | Cloud | Terraform (AWS provider 6), tflint, checkov |
-| Planned | Argo CD |
+| Delivery | Docker, Helm, Argo CD, Argo Rollouts, cosign |
 
 Design notes and decisions live in [`docs/`](docs): the
 [architecture overview](docs/architecture/overview.md), [SLOs](docs/architecture/slos.md),
@@ -145,7 +152,7 @@ Each phase ends with a tagged release.
 | 10 | ML anomaly detection | ✅ v0.10.0 |
 | 11 | Event-driven processing | ✅ v0.11.0 |
 | 12 | Cloud infrastructure (AWS, Terraform) | ✅ v0.12.0 |
-| 13 | Containers, Kubernetes, and GitOps | 🚧 next |
+| 13 | Containers, Kubernetes, and GitOps | ✅ v0.13.0 |
 
 ## Local development
 
@@ -241,7 +248,7 @@ apps/web            Next.js app and component tests
 packages/api-client Typed API client generated from OpenAPI
 demo/services       Instrumented demo shop (one image, five services) and load generator
 demo/failure-injection  Faulty-release scenarios
-infrastructure/     Keycloak realm, kind cluster, demo-shop Helm chart
+infrastructure/     Keycloak realm, kind cluster, Helm charts, Terraform, Argo CD
 observability/      Collector, Prometheus, Loki, Tempo, Grafana manifests and dashboards
 tests/e2e           Playwright specs
 docs/               Architecture, ADRs, SLOs, threat model
