@@ -102,7 +102,7 @@ jobs:
         run: uvx checkov==3.3.29 -d . --framework terraform --compact --quiet
 
   demo:
-    name: Demo services · lint, types, tests, image
+    name: Demo services · lint, types, tests
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     defaults:
@@ -122,8 +122,46 @@ jobs:
         run: uv run mypy
       - name: Tests
         run: uv run pytest
-      - name: Build image
-        run: docker build -t opspilot-demo:ci .
+
+  images:
+    # The images main would ship, built (not pushed) and scanned on every PR.
+    # The API image is also the worker's.
+    name: Image · ${{ matrix.image }} · build and scan
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - image: api
+            context: .
+            dockerfile: apps/api/Dockerfile
+          - image: web
+            context: .
+            dockerfile: apps/web/Dockerfile
+          - image: demo
+            context: demo/services
+            dockerfile: demo/services/Dockerfile
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - name: Build
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.dockerfile }}
+          load: true
+          push: false
+          tags: opspilot-${{ matrix.image }}:ci
+          # Reuse the layers main's image builds cached.
+          cache-from: type=gha,scope=${{ matrix.image }}
+      - name: Scan (fail on fixable critical and high)
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: opspilot-${{ matrix.image }}:ci
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          exit-code: "1"
 
   helm:
     name: Helm · lint and render
