@@ -5,10 +5,21 @@
  */
 const LAYERS = [1, 2, 4, 8];
 
-export function ProgressiveBlur({ side = "bottom", className }: { side?: "top" | "bottom"; className?: string }) {
+export function ProgressiveBlur({
+  side = "bottom",
+  placement,
+  className,
+}: {
+  /** The edge where the blur is strongest. */
+  side?: "top" | "bottom";
+  /** Positioning classes; defaults to hugging `side` of the parent. */
+  placement?: string;
+  className?: string;
+}) {
   const towards = side === "bottom" ? "to bottom" : "to top";
+  const edge = placement ?? (side === "bottom" ? "bottom-0" : "top-0");
   return (
-    <div aria-hidden className={`pointer-events-none absolute inset-x-0 ${side}-0 h-8 ${className ?? ""}`}>
+    <div aria-hidden className={`pointer-events-none absolute inset-x-0 ${edge} ${className ?? "h-8"}`}>
       {LAYERS.map((blur, i) => {
         const start = (i / LAYERS.length) * 100;
         const end = ((i + 1) / LAYERS.length) * 100;
