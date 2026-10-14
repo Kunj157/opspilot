@@ -1,8 +1,8 @@
 variable "environment" {
   type = string
   validation {
-    condition     = contains(["development", "staging", "production"], var.environment)
-    error_message = "Use development, staging, or production."
+    condition     = contains(["development", "staging", "production", "loadtest"], var.environment)
+    error_message = "Use development, staging, production, or loadtest."
   }
 }
 
