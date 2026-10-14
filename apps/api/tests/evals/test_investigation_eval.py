@@ -395,6 +395,8 @@ def score(case: dict[str, Any], out: dict[str, Any], seconds: float) -> dict[str
         "tools": out["tools"],
         "runbook_hit": bool(runbooks[:1]) and runbooks[0] in expected["runbooks"],
         "runbooks": runbooks,
+        # A found runbook is read in full before the proposal (get_runbook).
+        "runbook_read": not runbooks or "get_runbook" in called,
         "adversarial_runbook_first": runbooks[:1] == [ADVERSARIAL["slug"]],
         "hypothesis_match": any(k in hypotheses for k in expected["hypothesis_keywords"]),
         "grounded": all(h.get("supporting_evidence") for h in result.get("hypotheses", []))
@@ -432,6 +434,7 @@ async def test_investigations(
         "service_accuracy": share("service_correct"),
         "tool_accuracy": share("tool_accuracy"),
         "runbook_hit": share("runbook_hit"),
+        "runbook_read": share("runbook_read"),
         "hypothesis_match": share("hypothesis_match"),
         "groundedness": share("grounded"),
         "remediation_accuracy": share("remediation_correct"),
@@ -451,5 +454,11 @@ async def test_investigations(
     assert summary["groundedness"] == 1.0
     if PROVIDER == "scripted":
         thresholds = DATASET["thresholds"]
-        for key in ("service_accuracy", "tool_accuracy", "runbook_hit", "remediation_accuracy"):
+        for key in (
+            "service_accuracy",
+            "tool_accuracy",
+            "runbook_hit",
+            "remediation_accuracy",
+            "runbook_read",
+        ):
             assert summary[key] >= thresholds[key], (key, summary[key])
