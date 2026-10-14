@@ -7,6 +7,7 @@ import { useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-quer
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useState, ViewTransition } from "react";
 
+import { IncidentForm } from "@/components/forms/lazy-forms";
 import { SERVICES_KEY } from "@/components/services/service-catalog";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -27,7 +28,7 @@ import {
 import { useIncidentStream } from "@/lib/use-incident-stream";
 
 import { SeverityBadge, StatusBadge, statusLabel } from "./badges";
-import { IncidentForm } from "./incident-form";
+
 import { LiveIndicator } from "./live-indicator";
 
 type IncidentPage = components["schemas"]["IncidentPage"];

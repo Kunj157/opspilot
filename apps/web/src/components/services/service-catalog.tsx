@@ -5,6 +5,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { useState } from "react";
 
+import { ServiceForm } from "@/components/forms/lazy-forms";
 import { GlowEffect } from "@/components/motion/glow-effect";
 import { InView } from "@/components/motion/in-view";
 import { MotionScope } from "@/components/motion/motion-provider";
@@ -14,7 +15,6 @@ import { Modal } from "@/components/ui/modal";
 import { useToast } from "@/components/ui/toast";
 
 import { HealthBadge } from "./health-badge";
-import { ServiceForm } from "./service-form";
 
 export const SERVICES_KEY = ["services"] as const;
 

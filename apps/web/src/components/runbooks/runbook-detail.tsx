@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useState } from "react";
 
+import { RunbookForm } from "@/components/forms/lazy-forms";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Modal } from "@/components/ui/modal";
@@ -14,7 +15,6 @@ import { MarkdownLite } from "@/lib/markdown-lite";
 import { safeHref } from "@/lib/safe-href";
 
 import { RUNBOOKS_KEY } from "./runbook-library";
-import { RunbookForm } from "./runbook-form";
 
 export function RunbookDetail({ canManage }: { canManage: boolean }) {
   const { runbookId } = useParams<{ runbookId: string }>();
