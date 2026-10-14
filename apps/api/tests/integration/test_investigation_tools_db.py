@@ -2,6 +2,7 @@
 
 import uuid
 from collections.abc import AsyncIterator
+from dataclasses import replace
 from datetime import UTC, datetime
 from typing import Any
 
@@ -187,6 +188,28 @@ async def test_runbook_search_returns_cited_untrusted_excerpts(
     assert "UNTRUSTED" in result.data["excerpts"]
     assert result.evidence is not None
     assert result.evidence.source == "runbook library"
+
+
+async def test_runbook_search_only_uses_runbooks_for_the_worker_environment(
+    sessions: async_sessionmaker[AsyncSession],
+) -> None:
+    w = await world(sessions)
+    async with sessions() as session:
+        await session.execute(
+            update(Runbook)
+            .where(Runbook.organization_id == w["org"].id)
+            .values(environment="production")
+        )
+        await session.commit()
+    ctx = context(sessions, w["org"].id, w["checkout"])
+    args = {"query": "checkout returns 500 after a release", "service": "checkout"}
+
+    staging = await run_tool(replace(ctx, environment="staging"), "search_runbooks", args)
+    production = await run_tool(replace(ctx, environment="production"), "search_runbooks", args)
+
+    assert not staging.ok
+    assert staging.error == "no runbook matched"
+    assert production.ok, production.error
 
 
 async def test_get_runbook_returns_the_whole_runbook_quoted_and_cited(

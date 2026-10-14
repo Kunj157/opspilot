@@ -81,6 +81,8 @@ class ToolContext:
     sessions: async_sessionmaker[AsyncSession] | None = None
     embedder: Embedder | None = None
     incident_id: uuid.UUID | None = None
+    # Runbooks are filtered to this environment (plus "all"); None: no filter.
+    environment: str | None = None
 
 
 class ToolFailure(Exception):
@@ -459,6 +461,7 @@ async def search_runbooks(ctx: ToolContext, args: RunbookArgs) -> ToolResult:
             organization_id=uuid.UUID(str(ctx.organization_id)),
             query=args.query,
             service=args.service,
+            environment=ctx.environment,
             limit=4,
         )
     if not hits:
