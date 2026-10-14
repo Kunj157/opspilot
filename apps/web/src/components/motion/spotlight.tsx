@@ -1,30 +1,25 @@
 "use client";
 
-import { m, useMotionTemplate, useMotionValue, useSpring } from "motion/react";
-import { type PointerEvent, type ReactNode, useState } from "react";
+import { type PointerEvent, type ReactNode, useRef, useState } from "react";
 
-import { spring } from "@/lib/motion";
 import { useReducedMotion } from "@/lib/use-reduced-motion";
-
-import { MotionScope } from "./motion-provider";
 
 /**
  * A soft Iris light that follows the pointer across a surface (Spotlight, after
- * Motion Primitives). Only for fine pointers; nothing renders under reduced
- * motion or before the first pointer move.
+ * Motion Primitives). Plain CSS custom properties, so pages that use it (the
+ * sign-in page) ship no animation library. Only for a mouse; nothing renders
+ * under reduced motion or before the first pointer move.
  */
 export function Spotlight({ children, className, size = 320 }: { children: ReactNode; className?: string; size?: number }) {
   const reduced = useReducedMotion();
   const [active, setActive] = useState(false);
-  const x = useSpring(useMotionValue(0), spring.gentle);
-  const y = useSpring(useMotionValue(0), spring.gentle);
-  const background = useMotionTemplate`radial-gradient(${size}px circle at ${x}px ${y}px, var(--accent-subtle), transparent 70%)`;
+  const light = useRef<HTMLDivElement>(null);
 
   function move(event: PointerEvent<HTMLDivElement>) {
     if (reduced || event.pointerType !== "mouse") return;
     const box = event.currentTarget.getBoundingClientRect();
-    x.set(event.clientX - box.left);
-    y.set(event.clientY - box.top);
+    light.current?.style.setProperty("--spot-x", `${event.clientX - box.left}px`);
+    light.current?.style.setProperty("--spot-y", `${event.clientY - box.top}px`);
     setActive(true);
   }
 
@@ -32,17 +27,18 @@ export function Spotlight({ children, className, size = 320 }: { children: React
     <div className={`relative ${className ?? ""}`} onPointerMove={move} onPointerLeave={() => setActive(false)}>
       {children}
       {/* Above the content, so the light washes over opaque surfaces too. */}
-      {active && (
-        <MotionScope>
-          <m.div
-            aria-hidden
-            data-testid="spotlight"
-            className="pointer-events-none absolute inset-0 z-10 rounded-[inherit]"
-            style={{ background }}
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-          />
-        </MotionScope>
+      {!reduced && (
+        <div
+          ref={light}
+          aria-hidden
+          data-testid={active ? "spotlight" : undefined}
+          className={`pointer-events-none absolute inset-0 z-10 rounded-[inherit] transition-opacity duration-(--duration-base) ${
+            active ? "opacity-100" : "opacity-0"
+          }`}
+          style={{
+            background: `radial-gradient(${size}px circle at var(--spot-x, 50%) var(--spot-y, 50%), var(--accent-subtle), transparent 70%)`,
+          }}
+        />
       )}
     </div>
   );

@@ -2,6 +2,7 @@ import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import ToastList from "./toast-list";
 import { ToastProvider, useToast } from "./toast";
 
 function Trigger({ tone }: { tone?: "success" | "error" }) {
@@ -26,7 +27,8 @@ describe("Toast", () => {
 
     const region = screen.getByRole("region", { name: "Notifications" });
     expect(region).toHaveAttribute("aria-live", "polite");
-    expect(region).toHaveTextContent("Incident resolved");
+    // The animated list loads with the first toast.
+    await waitFor(() => expect(region).toHaveTextContent("Incident resolved"));
     await user.click(screen.getByRole("button", { name: "Dismiss" }));
     // It slides out first.
     await waitFor(() => expect(region).not.toHaveTextContent("Incident resolved"));
@@ -44,11 +46,11 @@ describe("Toast", () => {
 
     const region = screen.getByRole("region", { name: "Error messages" });
     expect(region).toHaveAttribute("aria-live", "assertive");
-    expect(region).toHaveTextContent("Incident resolved");
+    await waitFor(() => expect(region).toHaveTextContent("Incident resolved"));
   });
 
-  it("expires after a few seconds", () => {
-    vi.useFakeTimers();
+  it("expires after a few seconds", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
     render(
       <ToastProvider>
         <Trigger />
@@ -56,9 +58,26 @@ describe("Toast", () => {
     );
 
     act(() => screen.getByRole("button", { name: "Notify" }).click());
-    expect(screen.getByRole("region", { name: "Notifications" })).toHaveTextContent("Incident resolved");
+    await vi.waitFor(() => expect(screen.getByRole("region", { name: "Notifications" })).toHaveTextContent("Incident resolved"));
     act(() => vi.advanceTimersByTime(6000));
 
-    expect(screen.getByRole("region", { name: "Notifications" })).not.toHaveTextContent("Incident resolved");
+    await vi.waitFor(() =>
+      expect(screen.getByRole("region", { name: "Notifications" })).not.toHaveTextContent("Incident resolved"),
+    );
+  });
+
+  it("marks the tone with a glyph, not colour alone", () => {
+    render(
+      <ToastList
+        toasts={[
+          { id: 1, message: "Saved", tone: "success" },
+          { id: 2, message: "Failed", tone: "error" },
+        ]}
+        dismiss={() => {}}
+        lifetime={5000}
+      />,
+    );
+    expect(screen.getByText("Saved").previousElementSibling).toHaveTextContent("✓");
+    expect(screen.getByText("Failed").previousElementSibling).toHaveTextContent("!");
   });
 });

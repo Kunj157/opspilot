@@ -6,13 +6,12 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { type FormEvent, useState } from "react";
 
+import { RunbookForm } from "@/components/forms/lazy-forms";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Modal } from "@/components/ui/modal";
 import { useToast } from "@/components/ui/toast";
-
-import { RunbookForm } from "./runbook-form";
 
 export const RUNBOOKS_KEY = ["runbooks"] as const;
 

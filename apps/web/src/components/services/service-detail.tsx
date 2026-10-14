@@ -6,12 +6,12 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useState } from "react";
 
+import { ServiceForm } from "@/components/forms/lazy-forms";
 import { SeverityBadge, StatusBadge } from "@/components/incidents/badges";
 import { Modal } from "@/components/ui/modal";
 
 import { HealthBadge } from "./health-badge";
 import { SERVICES_KEY } from "./service-catalog";
-import { ServiceForm } from "./service-form";
 
 const ACTIVE = ["DETECTED", "INVESTIGATING", "AWAITING_APPROVAL", "REMEDIATING", "VERIFYING", "MONITORING", "REJECTED"] as const;
 
