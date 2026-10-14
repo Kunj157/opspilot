@@ -15,10 +15,12 @@ from opspilot_api.db.session import SessionFactory
 from opspilot_api.events.broker import EventBroker
 from opspilot_api.http_metrics import MetricsMiddleware
 from opspilot_api.logging import configure_logging
+from opspilot_api.rate_limit import AnonymousRateLimitMiddleware, RateLimiter
 from opspilot_api.request_context import RequestContextMiddleware
 from opspilot_api.routes import (
     audit_logs,
     detections,
+    evaluations,
     incident_metrics,
     incident_streams,
     incidents,
@@ -29,8 +31,10 @@ from opspilot_api.routes import (
     runbooks,
     services,
     topology,
+    users,
 )
 from opspilot_api.runbooks.embeddings import build_embedder
+from opspilot_api.security_headers import SecurityHeadersMiddleware, add_cors
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -43,6 +47,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         session_factory: SessionFactory | None = None
         token_verifier: TokenVerifier | None = None
         event_broker: EventBroker | None = None
+        rate_limiter: RateLimiter | None = None
         async with AsyncExitStack() as stack:
             if settings.database_url:
                 engine = create_async_engine(settings.database_url, pool_pre_ping=True)
@@ -68,6 +73,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 )
                 stack.push_async_callback(redis.aclose)
                 checks["redis"] = readiness.redis_check(redis)
+                if settings.rate_limit_enabled:
+                    rate_limiter = RateLimiter(redis, settings)
 
             app.state.embedder = build_embedder(
                 settings.embedding_model, settings.embedding_cache_dir
@@ -77,14 +84,20 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             app.state.session_factory = session_factory
             app.state.token_verifier = token_verifier
             app.state.event_broker = event_broker
+            app.state.rate_limiter = rate_limiter
             yield
 
     app = FastAPI(title="OpsPilot API", version=version("opspilot-api"), lifespan=lifespan)
     # Last added runs first: request context wraps auditing, so audit
-    # records carry the request ID and client IP.
+    # records carry the request ID and client IP; rate-limit rejections are
+    # logged and counted like any other response.
+    app.add_middleware(AnonymousRateLimitMiddleware)
     app.add_middleware(AuditMiddleware)
     app.add_middleware(MetricsMiddleware)
     app.add_middleware(RequestContextMiddleware)
+    # Every response, including errors and CORS preflights, gets the headers.
+    add_cors(app, settings)
+    app.add_middleware(SecurityHeadersMiddleware)
     # Outermost: take the client address from X-Forwarded-For only when the
     # connection comes from a trusted proxy, so direct callers cannot spoof it.
     app.add_middleware(
@@ -96,6 +109,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.add_route("/metrics", http_metrics.metrics, include_in_schema=False)
     app.include_router(readiness.router)
     app.include_router(me.router)
+    app.include_router(users.router)
     app.include_router(audit_logs.router)
     app.include_router(services.router)
     app.include_router(topology.router)
@@ -103,6 +117,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(incident_streams.router)
     app.include_router(incidents.router)
     app.include_router(incident_metrics.router)
+    app.include_router(evaluations.router)
     app.include_router(detections.router)
     app.include_router(investigations.router)
     app.include_router(remediation.router)

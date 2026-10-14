@@ -31,7 +31,7 @@ test("searching by symptoms finds the runbook, and editing creates a new version
 
   await page.goto("/runbooks");
   await page.getByRole("searchbox", { name: "Search runbooks" }).fill(`ledger totals drift ${run}`);
-  await page.getByRole("button", { name: "Search" }).click();
+  await page.getByRole("search").getByRole("button", { name: "Search" }).click();
   const first = page.getByRole("list", { name: "Search results" }).getByRole("listitem").first();
   await expect(first).toContainText(title);
   await first.getByRole("link", { name: title }).click();

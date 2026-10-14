@@ -155,6 +155,32 @@ async def test_an_admin_promotes_and_rolls_back(
     assert any(a.get("replaces") == f"{new.name}:{new.version}" for a in audit)
 
 
+async def test_a_retried_promotion_with_the_same_key_is_replayed(
+    client: httpx.AsyncClient,
+    sessions: async_sessionmaker[AsyncSession],
+    factory: TokenFactory,
+    report: tuple[dict[str, Any], Path],
+) -> None:
+    model = await registered(sessions, report, shadow=False)
+    admin = Caller(factory, new_org(), "administrator")
+    headers = {**admin.headers, "Idempotency-Key": "promote-once"}
+    path = f"/api/v1/ml/models/{model.id}/promote"
+
+    first = await client.post(path, headers=headers)
+    second = await client.post(path, headers=headers)
+
+    assert first.status_code == second.status_code == 200
+    assert second.json() == first.json()
+    assert second.headers["Idempotency-Replayed"] == "true"
+    async with sessions() as session:
+        promotions = await session.scalar(
+            sa.select(sa.func.count())
+            .select_from(AuditLog)
+            .where(AuditLog.action == "model.promoted", AuditLog.resource_id == str(model.id))
+        )
+    assert promotions == 1
+
+
 async def test_only_administrators_promote(
     client: httpx.AsyncClient,
     sessions: async_sessionmaker[AsyncSession],

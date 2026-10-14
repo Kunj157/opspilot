@@ -12,7 +12,8 @@ from sqlalchemy import or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from opspilot_api.db.models import Incident, Investigation, InvestigationStatus
+from opspilot_api.db.models import ActorType, Incident, Investigation, InvestigationStatus
+from opspilot_api.incidents.service import Actor, note
 from opspilot_api.ops_metrics import AGENT_RUNS
 
 MAX_ATTEMPTS = 3
@@ -47,6 +48,21 @@ async def enqueue(
         if found is None:
             raise
         return found, False
+    # Published as incident.investigation.requested.v1.
+    user = requested_by.removeprefix("user:")
+    actor = (
+        Actor(ActorType.USER, user, incident.organization_id)
+        if user != requested_by
+        else Actor(ActorType.SYSTEM, requested_by, incident.organization_id)
+    )
+    await note(
+        session,
+        incident,
+        actor,
+        event_type="incident.investigation_requested",
+        title="Investigation requested",
+        metadata={"investigation_id": str(investigation.id)},
+    )
     return investigation, True
 
 

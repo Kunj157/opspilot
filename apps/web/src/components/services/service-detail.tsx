@@ -6,12 +6,12 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useState } from "react";
 
+import { ServiceForm } from "@/components/forms/lazy-forms";
 import { SeverityBadge, StatusBadge } from "@/components/incidents/badges";
 import { Modal } from "@/components/ui/modal";
 
 import { HealthBadge } from "./health-badge";
 import { SERVICES_KEY } from "./service-catalog";
-import { ServiceForm } from "./service-form";
 
 const ACTIVE = ["DETECTED", "INVESTIGATING", "AWAITING_APPROVAL", "REMEDIATING", "VERIFYING", "MONITORING", "REJECTED"] as const;
 
@@ -55,7 +55,7 @@ export function ServiceDetail({ canManage }: { canManage: boolean }) {
     },
   });
 
-  if (service.isPending) return <div aria-hidden className="h-64 animate-pulse rounded-card bg-surface-2" />;
+  if (service.isPending) return <div aria-hidden className="h-64 skeleton rounded-card" />;
   if (service.isError)
     return (
       <p role="alert" className="rounded-card border border-border bg-surface-2 p-5 text-sm text-critical">
@@ -95,14 +95,14 @@ export function ServiceDetail({ canManage }: { canManage: boolean }) {
 
       {s.description && <p className="max-w-2xl text-fg-secondary">{s.description}</p>}
 
-      <dl className="grid gap-5 rounded-card border border-border bg-surface-2 p-5 shadow-2 sm:grid-cols-2 lg:grid-cols-4">
+      <dl className="grid gap-5 surface-raised rounded-card border border-border p-5 sm:grid-cols-2 lg:grid-cols-4">
         <Fact label="Owner team" value={s.owner_team} />
         <Fact label="Namespace" value={s.namespace} />
         <Fact label="Deployment" value={s.deployment_name} />
         <Fact label="Repository" value={s.repository_url} />
       </dl>
 
-      <section aria-labelledby="service-incidents" className="rounded-card border border-border bg-surface-2 shadow-3">
+      <section aria-labelledby="service-incidents" className="surface-raised rounded-card border border-border">
         <h2 id="service-incidents" className="border-b border-border px-5 py-4 text-sm font-medium text-fg-secondary">
           Active incidents
         </h2>
