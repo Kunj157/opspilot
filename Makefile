@@ -16,7 +16,7 @@ DEMO_IMAGE := opspilot-demo:dev
 API := cd apps/api && uv run
 DEMO := cd demo/services && uv run
 
-.PHONY: db-upgrade db-downgrade db-revision keycloak-smoke token api-client web-dev dev build test-e2e test-lighthouse kind-create kind-delete docker-build deploy-local observability-up load-normal load-stop inject-failure reset-demo seed seed-runbooks test-telemetry test-detection worker help infra-up infra-down llm-up events-up stop secrets-scan install api-dev format lint typecheck test test-unit test-integration test-agent test-ml ml-scenarios ml-dataset ml-train images kind-load gitops-up
+.PHONY: load-seed test-load db-upgrade db-downgrade db-revision keycloak-smoke token api-client web-dev dev build test-e2e test-lighthouse kind-create kind-delete docker-build deploy-local observability-up load-normal load-stop inject-failure reset-demo seed seed-runbooks test-telemetry test-detection worker help infra-up infra-down llm-up events-up stop secrets-scan install api-dev format lint typecheck test test-unit test-integration test-agent test-ml ml-scenarios ml-dataset ml-train images kind-load gitops-up
 
 help: ## List available targets
 	@grep -hE '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | sort | \
@@ -202,6 +202,15 @@ seed-runbooks: ## Load docs/runbooks into the runbook library (API must be runni
 
 test-detection: ## One sustained failure → exactly one incident, with detection delay (needs make dev and the kind stack)
 	cd demo/services && uv run python -u ../../tests/telemetry/detection_smoke.py
+
+load-seed: ## Seed demo services and SEED_INCIDENTS (default 500) incidents for the load tests (API running)
+	$(MAKE) --no-print-directory seed
+	k6 run -q tests/performance/k6/seed.js
+
+test-load: ## k6 load tests against the running API on API_PORT (K6_TESTS="reads writes sse mixed"); summaries in test-results/k6
+	@mkdir -p test-results/k6
+	@status=0; for t in $${K6_TESTS:-reads writes sse mixed}; do \
+		K6_ENABLE_COMMUNITY_EXTENSIONS=true k6 run tests/performance/k6/$$t.js || status=1; done; exit $$status
 
 test-telemetry: ## Follow one request through traces, logs, and metrics on the kind cluster
 	cd demo/services && uv run python -u ../../tests/telemetry/telemetry_smoke.py
