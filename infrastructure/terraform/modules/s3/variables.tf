@@ -1,24 +1,24 @@
-variable "prefix" {
-  description = "Bucket name prefix, e.g. opspilot-development-<account>"
+variable "name" {
+  description = "Globally unique bucket name"
   type        = string
 }
 
-variable "buckets" {
-  description = "Bucket suffix → how long to keep noncurrent versions"
-  type        = map(object({ noncurrent_days = number }))
+variable "noncurrent_days" {
+  description = "How long to keep noncurrent object versions"
+  type        = number
 }
 
 variable "kms_key_arn" {
   type = string
 }
 
-variable "force_destroy" {
-  description = "Allow destroying non-empty buckets (temporary environments only)"
-  type        = bool
-  default     = false
-}
-
 variable "access_log_bucket" {
   description = "Bucket that receives server access logs"
   type        = string
+}
+
+variable "force_destroy" {
+  description = "Allow destroying a non-empty bucket (temporary environments only)"
+  type        = bool
+  default     = false
 }
