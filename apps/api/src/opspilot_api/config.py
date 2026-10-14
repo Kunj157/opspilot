@@ -36,6 +36,8 @@ class Settings(BaseSettings):
     # Prometheus scrapes every 10 s; this keeps the newest sample in each window.
     detection_lag_seconds: float = 15.0
     worker_metrics_port: int | None = None
+    # 0.0.0.0 in containers, so the cluster's probes and Prometheus can reach it.
+    worker_metrics_host: str = "127.0.0.1"
     # Queue an agent investigation for every new detector incident.
     auto_investigate: bool = True
     investigation_poll_seconds: float = 2.0
