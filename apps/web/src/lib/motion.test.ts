@@ -6,7 +6,11 @@ import { describe, expect, it } from "vitest";
 import { duration, ease, STAGGER_CAP, staggerDelay } from "./motion";
 
 const css = readFileSync(join(__dirname, "..", "app", "globals.css"), "utf8");
-const token = (name: string) => css.match(new RegExp(`--${name}:\\s*([^;]+);`))?.[1].trim();
+function token(name: string): string | undefined {
+  const start = css.indexOf(`--${name}:`);
+  if (start < 0) return undefined;
+  return css.slice(start + name.length + 3, css.indexOf(";", start)).trim();
+}
 
 describe("motion tokens", () => {
   it.each(Object.entries(duration))("duration.%s mirrors the CSS token", (name, seconds) => {
