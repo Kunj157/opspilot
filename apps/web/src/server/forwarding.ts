@@ -3,6 +3,9 @@ const FORWARDED_REQUEST_HEADERS = [
   "content-type",
   "idempotency-key",
   "last-event-id",
+  // W3C trace context from an instrumented ingress, so API logs join the trace.
+  "traceparent",
+  "tracestate",
   "x-request-id",
 ];
 
