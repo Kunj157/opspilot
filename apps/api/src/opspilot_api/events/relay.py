@@ -18,6 +18,8 @@ import json
 from datetime import UTC, datetime, timedelta
 
 import structlog
+from opentelemetry import trace
+from opentelemetry.trace import SpanKind
 from prometheus_client import Counter
 from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert
@@ -33,6 +35,7 @@ NAME = "incident-timeline"
 BATCH = 200
 SETTLE = timedelta(seconds=3)
 PUBLISHED = Counter("opspilot_events_published_total", "Events published", ["topic"])
+tracer = trace.get_tracer("opspilot.events.relay")
 
 
 class OutboxRelay:
@@ -77,12 +80,22 @@ class OutboxRelay:
                 topic = topic_for(event)
                 if topic:
                     envelope = to_envelope(event, topic)
-                    await self.producer.send(
-                        topic,
-                        key=str(event.incident_id).encode(),
-                        value=envelope.model_dump_json().encode(),
-                        headers=[("event_type", topic.encode()), *trace_headers()],
-                    )
+                    # The consumer continues this span from the traceparent header.
+                    with tracer.start_as_current_span(
+                        f"{topic} publish",
+                        kind=SpanKind.PRODUCER,
+                        attributes={
+                            "messaging.system": "kafka",
+                            "messaging.operation.type": "send",
+                            "messaging.destination.name": topic,
+                        },
+                    ):
+                        await self.producer.send(
+                            topic,
+                            key=str(event.incident_id).encode(),
+                            value=envelope.model_dump_json().encode(),
+                            headers=[("event_type", topic.encode()), *trace_headers()],
+                        )
                     PUBLISHED.labels(topic).inc()
                     sent += 1
                 last = event.sequence

@@ -2,8 +2,8 @@
 
 Investigations get a reader with two questions: a deployment's rollout
 history and its current rollout status. Approved remediations get a writer
-with three actions: roll back to a revision, restart, and scale within
-bounds. There is no generic API access.
+with four actions: roll back to a revision, restart, scale within bounds,
+and pause a rollout. There is no generic API access.
 """
 
 import asyncio
@@ -185,6 +185,8 @@ class KubeWriter(Protocol):
         self, namespace: str, deployment: str, replicas: int, *, maximum: int
     ) -> dict[str, Any]: ...
 
+    async def pause_rollout(self, namespace: str, deployment: str) -> dict[str, Any]: ...
+
 
 class KubernetesWriter(KubernetesReader):
     """The safe write actions. Each is idempotent for the same arguments, so a retry is harmless."""
@@ -249,6 +251,11 @@ class KubernetesWriter(KubernetesReader):
         )
         return {"replicas_before": before, "replicas": replicas}
 
+    def _pause(self, namespace: str, deployment: str) -> dict[str, Any]:
+        # As `kubectl rollout pause`: pods already rolled out keep running, no new ones start.
+        self._api().patch_namespaced_deployment(deployment, namespace, {"spec": {"paused": True}})
+        return {"paused": True}
+
     async def _run(self, namespace: str, action: Any, *args: Any) -> dict[str, Any]:
         check_namespace(namespace, self.allowed)
         from kubernetes.client.exceptions import ApiException
@@ -275,3 +282,6 @@ class KubernetesWriter(KubernetesReader):
         if not 1 <= replicas <= maximum:
             raise RemediationFailed(f"{replicas} replicas is outside 1..{maximum}")
         return await self._run(namespace, self._scale, deployment, replicas)
+
+    async def pause_rollout(self, namespace: str, deployment: str) -> dict[str, Any]:
+        return await self._run(namespace, self._pause, deployment)

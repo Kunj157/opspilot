@@ -1,5 +1,7 @@
 from functools import lru_cache
+from urllib.parse import urlsplit
 
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -20,6 +22,9 @@ class Settings(BaseSettings):
 
     # Comma-separated addresses allowed to set X-Forwarded-For (the web app's proxy).
     trusted_proxies: str = "127.0.0.1"
+    # Comma-separated browser origins allowed to call the API cross-origin
+    # (e.g. "https://ops.example.com"). Empty: no CORS headers at all.
+    cors_allowed_origins: str = ""
 
     # Observability backends (read-only). Optional: the API runs without them.
     prometheus_url: str | None = None
@@ -62,9 +67,38 @@ class Settings(BaseSettings):
     # When true, detector incidents are investigated from incident.created
     # events instead of the direct call (which is then skipped).
     event_driven_investigations: bool = False
+    # When true, approved proposals run from incident.remediation.approved
+    # events and the first verification look follows
+    # incident.remediation.completed; polling stays as a slower fallback.
+    event_driven_remediation: bool = False
+    event_driven_verification: bool = False
+
+    # Rate limits (Redis, shared by all replicas): requests per window. Reads,
+    # mutations, and sensitive actions are counted per user; requests without a
+    # token and rejected tokens per client IP.
+    rate_limit_enabled: bool = True
+    rate_limit_window_seconds: int = 60
+    rate_limit_read: int = 1200
+    rate_limit_write: int = 300
+    rate_limit_sensitive: int = 30
+    rate_limit_anonymous: int = 300
+    rate_limit_auth_failures: int = 30
 
     readiness_timeout_seconds: float = 2.0
     sse_heartbeat_seconds: float = 15.0
+
+    @field_validator("cors_allowed_origins")
+    @classmethod
+    def _explicit_origins(cls, value: str) -> str:
+        for origin in (o.strip() for o in value.split(",") if o.strip()):
+            parts = urlsplit(origin)
+            if parts.scheme not in {"http", "https"} or not parts.hostname or parts.path:
+                raise ValueError(f"not an origin (scheme://host[:port]): {origin!r}")
+        return value
+
+    @property
+    def cors_origins(self) -> tuple[str, ...]:
+        return tuple(o.strip() for o in self.cors_allowed_origins.split(",") if o.strip())
 
     @property
     def allowed_namespaces(self) -> frozenset[str]:

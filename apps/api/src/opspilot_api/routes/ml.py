@@ -6,6 +6,7 @@ from typing import Annotated, Any
 
 import pandas as pd
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi.responses import JSONResponse
 from opspilot_ml.features import FEATURES, clean
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import case, func, select
@@ -16,6 +17,7 @@ from opspilot_api.auth.permissions import Permission, require
 from opspilot_api.auth.principal import Principal
 from opspilot_api.db.models import AnomalyDetection, Incident, ModelVersion, Service
 from opspilot_api.db.session import get_session
+from opspilot_api.idempotency import IdempotencyDep
 from opspilot_api.ml.registry import ModelUnavailable, load_detector, promote, shadow_model
 
 router = APIRouter(prefix="/api/v1/ml", tags=["ml"])
@@ -55,8 +57,11 @@ async def promote_model(
     model_id: uuid.UUID,
     principal: Annotated[Principal, Depends(require(Permission.MANAGE_MODELS))],
     session: Annotated[AsyncSession, Depends(get_session)],
-) -> ModelOut:
+    idempotency: IdempotencyDep,
+) -> ModelOut | JSONResponse:
     """Run this version in shadow mode; promoting an older version is the rollback."""
+    if replay := await idempotency.replay(None):
+        return replay
     model = await session.get(ModelVersion, model_id)
     if model is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Not Found")
@@ -78,8 +83,10 @@ async def promote_model(
             "replaces": f"{previous.name}:{previous.version}" if previous else None,
         },
     )
-    await session.commit()
-    return ModelOut.model_validate(model)
+    await session.flush()
+    out = ModelOut.model_validate(model)
+    await idempotency.commit(status.HTTP_200_OK, out)
+    return out
 
 
 class Window(BaseModel):

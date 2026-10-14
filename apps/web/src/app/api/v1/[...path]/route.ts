@@ -8,7 +8,7 @@
 import { type NextRequest, NextResponse } from "next/server";
 
 import { serverConfig } from "@/server/config";
-import { upstreamHeaders } from "@/server/forwarding";
+import { upstreamHeaders, upstreamUrl } from "@/server/forwarding";
 import { accessTokenFor } from "@/server/oidc";
 import { isSameOrigin } from "@/server/request";
 import { SESSION_COOKIE } from "@/server/sessions";
@@ -21,8 +21,8 @@ async function proxy(request: NextRequest, context: { params: Promise<{ path: st
   }
 
   const { path } = await context.params;
-  const target = new URL(`/api/v1/${path.map(encodeURIComponent).join("/")}`, serverConfig().apiUrl);
-  target.search = request.nextUrl.search;
+  const target = upstreamUrl(path, request.nextUrl.search, serverConfig().apiUrl);
+  if (!target) return NextResponse.json({ detail: "Not Found" }, { status: 404 });
 
   const token = await accessTokenFor(request.cookies.get(SESSION_COOKIE)?.value);
   const headers = upstreamHeaders(request.headers, token, serverConfig().trustedProxyHops);

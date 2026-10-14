@@ -1,0 +1,7 @@
+# Kyverno at a pinned version: admission-time verification of the OpsPilot
+# image signatures (the ClusterPolicy ships with the opspilot chart,
+# imageVerification values). Large CRDs: apply server-side (make gitops-up).
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - https://github.com/kyverno/kyverno/releases/download/v1.19.1/install.yaml
