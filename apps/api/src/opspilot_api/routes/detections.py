@@ -24,6 +24,8 @@ class DetectionOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: uuid.UUID
+    # The incident's own service, or a caller affected by it.
+    service_id: uuid.UUID
     detector: str
     failure_category: str
     outcome: str

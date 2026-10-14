@@ -240,6 +240,9 @@ export function IncidentList({ canManage, currentUserId }: { canManage: boolean;
                     <Link href={`/incidents/${incident.id}`} className="block truncate font-medium hover:text-accent">
                       {incident.title}
                     </Link>
+                    {incident.source === "detector" && (
+                      <span className="mt-0.5 block text-xs text-fg-muted">Detected automatically</span>
+                    )}
                     <span className="mt-1 block sm:hidden">
                       <StatusBadge status={incident.status} />
                     </span>
