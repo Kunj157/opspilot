@@ -20,6 +20,7 @@ from opspilot_api.request_context import RequestContextMiddleware
 from opspilot_api.routes import (
     audit_logs,
     detections,
+    evaluations,
     incident_metrics,
     incident_streams,
     incidents,
@@ -108,6 +109,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(incident_streams.router)
     app.include_router(incidents.router)
     app.include_router(incident_metrics.router)
+    app.include_router(evaluations.router)
     app.include_router(detections.router)
     app.include_router(investigations.router)
     app.include_router(remediation.router)
