@@ -1,8 +1,8 @@
 name: images
 
 # On main: build the API/worker and web images, scan them, attach an SBOM,
-# sign them keylessly, push them to GHCR, and point the development
-# environment at the new tag (Argo CD deploys it).
+# sign them keylessly, and push them to GHCR tagged with the commit SHA.
+# Argo CD deploys each main commit with the images of that same commit.
 on:
   push:
     branches: [main]
@@ -39,7 +39,8 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - id: tag
-        run: echo "tag=sha-${GITHUB_SHA::12}" >> "$GITHUB_OUTPUT"
+        # The full commit SHA: Argo CD deploys a commit with the images built from it.
+        run: echo "tag=${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
       - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
       - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
         with:
