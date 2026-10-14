@@ -103,8 +103,7 @@ async def run(settings: Settings) -> None:
             metrics,
             lag=timedelta(seconds=settings.detection_lag_seconds),
             # With event-driven investigations the consumer queues them instead.
-            auto_investigate=settings.auto_investigate
-            and not (settings.kafka_bootstrap_servers and settings.event_driven_investigations),
+            auto_investigate=settings.auto_investigate and not settings.investigations_by_event,
         )
 
         async def detect() -> bool:
@@ -162,9 +161,8 @@ async def run(settings: Settings) -> None:
 
     loops.append(_loop(stop, "postmortems", postmortems, 15.0))
 
-    kafka = bool(settings.kafka_bootstrap_servers)
-    remediation_by_event = kafka and settings.event_driven_remediation
-    verification_by_event = kafka and settings.event_driven_verification
+    remediation_by_event = settings.remediation_by_event
+    verification_by_event = settings.verification_by_event
 
     async def remediate() -> bool:
         """Run one approved remediation; when event-driven, only ones their event missed."""
@@ -210,7 +208,7 @@ async def run(settings: Settings) -> None:
             "investigations",
             sessions,
             investigation_requester(
-                authoritative=settings.event_driven_investigations and settings.auto_investigate
+                authoritative=settings.investigations_by_event and settings.auto_investigate
             ),
             producer,
         )

@@ -64,14 +64,17 @@ class Settings(BaseSettings):
 
     # Event broker (Redpanda). Unset: no events are published or consumed.
     kafka_bootstrap_servers: str | None = None
-    # When true, detector incidents are investigated from incident.created
+    # Event-driven stages; unset means on whenever a broker is configured, and
+    # false keeps a stage in shadow mode (compared, not acted on). Without a
+    # broker every stage polls the database.
+    # Investigations: detector incidents are queued from incident.created
     # events instead of the direct call (which is then skipped).
-    event_driven_investigations: bool = False
-    # When true, approved proposals run from incident.remediation.approved
-    # events and the first verification look follows
-    # incident.remediation.completed; polling stays as a slower fallback.
-    event_driven_remediation: bool = False
-    event_driven_verification: bool = False
+    event_driven_investigations: bool | None = None
+    # Remediation and verification: approved proposals run from
+    # incident.remediation.approved events and the first verification look
+    # follows incident.remediation.completed; polling stays as a slower fallback.
+    event_driven_remediation: bool | None = None
+    event_driven_verification: bool | None = None
 
     # Rate limits (Redis, shared by all replicas): requests per window. Reads,
     # mutations, and sensitive actions are counted per user; requests without a
@@ -86,6 +89,31 @@ class Settings(BaseSettings):
 
     readiness_timeout_seconds: float = 2.0
     sse_heartbeat_seconds: float = 15.0
+
+    @field_validator(
+        "event_driven_investigations",
+        "event_driven_remediation",
+        "event_driven_verification",
+        mode="before",
+    )
+    @classmethod
+    def _empty_is_unset(cls, value: object) -> object:
+        return None if value == "" else value
+
+    def _by_event(self, flag: bool | None) -> bool:
+        return bool(self.kafka_bootstrap_servers) and (flag is None or flag)
+
+    @property
+    def investigations_by_event(self) -> bool:
+        return self._by_event(self.event_driven_investigations)
+
+    @property
+    def remediation_by_event(self) -> bool:
+        return self._by_event(self.event_driven_remediation)
+
+    @property
+    def verification_by_event(self) -> bool:
+        return self._by_event(self.event_driven_verification)
 
     @field_validator("cors_allowed_origins")
     @classmethod
