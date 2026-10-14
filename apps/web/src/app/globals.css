@@ -207,6 +207,18 @@ body {
   }
 }
 
+/* Command palette: drops in slightly from above. */
+.palette-dialog[open] {
+  animation: palette-in var(--duration-base) var(--ease-out);
+}
+
+@keyframes palette-in {
+  from {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.98);
+  }
+}
+
 /* Metrics never jitter while digits change. */
 .tabular {
   font-variant-numeric: tabular-nums;
