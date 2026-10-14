@@ -275,6 +275,35 @@ body {
   }
 }
 
+/* Login: a wireframe floor drifting toward a faint Iris horizon. */
+.login-horizon {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  perspective: 520px;
+  background: radial-gradient(70% 30% at 50% 58%, var(--accent-subtle), transparent 70%);
+}
+
+.login-floor {
+  position: absolute;
+  inset: 55% -60% -40%;
+  background-image:
+    linear-gradient(var(--border-strong) 1px, transparent 1px),
+    linear-gradient(90deg, var(--border-strong) 1px, transparent 1px);
+  background-size: 48px 48px;
+  transform: rotateX(72deg);
+  transform-origin: top center;
+  mask-image: linear-gradient(to bottom, transparent, black 25%, black 60%, transparent);
+  animation: floor-drift 4s linear infinite;
+}
+
+@keyframes floor-drift {
+  to {
+    background-position: 0 48px;
+  }
+}
+
 /* Metrics never jitter while digits change. */
 .tabular {
   font-variant-numeric: tabular-nums;
