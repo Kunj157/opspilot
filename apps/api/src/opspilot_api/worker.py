@@ -129,6 +129,7 @@ async def run(settings: Settings) -> None:
         settings.allowed_namespaces,
         context=settings.kubernetes_context,
         config_file=settings.kubeconfig,
+        request_timeout=settings.kubernetes_request_timeout_seconds,
     )
     llm = build_llm(
         settings.llm_provider, settings.llm_model, settings.llm_base_url, settings.llm_api_key

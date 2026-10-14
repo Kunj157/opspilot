@@ -54,6 +54,29 @@ def _env(container: Any, name: str) -> str | None:
     return None
 
 
+class _Timed:
+    """An API object whose every call carries a request timeout.
+
+    The client has no global timeout: without one, an API server that accepts
+    the connection and never answers blocks the worker thread forever, and the
+    execution's lease can expire while the call is still in flight.
+    """
+
+    def __init__(self, api: Any, timeout: float) -> None:
+        self._api = api
+        self._timeout = timeout
+        self.api_client = api.api_client
+
+    def __getattr__(self, name: str) -> Any:
+        method = getattr(self._api, name)
+
+        def call(*args: Any, **kwargs: Any) -> Any:
+            kwargs.setdefault("_request_timeout", self._timeout)
+            return method(*args, **kwargs)
+
+        return call
+
+
 class KubernetesReader:
     """The official client, run in a thread; config is loaded on first use."""
 
@@ -63,10 +86,12 @@ class KubernetesReader:
         *,
         context: str | None = None,
         config_file: str | None = None,
+        request_timeout: float = 30.0,
     ) -> None:
         self.allowed = allowed_namespaces
         self.context = context
         self.config_file = config_file
+        self.request_timeout = request_timeout
         self._apps: Any = None
 
     def _api(self) -> Any:
@@ -80,7 +105,7 @@ class KubernetesReader:
             except config.ConfigException:
                 config.load_incluster_config()  # type: ignore[no-untyped-call]
                 api_client = client.ApiClient()
-            self._apps = client.AppsV1Api(api_client)
+            self._apps = _Timed(client.AppsV1Api(api_client), self.request_timeout)
         return self._apps
 
     def _history(self, namespace: str, deployment: str) -> list[Revision]:
@@ -117,7 +142,7 @@ class KubernetesReader:
     def _pods_started(self, namespace: str, deployment: Any, revision: int) -> datetime | None:
         from kubernetes import client
 
-        core = client.CoreV1Api(self._api().api_client)
+        core = _Timed(client.CoreV1Api(self._api().api_client), self.request_timeout)
         labels = deployment.spec.selector.match_labels or {}
         selector = ",".join(f"{k}={v}" for k, v in labels.items())
         apps = self._api()

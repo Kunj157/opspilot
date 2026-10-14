@@ -61,6 +61,8 @@ class Settings(BaseSettings):
     agent_allowed_namespaces: str = "demo"
     kubernetes_context: str | None = None
     kubeconfig: str | None = None
+    # Per request; must stay well below the remediation lease (5 min).
+    kubernetes_request_timeout_seconds: float = 30.0
 
     # Event broker (Redpanda). Unset: no events are published or consumed.
     kafka_bootstrap_servers: str | None = None
