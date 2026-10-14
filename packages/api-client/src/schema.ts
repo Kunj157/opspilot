@@ -1903,7 +1903,9 @@ export interface operations {
     update_service_api_v1_services__service_id__patch: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                "Idempotency-Key"?: string | null;
+            };
             path: {
                 service_id: string;
             };
@@ -1969,7 +1971,9 @@ export interface operations {
     replace_dependencies_api_v1_services__service_id__dependencies_put: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                "Idempotency-Key"?: string | null;
+            };
             path: {
                 service_id: string;
             };
@@ -2189,7 +2193,9 @@ export interface operations {
     update_incident_api_v1_incidents__incident_id__patch: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                "Idempotency-Key"?: string | null;
+            };
             path: {
                 incident_id: string;
             };
@@ -2224,7 +2230,9 @@ export interface operations {
     acknowledge_incident_api_v1_incidents__incident_id__acknowledge_post: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                "Idempotency-Key"?: string | null;
+            };
             path: {
                 incident_id: string;
             };
@@ -2259,7 +2267,9 @@ export interface operations {
     investigate_incident_api_v1_incidents__incident_id__investigate_post: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                "Idempotency-Key"?: string | null;
+            };
             path: {
                 incident_id: string;
             };
@@ -2294,7 +2304,9 @@ export interface operations {
     resolve_incident_api_v1_incidents__incident_id__resolve_post: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                "Idempotency-Key"?: string | null;
+            };
             path: {
                 incident_id: string;
             };
@@ -2679,7 +2691,9 @@ export interface operations {
     approve_proposal_api_v1_proposals__proposal_id__approve_post: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                "Idempotency-Key"?: string | null;
+            };
             path: {
                 proposal_id: string;
             };
@@ -2714,7 +2728,9 @@ export interface operations {
     reject_proposal_api_v1_proposals__proposal_id__reject_post: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                "Idempotency-Key"?: string | null;
+            };
             path: {
                 proposal_id: string;
             };
