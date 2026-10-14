@@ -49,6 +49,7 @@ spec:
             - { name: SERVICE_VERSION, value: {{ $.Values.serviceVersion | quote }} }
             - { name: ENVIRONMENT, value: {{ $.Values.environment | quote }} }
             - { name: OTLP_ENDPOINT, value: {{ $.Values.otlpEndpoint | quote }} }
+            - { name: OTEL_SEMCONV_STABILITY_OPT_IN, value: "http" }
             - { name: FAULT_ERROR_RATE, value: {{ $svc.faults.errorRate | quote }} }
             - { name: FAULT_LATENCY_MS, value: {{ $svc.faults.latencyMs | quote }} }
             - name: K8S_NAMESPACE

@@ -13,9 +13,11 @@ import contextlib
 import signal
 from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 
 import structlog
 from prometheus_client import start_http_server
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from opspilot_api.agents.investigation import Investigator
@@ -26,9 +28,14 @@ from opspilot_api.agents.runner import InvestigationRunner, context_factory
 from opspilot_api.config import Settings, get_settings
 from opspilot_api.detection.worker import DetectionWorker
 from opspilot_api.events.consumer import EventProcessor, KafkaConsumerLoop
-from opspilot_api.events.handlers import investigation_requester
+from opspilot_api.events.handlers import (
+    investigation_requester,
+    remediation_executor,
+    verification_starter,
+)
 from opspilot_api.events.producer import KafkaProducer
 from opspilot_api.events.relay import OutboxRelay
+from opspilot_api.heartbeat import beat_if_healthy
 from opspilot_api.kube import KubernetesWriter
 from opspilot_api.logging import configure_logging
 from opspilot_api.ml.shadow import ShadowScorer
@@ -40,6 +47,10 @@ from opspilot_api.runbooks.embeddings import build_embedder
 from opspilot_api.telemetry import LokiLogs, PrometheusMetrics, TempoTraces
 
 log = structlog.get_logger("opspilot.worker")
+
+# With event-driven stages, polling only picks up work its event missed.
+EVENT_FALLBACK_DELAY = timedelta(seconds=60)
+VERIFICATION_EVENT_DELAY = timedelta(seconds=30)
 
 
 async def _loop(
@@ -72,6 +83,20 @@ async def run(settings: Settings) -> None:
         loop.add_signal_handler(sig, stop.set)
 
     loops = []
+    if settings.worker_heartbeat_file:
+        heartbeat_file = Path(settings.worker_heartbeat_file)
+
+        async def database_reachable() -> None:
+            async with engine.connect() as connection:
+                await connection.execute(text("SELECT 1"))
+
+        async def heartbeat() -> bool:
+            """Ready while the database answers; a failure just skips the beat."""
+            await beat_if_healthy(heartbeat_file, database_reachable)
+            return False
+
+        loops.append(_loop(stop, "heartbeat", heartbeat, settings.worker_heartbeat_seconds))
+
     if settings.prometheus_url:
         detection = DetectionWorker(
             sessions,
@@ -137,9 +162,18 @@ async def run(settings: Settings) -> None:
 
     loops.append(_loop(stop, "postmortems", postmortems, 15.0))
 
+    kafka = bool(settings.kafka_bootstrap_servers)
+    remediation_by_event = kafka and settings.event_driven_remediation
+    verification_by_event = kafka and settings.event_driven_verification
+
     async def remediate() -> bool:
-        """Run one approved remediation, if any."""
-        execution_id = await claim_execution(sessions)
+        """Run one approved remediation; when event-driven, only ones their event missed."""
+        execution_id = await claim_execution(
+            sessions,
+            approved_before=datetime.now(UTC) - EVENT_FALLBACK_DELAY
+            if remediation_by_event
+            else None,
+        )
         if execution_id is None:
             return False
         await execute(
@@ -147,11 +181,16 @@ async def run(settings: Settings) -> None:
         )
         return True
 
-    loops.append(_loop(stop, "remediation", remediate, 2.0))
+    loops.append(_loop(stop, "remediation", remediate, 15.0 if remediation_by_event else 2.0))
 
     async def verify_recovery() -> bool:
         """Look at every remediation awaiting verification once."""
-        for execution_id in await pending_verifications(sessions):
+        completed_before = (
+            datetime.now(UTC) - VERIFICATION_EVENT_DELAY if verification_by_event else None
+        )
+        for execution_id in await pending_verifications(
+            sessions, completed_before=completed_before
+        ):
             await verify(sessions, writer, metrics, execution_id)
         return False
 
@@ -180,9 +219,43 @@ async def run(settings: Settings) -> None:
                 processor, settings.kafka_bootstrap_servers, ["incident.created.v1"]
             ).run(stop)
         )
+        stages = [
+            (
+                "remediation",
+                remediation_executor(
+                    authoritative=remediation_by_event,
+                    sessions=sessions,
+                    writer=writer,
+                    allowed_namespaces=settings.allowed_namespaces,
+                ),
+                "incident.remediation.approved.v1",
+            ),
+            (
+                "verification",
+                verification_starter(
+                    authoritative=verification_by_event,
+                    sessions=sessions,
+                    kube=writer,
+                    metrics=metrics,
+                ),
+                "incident.remediation.completed.v1",
+            ),
+        ]
+        for name, handler, topic in stages:
+            loops.append(
+                KafkaConsumerLoop(
+                    EventProcessor(name, sessions, handler, producer),
+                    settings.kafka_bootstrap_servers,
+                    [topic],
+                ).run(stop)
+            )
 
     log.info(
-        "worker started", detection=bool(settings.prometheus_url), llm=f"{llm.provider}:{llm.model}"
+        "worker started",
+        detection=bool(settings.prometheus_url),
+        llm=f"{llm.provider}:{llm.model}",
+        remediation_by_event=remediation_by_event,
+        verification_by_event=verification_by_event,
     )
     try:
         await asyncio.gather(*loops)

@@ -4,8 +4,11 @@ import { createApiClient } from "@opspilot/api-client";
 import Link from "next/link";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 
+import { AnimatedNumber } from "@/components/motion/animated-number";
+import { GlowEffect } from "@/components/motion/glow-effect";
 import { TOPOLOGY_KEY, TopologyPanel } from "@/components/topology/topology-panel";
 import { Card } from "@/components/ui/card";
+import { EmptyState } from "@/components/ui/empty-state";
 import { formatSeconds } from "@/lib/durations";
 
 import { AlertStream } from "./command-center/alert-stream";
@@ -37,14 +40,54 @@ async function loadSummary(signal: AbortSignal) {
   return { incidents: incidents.data.items, services: services.data.items, metrics: metrics.data };
 }
 
-function Stat({ label, value, tone }: { label: string; value: string; tone?: string }) {
+/** A tiny neutral trend line; decorative, the chart below carries the numbers. */
+function Sparkline({ values }: { values: number[] }) {
+  if (values.length < 2) return null;
+  const max = Math.max(1, ...values);
+  const step = 100 / (values.length - 1);
+  const points = values.map((v, i) => `${(i * step).toFixed(1)},${(28 - (v / max) * 24).toFixed(1)}`);
   return (
-    <Card tilt role="group" aria-label={label} className="p-5">
-      <p className="text-xs text-fg-secondary">{label}</p>
-      <p className={`mt-2 font-mono text-3xl font-semibold tracking-tight ${tone ?? "text-fg"}`}>
-        {value}
-      </p>
-    </Card>
+    <svg aria-hidden viewBox="0 0 100 30" preserveAspectRatio="none" className="absolute right-5 bottom-5 h-8 w-24 overflow-visible">
+      <polyline points={`0,30 ${points.join(" ")} 100,30`} className="fill-accent-subtle stroke-none" />
+      <polyline points={points.join(" ")} fill="none" vectorEffect="non-scaling-stroke" className="stroke-chart-1" strokeWidth={1.5} />
+    </svg>
+  );
+}
+
+function Stat({
+  label,
+  value,
+  format,
+  suffix,
+  tone,
+  alert = false,
+  trend,
+}: {
+  label: string;
+  /** null renders "—". */
+  value: number | null;
+  format?: (n: number) => string;
+  suffix?: string;
+  tone?: string;
+  /** Something needs attention now: a soft critical halo that breathes. */
+  alert?: boolean;
+  trend?: number[];
+}) {
+  return (
+    <div className="relative">
+      {alert && <GlowEffect tone="critical" breathing className="rounded-card" />}
+      <Card tilt role="group" aria-label={label} className="relative h-full overflow-hidden p-5">
+        <p className="flex items-center gap-2 text-xs text-fg-secondary">
+          {alert && <span aria-hidden className="pulse-dot size-1.5 rounded-full bg-critical" />}
+          {label}
+        </p>
+        <p className={`mt-2 font-mono text-3xl font-semibold tracking-tight ${tone ?? "text-fg"}`}>
+          {value === null ? "—" : <AnimatedNumber value={value} from={0} format={format} />}
+          {value !== null && suffix}
+        </p>
+        {trend && <Sparkline values={trend} />}
+      </Card>
+    </div>
   );
 }
 
@@ -62,7 +105,7 @@ export function CommandCenter() {
     return (
       <div aria-hidden className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {[0, 1, 2, 3, 4, 5].map((i) => (
-          <div key={i} className="h-28 animate-pulse rounded-card bg-surface-2" />
+          <div key={i} className="skeleton h-28 rounded-card" />
         ))}
       </div>
     );
@@ -78,24 +121,27 @@ export function CommandCenter() {
   const { incidents, services, metrics } = summary.data;
   const critical = incidents.filter((i) => i.severity === "critical").length;
   const healthy = services.filter((s) => s.health_status === "healthy").length;
+  const perDay = metrics.daily.slice(-CHART_DAYS).map((d) => d.critical + d.high + d.medium + d.low);
 
   return (
     <div className="flex flex-col gap-8">
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        <Stat label="Active incidents" value={String(incidents.length)} />
+        <Stat label="Active incidents" value={incidents.length} trend={perDay} />
         <Stat
           label="Critical incidents"
-          value={String(critical)}
+          value={critical}
           tone={critical > 0 ? "text-critical" : undefined}
+          alert={critical > 0}
         />
         <Stat
           label="Healthy services"
-          value={services.length ? `${healthy} of ${services.length}` : "—"}
+          value={services.length ? healthy : null}
+          suffix={` of ${services.length}`}
           tone={services.length && healthy === services.length ? "text-healthy" : undefined}
         />
-        <Stat label="Mean time to acknowledge" value={formatSeconds(metrics.mtta_seconds)} />
-        <Stat label="Mean time to resolve" value={formatSeconds(metrics.mttr_seconds)} />
-        <Stat label={`Resolved in ${metrics.window_days} days`} value={String(metrics.resolved)} />
+        <Stat label="Mean time to acknowledge" value={metrics.mtta_seconds} format={formatSeconds} />
+        <Stat label="Mean time to resolve" value={metrics.mttr_seconds} format={formatSeconds} />
+        <Stat label={`Resolved in ${metrics.window_days} days`} value={metrics.resolved} />
       </div>
 
       <div className="grid gap-4 lg:grid-cols-[3fr_2fr]">
@@ -117,17 +163,29 @@ export function CommandCenter() {
 
       <TopologyPanel />
 
-      <section aria-labelledby="recent-heading" className="rounded-card border border-border bg-surface-2 shadow-3">
+      <section aria-labelledby="recent-heading" className="surface-raised rounded-card border border-border">
         <h2 id="recent-heading" className="border-b border-border px-5 py-4 text-sm font-medium text-fg-secondary">
           Recent active incidents
         </h2>
         {incidents.length === 0 ? (
-          <p className="px-5 py-10 text-center text-sm text-fg-muted">No active incidents.</p>
+          <EmptyState
+            tone="positive"
+            title="No active incidents."
+            description="Every service is quiet. New incidents appear here and in the live stream as they open."
+          />
         ) : (
           <ul aria-label="Recent incidents" className="divide-y divide-border">
             {incidents.slice(0, 5).map((incident) => (
-              <li key={incident.id} className="flex flex-wrap items-center gap-x-4 gap-y-1 px-5 py-3.5">
-                <SeverityBadge severity={incident.severity} />
+              <li
+                key={incident.id}
+                className="flex flex-wrap items-center gap-x-4 gap-y-1 px-5 py-3.5 transition-colors duration-(--duration-instant) hover:bg-surface-3/60"
+              >
+                <span className="relative inline-flex">
+                  {incident.severity === "critical" && (
+                    <span aria-hidden className="pulse-ring absolute inset-0 rounded-full" />
+                  )}
+                  <SeverityBadge severity={incident.severity} />
+                </span>
                 <Link href={`/incidents/${incident.id}`} className="min-w-0 flex-1 truncate text-sm hover:text-accent">
                   {incident.title}
                 </Link>

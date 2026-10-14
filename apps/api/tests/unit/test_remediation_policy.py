@@ -88,3 +88,45 @@ def test_scaling_is_bounded_and_no_action_proposes_nothing() -> None:
     assert isinstance(scaled, Approved)
     assert scaled.action is RemediationAction.SCALE_DEPLOYMENT
     assert decide(draft("NO_ACTION")) is None
+
+
+def rolling(complete: bool | None) -> dict[str, object]:
+    found = deployments(before=0.0, now=0.3)
+    if complete is not None:
+        found["rollout"] = {"complete": complete, "desired": 4, "updated": 2, "available": 3}
+    return found
+
+
+def test_a_rollout_in_progress_may_be_paused_at_low_risk() -> None:
+    decision = decide(draft("PAUSE_ROLLOUT"), rolling(complete=False))
+
+    assert isinstance(decision, Approved)
+    assert decision.action is RemediationAction.PAUSE_ROLLOUT
+    assert decision.risk_level == "low"
+    assert decision.parameters == {
+        "namespace": "demo",
+        "deployment": "checkout",
+        "revision": 7,
+        "version": "1.4.2",
+    }
+
+
+@pytest.mark.parametrize(
+    ("complete", "why"), [(True, "already complete"), (None, "rollout status is unknown")]
+)
+def test_only_a_rollout_in_progress_can_be_paused(complete: bool | None, why: str) -> None:
+    decision = decide(draft("PAUSE_ROLLOUT"), rolling(complete))
+
+    assert isinstance(decision, Rejected)
+    assert why in decision.reason
+
+
+def test_a_paused_rollout_is_verified_by_its_paused_state() -> None:
+    from opspilot_api.agents.policy import VERIFICATION_PLAN, verification_plan
+
+    plan = verification_plan(RemediationAction.PAUSE_ROLLOUT)
+
+    assert plan["require_paused"] is True
+    assert plan["require_rollout_complete"] is False
+    assert plan["max_error_rate"] == VERIFICATION_PLAN["max_error_rate"]
+    assert verification_plan(RemediationAction.ROLLBACK_DEPLOYMENT) is VERIFICATION_PLAN

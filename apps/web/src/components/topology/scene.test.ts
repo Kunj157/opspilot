@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { Topology } from "./model";
-import { canUseWebGL, toScene } from "./scene";
+import { canUseWebGL, flowingEdges, focusOn, glows, overview, toScene } from "./scene";
 
 const topology: Topology = {
   nodes: [
@@ -71,5 +71,26 @@ describe("canUseWebGL", () => {
     vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue({} as RenderingContext);
 
     expect(canUseWebGL()).toBe(true);
+  });
+});
+
+describe("camera and effects", () => {
+  it("frames the whole map, or closes in on one service", () => {
+    const scene = toScene(topology);
+    expect(overview(scene.distance)).toEqual({ target: [0, 0, 0], position: [0, 0, scene.distance] });
+    const b = scene.nodes.find((n) => n.id === "b")!;
+    const pose = focusOn(b, scene.distance);
+    expect(pose.target).toEqual(b.position);
+    expect(pose.position[2] - b.position[2]).toBeLessThan(scene.distance);
+  });
+
+  it("flows only along failing edges and the selected service's edges", () => {
+    const { edges } = toScene(topology);
+    expect(flowingEdges(edges, null).map((e) => e.id)).toEqual(["a→b"]);
+    expect(flowingEdges(edges, "c").map((e) => e.id)).toEqual(["a→b", "a→c"]);
+  });
+
+  it("gives a halo only to services in trouble", () => {
+    expect(topology.nodes.map(glows)).toEqual([null, "critical", "degraded"]);
   });
 });
