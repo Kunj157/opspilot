@@ -1,0 +1,75 @@
+{{- if .Values.devDatabases.enabled }}
+# Development only: throwaway PostgreSQL (pgvector) and Redis. Managed RDS and
+# ElastiCache replace them in AWS (infrastructure/terraform).
+{{- range $db := list (dict "name" "opspilot-postgres" "image" "pgvector/pgvector:0.8.0-pg17" "port" 5432 "uid" 999) (dict "name" "opspilot-redis" "image" "redis:7.4-alpine" "port" 6379 "uid" 999) }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $db.name }}
+  labels: {{- include "opspilot.labels" $ | nindent 4 }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "-2"
+spec:
+  selector: {{- include "opspilot.selector" $db.name | nindent 4 }}
+  ports:
+    - port: {{ $db.port }}
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ $db.name }}
+  labels: {{- include "opspilot.labels" $ | nindent 4 }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "-2"
+spec:
+  serviceName: {{ $db.name }}
+  replicas: 1
+  selector:
+    matchLabels: {{- include "opspilot.selector" $db.name | nindent 6 }}
+  template:
+    metadata:
+      labels: {{- include "opspilot.selector" $db.name | nindent 8 }}
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: {{ $db.uid }}
+        fsGroup: {{ $db.uid }}
+        seccompProfile: { type: RuntimeDefault }
+      containers:
+        - name: db
+          image: {{ $db.image }}
+          {{- if eq $db.name "opspilot-postgres" }}
+          env:
+            - { name: POSTGRES_USER, value: opspilot }
+            - { name: POSTGRES_DB, value: opspilot }
+            - { name: POSTGRES_PASSWORD, value: {{ $.Values.devDatabases.postgresPassword | quote }} }
+            - { name: PGDATA, value: /var/lib/postgresql/data/pgdata }
+          {{- end }}
+          ports:
+            - containerPort: {{ $db.port }}
+          readinessProbe:
+            tcpSocket: { port: {{ $db.port }} }
+            periodSeconds: 5
+          livenessProbe:
+            tcpSocket: { port: {{ $db.port }} }
+            periodSeconds: 15
+          resources:
+            requests: { cpu: 50m, memory: 128Mi }
+            limits: { cpu: "1", memory: 512Mi }
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: { drop: ["ALL"] }
+          volumeMounts:
+            - { name: data, mountPath: {{ if eq $db.name "opspilot-postgres" }}/var/lib/postgresql/data{{ else }}/data{{ end }} }
+            {{- if eq $db.name "opspilot-postgres" }}
+            - { name: run, mountPath: /var/run/postgresql }
+            {{- end }}
+      volumes:
+        - name: data
+          emptyDir: {}
+        - name: run
+          emptyDir: {}
+{{- end }}
+{{- end }}

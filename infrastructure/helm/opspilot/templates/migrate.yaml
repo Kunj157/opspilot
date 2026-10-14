@@ -1,0 +1,45 @@
+# Database migrations for each image: a new tag means a new Job. Argo CD runs
+# it after the databases and before the workloads (sync waves); the API stays
+# unready until its database is reachable.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: opspilot-migrate
+  labels: {{- include "opspilot.labels" . | nindent 4 }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "-3"
+automountServiceAccountToken: false
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: opspilot-migrate-{{ .Values.image.api.tag | replace "." "-" | lower | trunc 40 | trimSuffix "-" }}
+  labels: {{- include "opspilot.labels" . | nindent 4 }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+spec:
+  backoffLimit: 3
+  ttlSecondsAfterFinished: 3600
+  template:
+    metadata:
+      labels: {{- include "opspilot.selector" "opspilot-migrate" | nindent 8 }}
+    spec:
+      restartPolicy: Never
+      serviceAccountName: opspilot-migrate
+      automountServiceAccountToken: false
+      securityContext: {{- include "opspilot.podSecurity" . | nindent 8 }}
+      containers:
+        - name: migrate
+          image: "{{ .Values.image.api.repository }}:{{ .Values.image.api.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: ["python", "-m", "opspilot_api.db", "upgrade", "head"]
+          {{- include "opspilot.env" . | nindent 10 }}
+          resources:
+            requests: { cpu: 50m, memory: 256Mi }
+            limits: { cpu: 500m, memory: 512Mi }
+          securityContext: {{- include "opspilot.containerSecurity" . | nindent 12 }}
+          volumeMounts:
+            - { name: tmp, mountPath: /tmp }
+      volumes:
+        - name: tmp
+          emptyDir: {}

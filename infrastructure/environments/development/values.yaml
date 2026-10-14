@@ -1,0 +1,21 @@
+# Development: canary delivery, in-cluster databases, one replica each.
+image:
+  api: { repository: ghcr.io/kunj157/opspilot-api }
+  web: { repository: ghcr.io/kunj157/opspilot-web }
+
+config:
+  APP_ENV: development
+  LOG_LEVEL: info
+
+rollouts:
+  enabled: true
+  steps: [10, 25, 50]
+  pause: 30s
+
+devDatabases:
+  enabled: true
+
+api:
+  autoscaling: { enabled: true, minReplicas: 2, maxReplicas: 4, targetCPU: 70 }
+web:
+  autoscaling: { enabled: true, minReplicas: 2, maxReplicas: 4, targetCPU: 70 }

@@ -1,0 +1,116 @@
+{{- $name := "opspilot-web" }}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ $name }}
+  labels: {{- include "opspilot.labels" . | nindent 4 }}
+automountServiceAccountToken: false
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $name }}
+  labels: {{- include "opspilot.labels" . | nindent 4 }}
+spec:
+  selector: {{- include "opspilot.selector" $name | nindent 4 }}
+  ports:
+    - name: http
+      port: 3000
+      targetPort: http
+---
+apiVersion: {{ if .Values.rollouts.enabled }}argoproj.io/v1alpha1{{ else }}apps/v1{{ end }}
+kind: {{ if .Values.rollouts.enabled }}Rollout{{ else }}Deployment{{ end }}
+metadata:
+  name: {{ $name }}
+  labels: {{- include "opspilot.labels" . | nindent 4 }}
+spec:
+  {{- if not .Values.web.autoscaling.enabled }}
+  replicas: {{ .Values.web.replicas }}
+  {{- end }}
+  revisionHistoryLimit: 5
+  progressDeadlineSeconds: 180
+  {{- if .Values.rollouts.enabled }}
+  # A canary that never becomes ready is aborted, and the stable version stays.
+  progressDeadlineAbort: true
+  {{- end }}
+  selector:
+    matchLabels: {{- include "opspilot.selector" $name | nindent 6 }}
+  {{- if .Values.rollouts.enabled }}
+  strategy:
+    canary:
+      steps:
+        {{- range .Values.rollouts.steps }}
+        - setWeight: {{ . }}
+        - pause: { duration: {{ $.Values.rollouts.pause }} }
+        {{- end }}
+  {{- else }}
+  strategy:
+    rollingUpdate: { maxSurge: 1, maxUnavailable: 0 }
+  {{- end }}
+  template:
+    metadata:
+      labels: {{- include "opspilot.selector" $name | nindent 8 }}
+    spec:
+      serviceAccountName: {{ $name }}
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: 30
+      securityContext: {{- include "opspilot.podSecurity" . | nindent 8 }}
+      containers:
+        - name: web
+          image: "{{ .Values.image.web.repository }}:{{ .Values.image.web.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          {{- include "opspilot.env" . | nindent 10 }}
+          env:
+            {{- range $k, $v := .Values.web.env }}
+            - { name: {{ $k }}, value: {{ $v | quote }} }
+            {{- end }}
+          ports:
+            - name: http
+              containerPort: 3000
+          readinessProbe:
+            httpGet: { path: /login, port: http }
+            periodSeconds: 5
+          livenessProbe:
+            httpGet: { path: /login, port: http }
+            periodSeconds: 10
+            timeoutSeconds: 3
+          resources: {{- toYaml .Values.web.resources | nindent 12 }}
+          securityContext: {{- include "opspilot.containerSecurity" . | nindent 12 }}
+          volumeMounts:
+            - { name: tmp, mountPath: /tmp }
+            - { name: cache, mountPath: /app/apps/web/.next/cache }
+      volumes:
+        - name: tmp
+          emptyDir: { sizeLimit: 256Mi }
+        - name: cache
+          emptyDir: { sizeLimit: 512Mi }
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ $name }}
+  labels: {{- include "opspilot.labels" . | nindent 4 }}
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels: {{- include "opspilot.selector" $name | nindent 6 }}
+{{- if .Values.web.autoscaling.enabled }}
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ $name }}
+  labels: {{- include "opspilot.labels" . | nindent 4 }}
+spec:
+  scaleTargetRef:
+    apiVersion: {{ if .Values.rollouts.enabled }}argoproj.io/v1alpha1{{ else }}apps/v1{{ end }}
+    kind: {{ if .Values.rollouts.enabled }}Rollout{{ else }}Deployment{{ end }}
+    name: {{ $name }}
+  minReplicas: {{ .Values.web.autoscaling.minReplicas }}
+  maxReplicas: {{ .Values.web.autoscaling.maxReplicas }}
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target: { type: Utilization, averageUtilization: {{ .Values.web.autoscaling.targetCPU }} }
+{{- end }}

@@ -1,0 +1,90 @@
+{{- $name := "opspilot-worker" }}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ $name }}
+  labels: {{- include "opspilot.labels" . | nindent 4 }}
+# The worker talks to the Kubernetes API (investigations and remediation).
+automountServiceAccountToken: true
+{{- range .Values.worker.allowedNamespaces }}
+---
+# Read workloads, and patch deployments (rollback, restart, scale) — nothing else.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: opspilot-remediation
+  namespace: {{ . }}
+  labels: {{- include "opspilot.labels" $ | nindent 4 }}
+rules:
+  - apiGroups: ["apps"]
+    resources: ["deployments", "replicasets"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    verbs: ["patch"]
+  - apiGroups: ["apps"]
+    resources: ["deployments/scale"]
+    verbs: ["get", "patch"]
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: opspilot-remediation
+  namespace: {{ . }}
+  labels: {{- include "opspilot.labels" $ | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: opspilot-remediation
+subjects:
+  - kind: ServiceAccount
+    name: {{ $name }}
+    namespace: {{ $.Release.Namespace }}
+{{- end }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $name }}
+  labels: {{- include "opspilot.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.worker.replicas }}
+  revisionHistoryLimit: 5
+  selector:
+    matchLabels: {{- include "opspilot.selector" $name | nindent 6 }}
+  template:
+    metadata:
+      labels: {{- include "opspilot.selector" $name | nindent 8 }}
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9100"
+        checksum/config: {{ toJson .Values.config | sha256sum | trunc 16 }}
+    spec:
+      serviceAccountName: {{ $name }}
+      # Leases and idempotency keys make a stopped worker's jobs safe to retry.
+      terminationGracePeriodSeconds: 60
+      securityContext: {{- include "opspilot.podSecurity" . | nindent 8 }}
+      containers:
+        - name: worker
+          image: "{{ .Values.image.api.repository }}:{{ .Values.image.api.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: ["opspilot-worker"]
+          {{- include "opspilot.env" . | nindent 10 }}
+          env:
+            - { name: WORKER_METRICS_PORT, value: "9100" }
+            - { name: WORKER_METRICS_HOST, value: "0.0.0.0" }
+          ports:
+            - { name: metrics, containerPort: 9100 }
+          livenessProbe:
+            tcpSocket: { port: metrics }
+            periodSeconds: 20
+          resources: {{- toYaml .Values.worker.resources | nindent 12 }}
+          securityContext: {{- include "opspilot.containerSecurity" . | nindent 12 }}
+          volumeMounts:
+            - { name: tmp, mountPath: /tmp }
+      volumes:
+        - name: tmp
+          emptyDir: { sizeLimit: 1Gi }

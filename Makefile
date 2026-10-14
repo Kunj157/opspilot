@@ -16,7 +16,7 @@ DEMO_IMAGE := opspilot-demo:dev
 API := cd apps/api && uv run
 DEMO := cd demo/services && uv run
 
-.PHONY: db-upgrade db-downgrade db-revision keycloak-smoke token api-client web-dev dev build test-e2e test-lighthouse kind-create kind-delete docker-build deploy-local observability-up load-normal load-stop inject-failure reset-demo seed seed-runbooks test-telemetry test-detection worker help infra-up infra-down llm-up events-up stop secrets-scan install api-dev format lint typecheck test test-unit test-integration test-agent test-ml ml-scenarios ml-dataset ml-train
+.PHONY: db-upgrade db-downgrade db-revision keycloak-smoke token api-client web-dev dev build test-e2e test-lighthouse kind-create kind-delete docker-build deploy-local observability-up load-normal load-stop inject-failure reset-demo seed seed-runbooks test-telemetry test-detection worker help infra-up infra-down llm-up events-up stop secrets-scan install api-dev format lint typecheck test test-unit test-integration test-agent test-ml ml-scenarios ml-dataset ml-train images kind-load gitops-up
 
 help: ## List available targets
 	@grep -hE '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | sort | \
@@ -146,6 +146,22 @@ kind-create: ## Create the local kind cluster (kubeconfig in .kube/config)
 
 kind-delete: ## Delete the local kind cluster
 	kind delete cluster --name opspilot --kubeconfig $(KUBECONFIG)
+
+images: ## Build the API/worker and web images (TAG=dev)
+	docker build -f apps/api/Dockerfile -t opspilot-api:$${TAG:-dev} .
+	docker build -f apps/web/Dockerfile -t opspilot-web:$${TAG:-dev} .
+
+kind-load: ## Load the OpsPilot images into the kind cluster (TAG=dev)
+	kind load docker-image opspilot-api:$${TAG:-dev} opspilot-web:$${TAG:-dev} --name opspilot
+
+gitops-up: ## Install Argo CD and Argo Rollouts in the kind cluster and register the development app
+	$(KUBECTL) create namespace argocd --dry-run=client -o yaml | $(KUBECTL) apply -f -
+	$(KUBECTL) create namespace argo-rollouts --dry-run=client -o yaml | $(KUBECTL) apply -f -
+	$(KUBECTL) apply --server-side --force-conflicts -k infrastructure/argocd/bootstrap/argocd
+	$(KUBECTL) apply --server-side --force-conflicts -k infrastructure/argocd/bootstrap/rollouts
+	$(KUBECTL) apply --server-side --force-conflicts -k infrastructure/argocd/bootstrap/metrics-server
+	$(KUBECTL) -n argocd rollout status deploy/argocd-repo-server --timeout=5m
+	$(KUBECTL) apply -f infrastructure/argocd/applications/opspilot-development.yaml
 
 docker-build: ## Build the demo image and load it into the kind cluster
 	docker build -q -t $(DEMO_IMAGE) demo/services
