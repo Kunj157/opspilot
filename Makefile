@@ -211,6 +211,10 @@ test-alerts: ## Check and unit-test the alert rules (promtool), the Alertmanager
 	@cmp observability/k8s/rules/opspilot-alerts.yaml infrastructure/helm/opspilot/files/prometheus-rules.yaml || \
 		{ echo "infrastructure/helm/opspilot/files/prometheus-rules.yaml must be a copy of the rule file"; exit 1; }
 
+.PHONY: test-chaos
+test-chaos: ## Fault-injection suite: Redis, Redpanda, PostgreSQL, API, worker, LLM, Kubernetes (Docker; docs/operations/chaos-results.md)
+	cd apps/api && uv run python -m pytest -c pyproject.toml ../../tests/chaos -v --durations=0
+
 test-telemetry: ## Follow one request through traces, logs, and metrics on the kind cluster
 	cd demo/services && uv run python -u ../../tests/telemetry/telemetry_smoke.py
 
