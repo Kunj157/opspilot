@@ -8,6 +8,8 @@ kind: Service
 metadata:
   name: {{ $db.name }}
   labels: {{- include "opspilot.labels" $ | nindent 4 }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "-2"
 spec:
   selector: {{- include "opspilot.selector" $db.name | nindent 4 }}
   ports:
