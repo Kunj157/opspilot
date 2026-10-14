@@ -60,6 +60,12 @@ export const icons = {
       <path d="M2.5 4h11M2.5 8h11M2.5 12h11" />
     </Icon>
   ),
+  runbooks: (p: IconProps) => (
+    <Icon {...p}>
+      <path d="M3 2.5h7.5a2 2 0 0 1 2 2v9H5a2 2 0 0 1-2-2v-9Z" />
+      <path d="M3 11.5a2 2 0 0 1 2-2h7.5M6 5.5h4" />
+    </Icon>
+  ),
   close: (p: IconProps) => (
     <Icon {...p}>
       <path d="m4 4 8 8m0-8-8 8" />
