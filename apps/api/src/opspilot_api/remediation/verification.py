@@ -56,7 +56,10 @@ class Verdict:
     measurements: dict[str, Any]
 
 
-async def pending(sessions: async_sessionmaker[AsyncSession]) -> list[uuid.UUID]:
+async def pending(
+    sessions: async_sessionmaker[AsyncSession], *, completed_before: datetime | None = None
+) -> list[uuid.UUID]:
+    """Executions awaiting verification; `completed_before` leaves the first look to the event."""
     async with sessions() as session:
         rows = await session.scalars(
             select(RemediationExecution.id)
@@ -65,6 +68,11 @@ async def pending(sessions: async_sessionmaker[AsyncSession]) -> list[uuid.UUID]
                 RemediationExecution.status == ExecutionStatus.SUCCEEDED,
                 RemediationExecution.verification_status == "pending",
                 Incident.status == IncidentStatus.VERIFYING,
+                *(
+                    [RemediationExecution.completed_at < completed_before]
+                    if completed_before
+                    else []
+                ),
             )
             .order_by(RemediationExecution.completed_at)
         )

@@ -58,16 +58,28 @@ def idempotency_key(proposal: RemediationProposal) -> str:
     return f"{proposal.id}:v{proposal.version}"
 
 
-async def claim(sessions: async_sessionmaker[AsyncSession]) -> uuid.UUID | None:
-    """Start the execution of one approved proposal, or take over one whose lease expired."""
+async def claim(
+    sessions: async_sessionmaker[AsyncSession],
+    *,
+    proposal_id: uuid.UUID | None = None,
+    approved_before: datetime | None = None,
+) -> uuid.UUID | None:
+    """Start the execution of one approved proposal, or take over one whose lease expired.
+
+    `proposal_id` limits the claim to one proposal (the event-driven path);
+    `approved_before` leaves recent approvals to their event (the fallback sweep).
+    """
     now = datetime.now(UTC)
     async with sessions() as session:
+        pick = select(RemediationProposal).where(
+            RemediationProposal.status == ProposalStatus.APPROVED
+        )
+        if proposal_id is not None:
+            pick = pick.where(RemediationProposal.id == proposal_id)
+        if approved_before is not None:
+            pick = pick.where(RemediationProposal.updated_at < approved_before)
         proposal = await session.scalar(
-            select(RemediationProposal)
-            .where(RemediationProposal.status == ProposalStatus.APPROVED)
-            .order_by(RemediationProposal.updated_at)
-            .limit(1)
-            .with_for_update(skip_locked=True)
+            pick.order_by(RemediationProposal.updated_at).limit(1).with_for_update(skip_locked=True)
         )
         if proposal is not None:
             await session.execute(
@@ -89,6 +101,7 @@ async def claim(sessions: async_sessionmaker[AsyncSession]) -> uuid.UUID | None:
                     RemediationExecution.lease_until.is_(None),
                     RemediationExecution.lease_until < now,
                 ),
+                *([RemediationExecution.proposal_id == proposal_id] if proposal_id else []),
             )
             .order_by(RemediationExecution.created_at)
             .limit(1)
