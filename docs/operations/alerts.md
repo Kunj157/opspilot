@@ -204,7 +204,7 @@ A backup job failed (ticket), or no backup has succeeded for 26 hours
 2. Typical causes: database credentials rotated, the bucket or PVC full or
    unreachable, the job's deadline too short for the database size.
 3. Run one now: `kubectl -n opspilot create job --from=cronjob/opspilot-db-backup backup-manual`.
-4. Restores: see the disaster-recovery runbook in this directory.
+4. Restores: [disaster recovery](disaster-recovery.md).
 
 ### OpsPilotCertificateExpiringSoon
 
