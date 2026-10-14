@@ -5,11 +5,11 @@ import type { components } from "@opspilot/api-client/schema";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { useEffect, useState } from "react";
 
 import { SERVICES_KEY } from "@/components/services/service-catalog";
 import { formatSeconds } from "@/lib/durations";
 import { type StreamedEvent, useIncidentStream } from "@/lib/use-incident-stream";
+import { useNow } from "@/lib/use-now";
 
 import { SeverityBadge, StatusBadge } from "./badges";
 import { AgentInvestigation, investigationKeys } from "./agent-investigation";
@@ -30,15 +30,6 @@ export function formatDuration(fromIso: string, to: Date): string {
   return seconds < 60 ? "0m" : formatSeconds(seconds);
 }
 
-function useNow(intervalMs: number) {
-  const [now, setNow] = useState(() => new Date());
-  useEffect(() => {
-    const timer = setInterval(() => setNow(new Date()), intervalMs);
-    return () => clearInterval(timer);
-  }, [intervalMs]);
-  return now;
-}
-
 function Fact({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
@@ -48,7 +39,11 @@ function Fact({ label, children }: { label: string; children: React.ReactNode })
   );
 }
 
-export function IncidentDetail({ permissions }: { permissions: { manage: boolean; investigate: boolean } }) {
+export function IncidentDetail({
+  permissions,
+}: {
+  permissions: { manage: boolean; investigate: boolean; approve: boolean };
+}) {
   const { incidentId } = useParams<{ incidentId: string }>();
   const queryClient = useQueryClient();
   const now = useNow(30_000);
@@ -97,7 +92,7 @@ export function IncidentDetail({ permissions }: { permissions: { manage: boolean
     queryClient.setQueryData<Event[]>(eventsKey, (current = []) =>
       current.some((e) => e.sequence === event.sequence) ? current : [...current, event as Event],
     );
-    if (/^incident\.(agent_update|remediation_proposed|investigation_finished)$/.test(event.event_type)) {
+    if (/^incident\.(agent_update|remediation_\w+|investigation_finished|verification_\w+)$/.test(event.event_type)) {
       void queryClient.invalidateQueries({ queryKey: investigationKeys(incidentId).all });
     }
   });
@@ -185,7 +180,7 @@ export function IncidentDetail({ permissions }: { permissions: { manage: boolean
           )}
           {events.isSuccess && <IncidentTimeline events={events.data} />}
         </section>
-        <AgentInvestigation incidentId={i.id} canInvestigate={permissions.investigate} />
+        <AgentInvestigation incidentId={i.id} canInvestigate={permissions.investigate} canApprove={permissions.approve} />
       </div>
     </div>
   );
