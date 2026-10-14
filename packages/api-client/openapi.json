@@ -1435,6 +1435,111 @@
         }
       }
     },
+    "/api/v1/runbooks/search": {
+      "get": {
+        "tags": [
+          "runbooks"
+        ],
+        "summary": "Search Runbooks",
+        "operationId": "search_runbooks_api_v1_runbooks_search_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 2,
+              "maxLength": 500,
+              "title": "Q"
+            }
+          },
+          {
+            "name": "service",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 63
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Service"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 20,
+              "minimum": 1,
+              "default": 5,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunbookHits"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/runbooks/reindex": {
+      "post": {
+        "tags": [
+          "runbooks"
+        ],
+        "summary": "Reindex Runbooks",
+        "description": "Re-embed every active runbook, e.g. after changing the embedding model.",
+        "operationId": "reindex_runbooks_api_v1_runbooks_reindex_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReindexResult"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
     "/api/v1/runbooks/{runbook_id}": {
       "get": {
         "tags": [
@@ -2499,6 +2604,24 @@
         ],
         "title": "ReadinessResponse"
       },
+      "ReindexResult": {
+        "properties": {
+          "reindexed": {
+            "type": "integer",
+            "title": "Reindexed"
+          },
+          "chunks": {
+            "type": "integer",
+            "title": "Chunks"
+          }
+        },
+        "type": "object",
+        "required": [
+          "reindexed",
+          "chunks"
+        ],
+        "title": "ReindexResult"
+      },
       "Role": {
         "type": "string",
         "enum": [
@@ -2551,6 +2674,84 @@
           "content"
         ],
         "title": "RunbookCreate"
+      },
+      "RunbookHitOut": {
+        "properties": {
+          "runbook_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Runbook Id"
+          },
+          "runbook_slug": {
+            "type": "string",
+            "title": "Runbook Slug"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "heading": {
+            "type": "string",
+            "title": "Heading"
+          },
+          "content": {
+            "type": "string",
+            "title": "Content"
+          },
+          "score": {
+            "type": "number",
+            "title": "Score"
+          },
+          "version": {
+            "type": "integer",
+            "title": "Version"
+          },
+          "source_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Url"
+          },
+          "flagged": {
+            "type": "boolean",
+            "title": "Flagged"
+          }
+        },
+        "type": "object",
+        "required": [
+          "runbook_id",
+          "runbook_slug",
+          "title",
+          "heading",
+          "content",
+          "score",
+          "version",
+          "source_url",
+          "flagged"
+        ],
+        "title": "RunbookHitOut",
+        "description": "One retrieved section with its citation. `content` is untrusted text."
+      },
+      "RunbookHits": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/RunbookHitOut"
+            },
+            "type": "array",
+            "title": "Items"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "title": "RunbookHits"
       },
       "RunbookList": {
         "properties": {

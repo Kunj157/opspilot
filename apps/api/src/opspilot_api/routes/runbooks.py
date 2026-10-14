@@ -21,6 +21,7 @@ from opspilot_api.db.session import get_session
 from opspilot_api.runbooks.document import RunbookDocument, RunbookDocumentError, parse
 from opspilot_api.runbooks.embeddings import Embedder
 from opspilot_api.runbooks.ingest import ingest
+from opspilot_api.runbooks.retrieval import search
 
 router = APIRouter(prefix="/api/v1", tags=["runbooks"])
 
@@ -79,6 +80,26 @@ class RunbookOut(RunbookSummary):
 
 class RunbookList(BaseModel):
     items: list[RunbookSummary]
+
+
+class RunbookHitOut(BaseModel):
+    """One retrieved section with its citation. `content` is untrusted text."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    runbook_id: uuid.UUID
+    runbook_slug: str
+    title: str
+    heading: str
+    content: str
+    score: float
+    version: int
+    source_url: str | None
+    flagged: bool
+
+
+class RunbookHits(BaseModel):
+    items: list[RunbookHitOut]
 
 
 class ReindexResult(BaseModel):
@@ -161,6 +182,27 @@ async def create_runbook(
     await session.commit()
     await session.refresh(runbook)
     return RunbookOut.of(runbook)
+
+
+# Declared before /runbooks/{runbook_id}, so "search" is never read as an ID.
+@router.get("/runbooks/search", response_model=RunbookHits)
+async def search_runbooks(
+    principal: Annotated[Principal, Depends(require(Permission.VIEW_INCIDENTS))],
+    session: Annotated[AsyncSession, Depends(get_session)],
+    embedder: Annotated[Embedder, Depends(get_embedder)],
+    q: Annotated[str, Query(min_length=2, max_length=500)],
+    service: Annotated[str | None, Query(max_length=63)] = None,
+    limit: Annotated[int, Query(ge=1, le=20)] = 5,
+) -> RunbookHits:
+    hits = await search(
+        session,
+        embedder,
+        organization_id=principal.organization_id,
+        query=q,
+        service=service,
+        limit=limit,
+    )
+    return RunbookHits(items=[RunbookHitOut.model_validate(h) for h in hits])
 
 
 @router.post("/runbooks/reindex", response_model=ReindexResult)

@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from opspilot_api.db.models import Runbook, RunbookChunk
 from opspilot_api.runbooks.document import RunbookDocument, parse
 from opspilot_api.runbooks.embeddings import Embedder, embed
+from opspilot_api.runbooks.retrieval import looks_like_injection
 
 MAX_CHUNK_CHARS = 1200
 
@@ -72,6 +73,7 @@ async def ingest(session: AsyncSession, runbook: Runbook, embedder: Embedder) ->
             heading=c.heading,
             content=c.content,
             embedding=vector,
+            flagged=looks_like_injection(c.content),
         )
         for i, (c, vector) in enumerate(zip(chunks, vectors, strict=True))
     )
