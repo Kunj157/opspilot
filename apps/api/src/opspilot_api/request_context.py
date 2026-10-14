@@ -4,9 +4,11 @@ import uuid
 from contextvars import ContextVar
 
 import structlog
+from fastapi import status
 from opentelemetry import context as otel_context
 from opentelemetry import propagate, trace
 from starlette.datastructures import MutableHeaders
+from starlette.responses import JSONResponse
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 REQUEST_ID_HEADER = "X-Request-ID"
@@ -81,16 +83,28 @@ class RequestContextMiddleware:
         ip_token = current_client_ip.set(client[0] if client else None)
         started = time.perf_counter()
         status_code = 500
+        response_started = False
 
         async def send_with_request_id(message: Message) -> None:
-            nonlocal status_code
+            nonlocal status_code, response_started
             if message["type"] == "http.response.start":
                 status_code = message["status"]
+                response_started = True
                 MutableHeaders(scope=message)[REQUEST_ID_HEADER] = request_id
             await send(message)
 
         try:
             await self.app(scope, receive, send_with_request_id)
+        except Exception:
+            # Details go to the log, never to the caller: a generic body with
+            # the request ID to quote when reporting the failure.
+            logger.exception("unhandled error")
+            if response_started:
+                raise
+            await JSONResponse(
+                {"detail": "Internal server error", "request_id": request_id},
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )(scope, receive, send_with_request_id)
         finally:
             logger.info(
                 "request completed",

@@ -1,8 +1,8 @@
 variable "environment" {
   type = string
   validation {
-    condition     = contains(["development", "staging", "production"], var.environment)
-    error_message = "Use development, staging, or production."
+    condition     = contains(["development", "staging", "production", "loadtest"], var.environment)
+    error_message = "Use development, staging, production, or loadtest."
   }
 }
 
@@ -83,7 +83,12 @@ variable "domain" {
 }
 
 variable "alert_emails" {
-  type = list(string)
+  description = "Alarm and budget recipients; the first is also the Let's Encrypt contact"
+  type        = list(string)
+  validation {
+    condition     = length(var.alert_emails) > 0
+    error_message = "List at least one alert e-mail."
+  }
 }
 
 variable "log_retention_days" {
@@ -120,4 +125,10 @@ variable "office_hours" {
     max        = number
   })
   default = null
+}
+
+variable "app_namespace" {
+  description = "Namespace of the OpsPilot release; the application roles trust its service accounts"
+  type        = string
+  default     = "opspilot"
 }

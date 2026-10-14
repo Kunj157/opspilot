@@ -1,7 +1,12 @@
+import re
 from datetime import UTC, datetime
 from typing import Any
 
 from opspilot_api.telemetry.base import Backend, Span, TraceDetail, TraceSummary, label_value
+
+# Trace IDs reach this adapter from telemetry data and model output: only a
+# hex ID may become part of the request path (no "../", "?", or "/").
+_TRACE_ID = re.compile(r"^[0-9a-fA-F]{1,32}$")
 
 
 def _attributes(raw: list[dict[str, Any]]) -> dict[str, str]:
@@ -46,6 +51,8 @@ class TempoTraces(Backend):
         ]
 
     async def get(self, trace_id: str) -> TraceDetail | None:
+        if not _TRACE_ID.fullmatch(trace_id):
+            return None
         body = await self.get_json(f"/api/traces/{trace_id}")
         if not body:
             return None

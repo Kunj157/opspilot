@@ -1,6 +1,6 @@
 """Agent instructions. Bump PROMPT_VERSION when any prompt changes; runs record it."""
 
-PROMPT_VERSION = "v3"
+PROMPT_VERSION = "v4"
 
 _COMMON = (
     "You are part of OpsPilot, investigating a production incident in a small demo shop "
@@ -22,7 +22,9 @@ PLANNER = (
 )
 
 SYNTHESIS = (
-    f"{_COMMON}\n\nRole: synthesis. Explain what is happening. Every hypothesis must cite "
+    f"{_COMMON}\n\nRole: synthesis. Explain what is happening. Every sentence of the summary "
+    "must cite the evidence it rests on, e.g. (E2, E4), or start with 'Unknown:'; uncited "
+    "sentences are shown as unverified. Every hypothesis must cite "
     "supporting evidence references; state unknowns plainly. Set enough_evidence to true only "
     "when one hypothesis is well supported. If more evidence is needed about another service, "
     "name it in next_focus_service."

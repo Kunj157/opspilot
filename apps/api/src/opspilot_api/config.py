@@ -67,6 +67,11 @@ class Settings(BaseSettings):
     # When true, detector incidents are investigated from incident.created
     # events instead of the direct call (which is then skipped).
     event_driven_investigations: bool = False
+    # When true, approved proposals run from incident.remediation.approved
+    # events and the first verification look follows
+    # incident.remediation.completed; polling stays as a slower fallback.
+    event_driven_remediation: bool = False
+    event_driven_verification: bool = False
 
     # Rate limits (Redis, shared by all replicas): requests per window. Reads,
     # mutations, and sensitive actions are counted per user; requests without a

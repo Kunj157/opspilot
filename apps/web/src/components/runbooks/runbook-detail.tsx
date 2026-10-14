@@ -12,6 +12,7 @@ import { Card } from "@/components/ui/card";
 import { Modal } from "@/components/ui/modal";
 import { useToast } from "@/components/ui/toast";
 import { MarkdownLite } from "@/lib/markdown-lite";
+import { safeHref } from "@/lib/safe-href";
 
 import { RUNBOOKS_KEY } from "./runbook-library";
 
@@ -52,6 +53,7 @@ export function RunbookDetail({ canManage }: { canManage: boolean }) {
     );
 
   const rb = runbook.data;
+  const source = safeHref(rb.source_url);
   async function archive() {
     const { data } = await createApiClient(window.location.origin).POST("/api/v1/runbooks/{runbook_id}/archive", {
       params: { path: { runbook_id: rb.id } },
@@ -92,8 +94,8 @@ export function RunbookDetail({ canManage }: { canManage: boolean }) {
               Archive
             </Button>
           )}
-          {rb.source_url && (
-            <a href={rb.source_url} target="_blank" rel="noreferrer" className="text-sm text-accent hover:underline">
+          {source && (
+            <a href={source} target="_blank" rel="noreferrer" className="text-sm text-accent hover:underline">
               Source ↗
             </a>
           )}

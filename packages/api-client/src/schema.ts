@@ -2199,7 +2199,9 @@ export interface operations {
     update_service_api_v1_services__service_id__patch: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                "Idempotency-Key"?: string | null;
+            };
             path: {
                 service_id: string;
             };
@@ -2265,7 +2267,9 @@ export interface operations {
     replace_dependencies_api_v1_services__service_id__dependencies_put: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                "Idempotency-Key"?: string | null;
+            };
             path: {
                 service_id: string;
             };
@@ -2485,7 +2489,9 @@ export interface operations {
     update_incident_api_v1_incidents__incident_id__patch: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                "Idempotency-Key"?: string | null;
+            };
             path: {
                 incident_id: string;
             };
@@ -2520,7 +2526,9 @@ export interface operations {
     acknowledge_incident_api_v1_incidents__incident_id__acknowledge_post: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                "Idempotency-Key"?: string | null;
+            };
             path: {
                 incident_id: string;
             };
@@ -2555,7 +2563,9 @@ export interface operations {
     investigate_incident_api_v1_incidents__incident_id__investigate_post: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                "Idempotency-Key"?: string | null;
+            };
             path: {
                 incident_id: string;
             };
@@ -2590,7 +2600,9 @@ export interface operations {
     resolve_incident_api_v1_incidents__incident_id__resolve_post: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                "Idempotency-Key"?: string | null;
+            };
             path: {
                 incident_id: string;
             };
@@ -2783,7 +2795,9 @@ export interface operations {
     start_investigation_api_v1_incidents__incident_id__investigation_post: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                "Idempotency-Key"?: string | null;
+            };
             path: {
                 incident_id: string;
             };
@@ -2947,7 +2961,9 @@ export interface operations {
     request_postmortem_api_v1_incidents__incident_id__postmortem_post: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                "Idempotency-Key"?: string | null;
+            };
             path: {
                 incident_id: string;
             };
@@ -3009,7 +3025,9 @@ export interface operations {
     approve_proposal_api_v1_proposals__proposal_id__approve_post: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                "Idempotency-Key"?: string | null;
+            };
             path: {
                 proposal_id: string;
             };
@@ -3044,7 +3062,9 @@ export interface operations {
     reject_proposal_api_v1_proposals__proposal_id__reject_post: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                "Idempotency-Key"?: string | null;
+            };
             path: {
                 proposal_id: string;
             };
@@ -3110,7 +3130,9 @@ export interface operations {
     create_runbook_api_v1_runbooks_post: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                "Idempotency-Key"?: string | null;
+            };
             path?: never;
             cookie?: never;
         };
@@ -3177,7 +3199,9 @@ export interface operations {
     reindex_runbooks_api_v1_runbooks_reindex_post: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                "Idempotency-Key"?: string | null;
+            };
             path?: never;
             cookie?: never;
         };
@@ -3190,6 +3214,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ReindexResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
@@ -3228,7 +3261,9 @@ export interface operations {
     update_runbook_api_v1_runbooks__runbook_id__put: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                "Idempotency-Key"?: string | null;
+            };
             path: {
                 runbook_id: string;
             };
@@ -3263,7 +3298,9 @@ export interface operations {
     archive_runbook_api_v1_runbooks__runbook_id__archive_post: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                "Idempotency-Key"?: string | null;
+            };
             path: {
                 runbook_id: string;
             };
@@ -3314,7 +3351,9 @@ export interface operations {
     promote_model_api_v1_ml_models__model_id__promote_post: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                "Idempotency-Key"?: string | null;
+            };
             path: {
                 model_id: string;
             };
