@@ -546,6 +546,41 @@ class Approval(UUIDPrimaryKey, OrganizationScoped, Base):
     )
 
 
+class ExecutionStatus(enum.StrEnum):
+    RUNNING = "running"
+    SUCCEEDED = "succeeded"
+    FAILED = "failed"
+
+
+class RemediationExecution(UUIDPrimaryKey, Timestamps, OrganizationScoped, Base):
+    """One run of an approved proposal. The idempotency key makes a retry a no-op."""
+
+    __tablename__ = "remediation_executions"
+
+    organization_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("organizations.id", ondelete="RESTRICT")
+    )
+    proposal_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("remediation_proposals.id", ondelete="CASCADE"), index=True
+    )
+    incident_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("incidents.id", ondelete="CASCADE"), index=True
+    )
+    # "<proposal id>:v<version>": one execution per approved proposal version.
+    idempotency_key: Mapped[str] = mapped_column(String(100), unique=True)
+    status: Mapped[ExecutionStatus] = mapped_column(
+        _enum(ExecutionStatus, "execution_status"),
+        server_default=ExecutionStatus.RUNNING.value,
+    )
+    attempts: Mapped[int] = mapped_column(Integer, server_default="0")
+    # A worker that dies mid-run leaves an expired lease; another worker retries.
+    lease_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    output: Mapped[dict[str, Any]] = mapped_column(JSONB, server_default="{}")
+    error_message: Mapped[str | None] = mapped_column(String(1000))
+
+
 class Postmortem(UUIDPrimaryKey, Timestamps, OrganizationScoped, Base):
     """A drafted postmortem for a resolved incident; regenerated on request."""
 
