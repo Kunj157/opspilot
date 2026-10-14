@@ -16,7 +16,7 @@ DEMO_IMAGE := opspilot-demo:dev
 API := cd apps/api && uv run
 DEMO := cd demo/services && uv run
 
-.PHONY: db-upgrade db-downgrade db-revision keycloak-smoke token api-client web-dev dev build test-e2e test-lighthouse kind-create kind-delete docker-build deploy-local observability-up load-normal load-stop inject-failure reset-demo seed seed-runbooks test-telemetry test-detection worker help infra-up infra-down stop secrets-scan install api-dev format lint typecheck test test-unit test-integration
+.PHONY: db-upgrade db-downgrade db-revision keycloak-smoke token api-client web-dev dev build test-e2e test-lighthouse kind-create kind-delete docker-build deploy-local observability-up load-normal load-stop inject-failure reset-demo seed seed-runbooks test-telemetry test-detection worker help infra-up infra-down stop secrets-scan install api-dev format lint typecheck test test-unit test-integration test-agent
 
 help: ## List available targets
 	@grep -hE '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | sort | \
@@ -71,6 +71,9 @@ test-unit: ## Unit tests
 
 test-integration: ## Integration tests against real containers (needs Docker)
 	$(API) pytest tests/integration
+
+test-agent: ## Agent and retrieval evals (tests/agent-evals); results in test-results/agent-evals
+	$(API) pytest tests/evals -s
 
 api-client: ## Regenerate the typed API client from the API's OpenAPI schema
 	cd apps/api && uv run python -c "import json; from opspilot_api.config import Settings; \
@@ -148,8 +151,8 @@ inject-failure: ## Ship a faulty release: make inject-failure SCENARIO=checkout-
 	./scripts/inject-failure.sh $(SCENARIO)
 
 reset-demo: ## Restore every demo service to its healthy release (keeps load running)
-	$(KUBECTL) -n demo annotate deployment --all --overwrite kubernetes.io/change-cause="reset to the healthy release"
-	$(HELM) upgrade demo-shop infrastructure/helm/demo-shop --namespace demo --reuse-values --force-conflicts --wait
+	$(HELM) upgrade demo-shop infrastructure/helm/demo-shop --namespace demo --reuse-values --force-conflicts --wait \
+		--set changeCause="reset to the healthy release"
 
 seed: ## Register the demo shop in the service catalog (API must be running)
 	cd apps/api && uv run python -m opspilot_api.demo_seed \
