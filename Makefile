@@ -159,6 +159,7 @@ gitops-up: ## Install Argo CD and Argo Rollouts in the kind cluster and register
 	$(KUBECTL) create namespace argo-rollouts --dry-run=client -o yaml | $(KUBECTL) apply -f -
 	$(KUBECTL) apply --server-side --force-conflicts -k infrastructure/argocd/bootstrap/argocd
 	$(KUBECTL) apply --server-side --force-conflicts -k infrastructure/argocd/bootstrap/rollouts
+	$(KUBECTL) apply --server-side --force-conflicts -k infrastructure/argocd/bootstrap/metrics-server
 	$(KUBECTL) -n argocd rollout status deploy/argocd-repo-server --timeout=5m
 	$(KUBECTL) apply -f infrastructure/argocd/applications/opspilot-development.yaml
 
