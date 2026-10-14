@@ -59,7 +59,7 @@ AGENT_TOOLS: dict[str, set[str]] = {
         "get_service_dependencies",
     },
     "deployment": {"get_recent_deployments", "get_kubernetes_rollout_status"},
-    "runbook": {"search_runbooks", "search_similar_incidents"},
+    "runbook": {"search_runbooks", "get_runbook", "search_similar_incidents"},
 }
 ORDER = ["triage", "observability", "deployment", "runbook", "synthesis", "remediation"]
 
@@ -89,6 +89,7 @@ class State(TypedDict, total=False):
     runbooks: list[dict[str, Any]]
     deployments: dict[str, dict[str, Any]]
     runbook_excerpts: str
+    runbook_document: str
     proposal_id: str | None
     outcome: str
     notes: list[str]
@@ -259,7 +260,14 @@ class Investigator:
                 reason="matching procedure",
             )
         ]
-        await self._plan_and_execute(state, "runbook", "runbook retrieval", default)
+        run_id = await self._plan_and_execute(state, "runbook", "runbook retrieval", default)
+        if state["runbooks"] and not state.get("runbook_document"):
+            # Read the best match in full: excerpts alone can miss the verification
+            # and rollback steps the proposal should follow.
+            top = PlannedCall(
+                tool="get_runbook", runbook=state["runbooks"][0]["slug"], reason="full procedure"
+            )
+            await self._execute(state, "runbook", run_id, [top])
         state["next"] = "synthesis"
         return state
 
@@ -362,7 +370,7 @@ class Investigator:
 
     async def _plan_and_execute(
         self, state: State, role: str, label: str, default: list[PlannedCall]
-    ) -> None:
+    ) -> uuid.UUID:
         prompt = (
             f"Incident: {state['title']}\nSuspected service: {state.get('service')}\n"
             f"Allowed tools: {self._tool_list(role)}\n"
@@ -376,6 +384,7 @@ class Investigator:
         if len(state["evidence"]) == before:
             # The plan was empty or produced nothing usable: fall back to the fixed plan.
             await self._execute(state, role, run_id, default)
+        return run_id
 
     @staticmethod
     def _complete(call: PlannedCall, default: list[PlannedCall]) -> PlannedCall:
@@ -515,6 +524,8 @@ class Investigator:
                 if tool == "search_runbooks":
                     state["runbooks"] = result.data.get("runbooks", [])
                     state["runbook_excerpts"] = result.data.get("excerpts", "")
+                if tool == "get_runbook":
+                    state["runbook_document"] = result.data.get("content", "")
                 if tool == "get_recent_deployments":
                     state["deployments"][arguments.get("service", "")] = result.data
             await session.commit()
@@ -666,7 +677,8 @@ class Investigator:
 
     @staticmethod
     def _runbook_text(state: State) -> str:
-        return (state.get("runbook_excerpts") or "none")[:4000]
+        """The full top runbook when it was read, otherwise the matched excerpts."""
+        return (state.get("runbook_document") or state.get("runbook_excerpts") or "none")[:6000]
 
     @staticmethod
     def _actor(organization_id: uuid.UUID, agent: str) -> incidents.Actor:

@@ -6,6 +6,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 import pytest
+from sqlalchemy import update
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
     AsyncSession,
@@ -19,6 +20,7 @@ from opspilot_api.db.models import (
     Incident,
     Organization,
     Runbook,
+    RunbookStatus,
     Service,
     ServiceDependency,
     Severity,
@@ -185,3 +187,55 @@ async def test_runbook_search_returns_cited_untrusted_excerpts(
     assert "UNTRUSTED" in result.data["excerpts"]
     assert result.evidence is not None
     assert result.evidence.source == "runbook library"
+
+
+async def test_get_runbook_returns_the_whole_runbook_quoted_and_cited(
+    sessions: async_sessionmaker[AsyncSession],
+) -> None:
+    w = await world(sessions)
+    ctx = context(sessions, w["org"].id, w["checkout"])
+
+    by_slug = await run_tool(ctx, "get_runbook", {"runbook": "checkout-high-error-rate"})
+    by_id = await run_tool(ctx, "get_runbook", {"runbook": by_slug.data["runbook"]["runbook_id"]})
+
+    assert by_slug.ok, by_slug.error
+    assert by_slug.data["sections"] == ["Symptoms", "Safe actions"]
+    assert "UNTRUSTED" in by_slug.data["content"]
+    assert "> Roll back checkout." in by_slug.data["content"]
+    assert by_slug.data["runbook"]["version"] == 1
+    assert by_slug.evidence is not None
+    assert by_slug.evidence.query == "runbook checkout-high-error-rate v1"
+    assert by_id.ok
+    assert by_id.data["runbook"] == by_slug.data["runbook"]
+
+
+async def test_get_runbook_refuses_versions_other_organizations_and_archived_runbooks(
+    sessions: async_sessionmaker[AsyncSession],
+) -> None:
+    w = await world(sessions)
+    other = await world(sessions)
+    ctx = context(sessions, w["org"].id, w["checkout"])
+
+    old = await run_tool(ctx, "get_runbook", {"runbook": "checkout-high-error-rate", "version": 3})
+    foreign_id = await run_tool(
+        context(sessions, other["org"].id, other["checkout"]),
+        "get_runbook",
+        {"runbook": "checkout-high-error-rate"},
+    )
+    async with sessions() as session:
+        await session.execute(
+            update(Runbook)
+            .where(Runbook.organization_id == w["org"].id)
+            .values(status=RunbookStatus.ARCHIVED)
+        )
+        await session.commit()
+    stolen = await run_tool(
+        ctx, "get_runbook", {"runbook": foreign_id.data["runbook"]["runbook_id"]}
+    )
+    archived = await run_tool(ctx, "get_runbook", {"runbook": "checkout-high-error-rate"})
+    invalid = await run_tool(ctx, "get_runbook", {"runbook": "../etc"})
+
+    assert old.error == "checkout-high-error-rate v3 is not available; the current version is v1"
+    assert not stolen.ok
+    assert archived.error == "no active runbook 'checkout-high-error-rate'"
+    assert (invalid.error or "").startswith("invalid arguments")
