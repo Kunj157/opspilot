@@ -33,8 +33,6 @@ envFrom:
 
 {{/* Canary 10% → 25% → 50% → 100%, analysed against Prometheus from the first step. */}}
 {{- define "opspilot.canarySteps" -}}
-# A canary that never becomes ready is aborted, and the stable version stays.
-progressDeadlineAbort: true
 analysis:
   startingStep: 1
   templates:
