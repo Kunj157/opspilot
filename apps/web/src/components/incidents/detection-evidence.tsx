@@ -50,10 +50,10 @@ export function DetectionEvidence({
   const detections = useQuery({
     queryKey: ["incident-detections", incidentId],
     queryFn: async ({ signal }) => {
-      const { data } = await createApiClient(window.location.origin).GET(
-        "/api/v1/incidents/{incident_id}/detections",
-        { params: { path: { incident_id: incidentId } }, signal },
-      );
+      const { data } = await createApiClient(window.location.origin).GET("/api/v1/incidents/{incident_id}/detections", {
+        params: { path: { incident_id: incidentId } },
+        signal,
+      });
       if (!data) throw new Error("detections unavailable");
       return data.items;
     },

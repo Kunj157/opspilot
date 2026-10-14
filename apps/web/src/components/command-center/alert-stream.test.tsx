@@ -48,7 +48,8 @@ describe("AlertStream", () => {
     render(<AlertStream onEvent={onEvent} />);
 
     act(() => {
-      for (let i = 1; i <= 10; i++) FakeEventSource.last.emit("incident.created", frame(i, "incident.created", "Incident detected"));
+      for (let i = 1; i <= 10; i++)
+        FakeEventSource.last.emit("incident.created", frame(i, "incident.created", "Incident detected"));
     });
 
     const items = within(screen.getByRole("list", { name: "Live alerts" })).getAllByRole("listitem");

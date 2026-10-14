@@ -21,7 +21,10 @@ export function Select({ className = "", children, ...props }: ComponentProps<"s
       <select className={`h-9 appearance-none pr-8 pl-2.5 ${controlClass}`} {...props}>
         {children}
       </select>
-      <icons.chevron aria-hidden className="pointer-events-none absolute top-1/2 right-2.5 -translate-y-1/2 text-fg-muted" />
+      <icons.chevron
+        aria-hidden
+        className="pointer-events-none absolute top-1/2 right-2.5 -translate-y-1/2 text-fg-muted"
+      />
     </span>
   );
 }

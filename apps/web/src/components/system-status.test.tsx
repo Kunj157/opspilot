@@ -35,7 +35,10 @@ afterEach(() => {
 
 describe("SystemStatus", () => {
   it("shows a checking state before the first response", () => {
-    vi.stubGlobal("fetch", vi.fn(() => new Promise<Response>(() => {})));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(() => new Promise<Response>(() => {})),
+    );
 
     renderStatus();
 
@@ -59,12 +62,7 @@ describe("SystemStatus", () => {
   it("reports degraded and names the failing dependency on 503", async () => {
     vi.stubGlobal(
       "fetch",
-      vi.fn(async () =>
-        readiness(
-          { config: ok, database: ok, redis: { status: "fail", detail: "unavailable" } },
-          503,
-        ),
-      ),
+      vi.fn(async () => readiness({ config: ok, database: ok, redis: { status: "fail", detail: "unavailable" } }, 503)),
     );
 
     renderStatus();
@@ -78,9 +76,7 @@ describe("SystemStatus", () => {
   it("distinguishes a timed-out dependency", async () => {
     vi.stubGlobal(
       "fetch",
-      vi.fn(async () =>
-        readiness({ config: ok, database: { status: "fail", detail: "timeout" }, redis: ok }, 503),
-      ),
+      vi.fn(async () => readiness({ config: ok, database: { status: "fail", detail: "timeout" }, redis: ok }, 503)),
     );
 
     renderStatus();
@@ -91,12 +87,7 @@ describe("SystemStatus", () => {
   it("shows missing configuration", async () => {
     vi.stubGlobal(
       "fetch",
-      vi.fn(async () =>
-        readiness(
-          { config: { status: "fail", detail: "missing: REDIS_URL" }, database: ok },
-          503,
-        ),
-      ),
+      vi.fn(async () => readiness({ config: { status: "fail", detail: "missing: REDIS_URL" }, database: ok }, 503)),
     );
 
     renderStatus();
@@ -119,7 +110,10 @@ describe("SystemStatus", () => {
   });
 
   it("treats an unexpected status as unreachable", async () => {
-    vi.stubGlobal("fetch", vi.fn(async () => new Response("bad gateway", { status: 502 })));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response("bad gateway", { status: 502 })),
+    );
 
     renderStatus();
 

@@ -55,8 +55,7 @@ function Entry({ entry }: { entry: AuditLogItem }) {
           <span className="truncate text-sm text-fg">{entry.resource_id ?? entry.resource_type}</span>
         </p>
         <p className="mt-1 truncate text-xs text-fg-secondary">
-          <span className="capitalize">{entry.actor_type}</span> ·{" "}
-          <span className="font-mono">{entry.actor_id}</span>
+          <span className="capitalize">{entry.actor_type}</span> · <span className="font-mono">{entry.actor_id}</span>
           {entry.ip_address && <> · {entry.ip_address}</>}
         </p>
       </div>
@@ -120,9 +119,7 @@ export function AuditLogExplorer() {
         <Field label="Action" name="action" placeholder="e.g. user.provisioned" />
         <Field label="Resource type" name="resourceType" placeholder="e.g. user" />
         <Field label="Since" name="since" type="datetime-local" />
-        <Button type="submit">
-          Apply filters
-        </Button>
+        <Button type="submit">Apply filters</Button>
       </form>
 
       {query.isPending && (
@@ -150,9 +147,7 @@ export function AuditLogExplorer() {
         ))}
 
       {query.isSuccess && entries.length === 0 && (
-        <p className="px-5 py-10 text-center text-sm text-fg-muted">
-          No audit records match these filters.
-        </p>
+        <p className="px-5 py-10 text-center text-sm text-fg-muted">No audit records match these filters.</p>
       )}
 
       {entries.length > 0 && (

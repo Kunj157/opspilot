@@ -62,7 +62,13 @@ export function IncidentForm({
     <form onSubmit={handleSubmit(submit)} noValidate className="grid gap-4 sm:grid-cols-2">
       <Field label="Title" error={errors.title?.message} className="sm:col-span-2">
         {(control) => (
-          <Input {...control} {...register("title")} required maxLength={200} placeholder="Checkout error rate above 5%" />
+          <Input
+            {...control}
+            {...register("title")}
+            required
+            maxLength={200}
+            placeholder="Checkout error rate above 5%"
+          />
         )}
       </Field>
       <Field label="Severity" error={errors.severity?.message}>

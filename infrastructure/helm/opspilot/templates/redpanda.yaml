@@ -1,0 +1,80 @@
+{{- if .Values.redpanda.enabled }}
+# Development only: a single-node Redpanda so the event stream (outbox relay,
+# incident.created.v1 consumers) can run in-cluster. The API and worker get
+# KAFKA_BOOTSTRAP_SERVERS from the ConfigMap. Topics are auto-created
+# (dev-container mode); data lives in an emptyDir.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: opspilot-redpanda
+  labels: {{- include "opspilot.labels" . | nindent 4 }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "-3"
+automountServiceAccountToken: false
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: opspilot-redpanda
+  labels: {{- include "opspilot.labels" . | nindent 4 }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "-2"
+spec:
+  selector: {{- include "opspilot.selector" "opspilot-redpanda" | nindent 4 }}
+  ports:
+    - { name: kafka, port: 9092 }
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: opspilot-redpanda
+  labels: {{- include "opspilot.labels" . | nindent 4 }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "-2"
+spec:
+  serviceName: opspilot-redpanda
+  replicas: 1
+  selector:
+    matchLabels: {{- include "opspilot.selector" "opspilot-redpanda" | nindent 6 }}
+  template:
+    metadata:
+      labels: {{- include "opspilot.selector" "opspilot-redpanda" | nindent 8 }}
+    spec:
+      serviceAccountName: opspilot-redpanda
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 101
+        runAsGroup: 101
+        fsGroup: 101
+        seccompProfile: { type: RuntimeDefault }
+      containers:
+        - name: redpanda
+          image: {{ .Values.redpanda.image }}
+          args:
+            - redpanda
+            - start
+            - --mode=dev-container
+            - --smp=1
+            - --memory={{ .Values.redpanda.memory }}
+            - --kafka-addr=internal://0.0.0.0:9092
+            - --advertise-kafka-addr=internal://opspilot-redpanda.{{ .Release.Namespace }}.svc:9092
+          ports:
+            - { name: kafka, containerPort: 9092 }
+          readinessProbe:
+            exec: { command: ["rpk", "cluster", "health", "--exit-when-healthy"] }
+            periodSeconds: 10
+            timeoutSeconds: 5
+          livenessProbe:
+            tcpSocket: { port: kafka }
+            periodSeconds: 15
+          resources: {{- toYaml .Values.redpanda.resources | nindent 12 }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: { drop: ["ALL"] }
+          volumeMounts:
+            - { name: data, mountPath: /var/lib/redpanda/data }
+      volumes:
+        - name: data
+          emptyDir: { sizeLimit: 2Gi }
+{{- end }}

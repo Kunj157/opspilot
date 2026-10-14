@@ -11,9 +11,10 @@ const tokens = Object.fromEntries(
 );
 
 const fills = Object.fromEntries(
-  [...root.matchAll(/--([\w-]+):\s*rgba\((\d+),\s*(\d+),\s*(\d+),\s*([\d.]+)\);/gi)].map(
-    ([, name, r, g, b, a]) => [name, [Number(r), Number(g), Number(b), Number(a)] as const],
-  ),
+  [...root.matchAll(/--([\w-]+):\s*rgba\((\d+),\s*(\d+),\s*(\d+),\s*([\d.]+)\);/gi)].map(([, name, r, g, b, a]) => [
+    name,
+    [Number(r), Number(g), Number(b), Number(a)] as const,
+  ]),
 );
 
 /** A translucent fill composited over an opaque surface, as hex. */
@@ -61,12 +62,9 @@ describe("Graphite & Iris tokens", () => {
     }
   });
 
-  it.each(FOREGROUNDS.flatMap((fg) => SURFACES.map((bg) => [fg, bg])))(
-    "%s on %s meets WCAG AA",
-    (fg, bg) => {
-      expect(contrast(tokens[fg], tokens[bg])).toBeGreaterThanOrEqual(4.5);
-    },
-  );
+  it.each(FOREGROUNDS.flatMap((fg) => SURFACES.map((bg) => [fg, bg])))("%s on %s meets WCAG AA", (fg, bg) => {
+    expect(contrast(tokens[fg], tokens[bg])).toBeGreaterThanOrEqual(4.5);
+  });
 
   it.each(["accent", "accent-hover"])("on-accent text is readable on %s", (bg) => {
     expect(contrast(tokens["on-accent"], tokens[bg])).toBeGreaterThanOrEqual(4.5);

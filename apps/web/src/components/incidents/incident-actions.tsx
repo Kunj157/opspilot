@@ -18,10 +18,7 @@ const path = (incident: Incident) => ({ params: { path: { incident_id: incident.
 const versioned = (incident: Incident) => ({ ...path(incident), body: { version: incident.version } });
 
 /** Which state actions this user may take on this incident right now. */
-export function availableActions(
-  incident: Incident,
-  permissions: { manage: boolean; investigate: boolean },
-): Action[] {
+export function availableActions(incident: Incident, permissions: { manage: boolean; investigate: boolean }): Action[] {
   const actions: Action[] = [];
   const allowed = new Set(incident.allowed_transitions);
   if (permissions.manage && !incident.acknowledged_at && incident.status !== "RESOLVED") {

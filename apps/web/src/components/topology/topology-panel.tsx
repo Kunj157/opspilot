@@ -65,7 +65,11 @@ function Details({ topology, id }: { topology: Topology; id: string | null }) {
       </div>
       <Names label="Calls" ids={dependencies} topology={topology} />
       <Names label="Called by" ids={dependents} topology={topology} />
-      <Link href={`/services/${node.id}`} aria-label={`Open ${node.name}`} className="text-sm text-accent hover:underline">
+      <Link
+        href={`/services/${node.id}`}
+        aria-label={`Open ${node.name}`}
+        className="text-sm text-accent hover:underline"
+      >
         Open service →
       </Link>
     </div>
@@ -88,7 +92,9 @@ function TopologyList({ topology }: { topology: Topology }) {
               </Link>
               <HealthBadge health={node.health_status} />
             </div>
-            <p className="text-xs text-fg-muted">{calls.length ? `Calls ${calls.join(", ")}` : "Calls no other service"}</p>
+            <p className="text-xs text-fg-muted">
+              {calls.length ? `Calls ${calls.join(", ")}` : "Calls no other service"}
+            </p>
           </li>
         );
       })}
@@ -206,7 +212,12 @@ export function TopologyPanel() {
                   />
                 </FallbackBoundary>
               ) : (
-                <ServiceTopology2D topology={topology.data} selectedId={selected} onSelect={setSelected} onOpen={open} />
+                <ServiceTopology2D
+                  topology={topology.data}
+                  selectedId={selected}
+                  onSelect={setSelected}
+                  onOpen={open}
+                />
               )}
             </div>
             <section aria-label="Selected service" className="rounded-card border border-border bg-surface-1 p-4">

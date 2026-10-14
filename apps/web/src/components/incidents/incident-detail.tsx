@@ -98,18 +98,25 @@ export function IncidentDetail({
     },
   });
 
-  const stream = useIncidentStream(incident.data ? `/api/v1/incidents/${incidentId}/stream` : null, (streamed: StreamedEvent) => {
-    const { incident: latest, ...event } = streamed as StreamedEvent & Event & { incident: Incident };
-    queryClient.setQueryData<Incident | null>(incidentKey, (current) =>
-      !current || latest.version >= current.version ? latest : current,
-    );
-    queryClient.setQueryData<Event[]>(eventsKey, (current = []) =>
-      current.some((e) => e.sequence === event.sequence) ? current : [...current, event as Event],
-    );
-    if (/^incident\.(agent_update|evidence_collected|investigation_\w+|remediation_\w+|verification_\w+)$/.test(event.event_type)) {
-      void queryClient.invalidateQueries({ queryKey: investigationKeys(incidentId).all });
-    }
-  });
+  const stream = useIncidentStream(
+    incident.data ? `/api/v1/incidents/${incidentId}/stream` : null,
+    (streamed: StreamedEvent) => {
+      const { incident: latest, ...event } = streamed as StreamedEvent & Event & { incident: Incident };
+      queryClient.setQueryData<Incident | null>(incidentKey, (current) =>
+        !current || latest.version >= current.version ? latest : current,
+      );
+      queryClient.setQueryData<Event[]>(eventsKey, (current = []) =>
+        current.some((e) => e.sequence === event.sequence) ? current : [...current, event as Event],
+      );
+      if (
+        /^incident\.(agent_update|evidence_collected|investigation_\w+|remediation_\w+|verification_\w+)$/.test(
+          event.event_type,
+        )
+      ) {
+        void queryClient.invalidateQueries({ queryKey: investigationKeys(incidentId).all });
+      }
+    },
+  );
 
   if (incident.isPending) return <div aria-hidden className="h-96 animate-pulse rounded-card bg-surface-2" />;
   if (incident.isError)
@@ -184,7 +191,10 @@ export function IncidentDetail({
       )}
 
       <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
-        <section aria-labelledby="timeline-heading" className="rounded-card border border-border bg-surface-1 shadow-edge">
+        <section
+          aria-labelledby="timeline-heading"
+          className="rounded-card border border-border bg-surface-1 shadow-edge"
+        >
           <h2 id="timeline-heading" className="border-b border-border px-5 py-4 text-sm font-medium text-fg-secondary">
             Timeline
           </h2>
@@ -196,7 +206,11 @@ export function IncidentDetail({
           )}
           {events.isSuccess && <IncidentTimeline events={events.data} />}
         </section>
-        <AgentInvestigation incidentId={i.id} canInvestigate={permissions.investigate} canApprove={permissions.approve} />
+        <AgentInvestigation
+          incidentId={i.id}
+          canInvestigate={permissions.investigate}
+          canApprove={permissions.approve}
+        />
       </div>
     </div>
   );

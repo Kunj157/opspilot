@@ -16,7 +16,11 @@ const READY = {
   content: {
     summary: "Release 1.4.2 broke checkout.",
     impact: "Half of checkouts failed for 12 minutes.",
-    root_cause: { statement: "Release 1.4.2 introduced a regression", certainty: "strong_hypothesis", evidence: ["E2"] },
+    root_cause: {
+      statement: "Release 1.4.2 introduced a regression",
+      certainty: "strong_hypothesis",
+      evidence: ["E2"],
+    },
     findings: [
       { statement: "Error rate reached 45%", certainty: "confirmed", evidence: ["E1"] },
       { statement: "Why 1.4.2 fails", certainty: "unknown", evidence: [] },
@@ -24,7 +28,10 @@ const READY = {
     resolution: "Rolled back to 1.0.0.",
     follow_ups: ["Add a canary stage"],
     timeline: [{ at: "2026-10-14T01:16:00Z", event: "Incident detected", actor: "system:detector" }],
-    evidence: { E1: { summary: "error rate 45%", source: "prometheus" }, E2: { summary: "revision 20", source: "kubernetes" } },
+    evidence: {
+      E1: { summary: "error rate 45%", source: "prometheus" },
+      E2: { summary: "revision 20", source: "kubernetes" },
+    },
   },
 };
 

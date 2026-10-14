@@ -1,0 +1,464 @@
+# promtool test rules observability/k8s/rules/tests/opspilot-alerts.test.yaml
+rule_files: [../opspilot-alerts.yaml]
+evaluation_interval: 30s
+
+tests:
+  - name: API failing 7.5 % of requests burns the availability budget fast
+    interval: 30s
+    input_series:
+      - series: 'http_requests_total{service="opspilot-api",method="GET",route="/api/v1/incidents",status="200"}'
+        values: '0+270x40'
+      - series: 'http_requests_total{service="opspilot-api",method="GET",route="/api/v1/incidents",status="500"}'
+        values: '0+30x40'
+      - series: 'http_requests_total{service="opspilot-api",method="GET",route="/api/v1/services",status="200"}'
+        values: '0+100x40'
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: OpsPilotAPIAvailabilityFastBurn
+        exp_alerts:
+          - exp_labels: { severity: page, slo: api-availability }
+            exp_annotations:
+              description: "7.5% of API requests fail (5xx); at this rate the 30-day budget is gone in about 2 days."
+              runbook_url: "https://github.com/Kunj157/opspilot/blob/dev/docs/operations/alerts.md#opspilotapiavailabilityfastburn"
+              summary: "API availability error budget burning 14x too fast"
+      - { eval_time: 10m, alertname: OpsPilotAPIAvailabilitySlowBurn, exp_alerts: [] }
+
+  - name: A healthy API raises nothing
+    interval: 30s
+    input_series:
+      - series: 'http_requests_total{service="opspilot-api",method="GET",route="/api/v1/incidents",status="200"}'
+        values: '0+300x40'
+      - series: 'http_requests_total{service="opspilot-api",method="GET",route="/api/v1/incidents",status="503"}'
+        values: '0+1x40'
+      - series: 'http_request_duration_seconds_bucket{service="opspilot-api",method="GET",route="/api/v1/incidents",le="0.5"}'
+        values: '0+300x40'
+      - series: 'http_request_duration_seconds_bucket{service="opspilot-api",method="GET",route="/api/v1/incidents",le="+Inf"}'
+        values: '0+301x40'
+      - series: 'http_request_duration_seconds_count{service="opspilot-api",method="GET",route="/api/v1/incidents"}'
+        values: '0+301x40'
+    alert_rule_test:
+      - { eval_time: 20m, alertname: OpsPilotAPIAvailabilityFastBurn, exp_alerts: [] }
+      - { eval_time: 20m, alertname: OpsPilotAPILatencyFastBurn, exp_alerts: [] }
+
+  - name: Slow API requests raise latency alerts; long-lived SSE streams are ignored
+    interval: 30s
+    input_series:
+      # 80 % of regular requests take 0.5-1 s.
+      - series: 'http_request_duration_seconds_bucket{service="opspilot-api",method="GET",route="/api/v1/incidents",le="0.5"}'
+        values: '0+20x40'
+      - series: 'http_request_duration_seconds_bucket{service="opspilot-api",method="GET",route="/api/v1/incidents",le="1"}'
+        values: '0+100x40'
+      - series: 'http_request_duration_seconds_bucket{service="opspilot-api",method="GET",route="/api/v1/incidents",le="+Inf"}'
+        values: '0+100x40'
+      - series: 'http_request_duration_seconds_count{service="opspilot-api",method="GET",route="/api/v1/incidents"}'
+        values: '0+100x40'
+      # Streams last minutes by design; they would dominate a quantile otherwise.
+      - series: 'http_request_duration_seconds_bucket{service="opspilot-api",method="GET",route="/api/v1/incidents/stream",le="+Inf"}'
+        values: '0+1000x40'
+      - series: 'http_request_duration_seconds_count{service="opspilot-api",method="GET",route="/api/v1/incidents/stream"}'
+        values: '0+1000x40'
+    alert_rule_test:
+      - eval_time: 15m
+        alertname: OpsPilotAPILatencyFastBurn
+        exp_alerts:
+          - exp_labels: { severity: page, slo: api-latency }
+            exp_annotations:
+              description: "80% of API requests take longer than 500 ms."
+              runbook_url: "https://github.com/Kunj157/opspilot/blob/dev/docs/operations/alerts.md#opspilotapilatencyfastburn"
+              summary: "API latency error budget burning 14x too fast"
+
+  - name: Refusing an unapproved remediation pages as a safety breach
+    interval: 1m
+    input_series:
+      - series: 'opspilot_remediation_executions_total{action="rollback_deployment",outcome="failed"}'
+        values: '0 0 1 1 1'
+      - series: 'opspilot_remediation_executions_total{action="restart_deployment",outcome="succeeded"}'
+        values: '0+1x4'
+      - series: 'opspilot_remediation_blocked_total{reason="unapproved"}'
+        values: '0 0 0 1 1'
+      - series: 'opspilot_remediation_blocked_total{reason="expired"}'
+        values: '0 1 2 3 4'
+    alert_rule_test:
+      - eval_time: 4m
+        alertname: OpsPilotRemediationWithoutApproval
+        exp_alerts:
+          - exp_labels: { severity: page, slo: remediation-safety }
+            exp_annotations:
+              description: "The executor's recheck refused it, but something queued an unapproved action. Investigate before anything else runs."
+              runbook_url: "https://github.com/Kunj157/opspilot/blob/dev/docs/operations/alerts.md#opspilotremediationwithoutapproval"
+              summary: "A remediation reached the executor without an approval"
+
+  - name: A steady 4 % error rate is a slow burn (ticket), not a fast one
+    interval: 5m
+    input_series:
+      - series: 'http_requests_total{service="opspilot-api",method="GET",route="/api/v1/incidents",status="200"}'
+        values: '0+960x100'
+      - series: 'http_requests_total{service="opspilot-api",method="GET",route="/api/v1/incidents",status="500"}'
+        values: '0+40x100'
+    alert_rule_test:
+      - { eval_time: 7h, alertname: OpsPilotAPIAvailabilityFastBurn, exp_alerts: [] }
+      - eval_time: 7h
+        alertname: OpsPilotAPIAvailabilitySlowBurn
+        exp_alerts:
+          - exp_labels: { severity: ticket, slo: api-availability }
+            exp_annotations:
+              description: "4% of API requests failed over 6 h."
+              runbook_url: "https://github.com/Kunj157/opspilot/blob/dev/docs/operations/alerts.md#opspilotapiavailabilityslowburn"
+              summary: "API availability error budget burning 6x too fast"
+
+  - name: Events slower than 60 s burn the event-processing budget
+    interval: 1m
+    input_series:
+      - series: 'opspilot_event_processing_delay_seconds_bucket{consumer="investigations",le="60"}'
+        values: '0+7x60'
+      - series: 'opspilot_event_processing_delay_seconds_bucket{consumer="investigations",le="+Inf"}'
+        values: '0+10x60'
+      - series: 'opspilot_event_processing_delay_seconds_count{consumer="investigations"}'
+        values: '0+10x60'
+    alert_rule_test:
+      - eval_time: 30m
+        alertname: OpsPilotEventProcessingBudgetBurn
+        exp_alerts:
+          - exp_labels: { severity: page, slo: event-processing }
+            exp_annotations:
+              description: "30% of events took longer than 60 s to process."
+              runbook_url: "https://github.com/Kunj157/opspilot/blob/dev/docs/operations/alerts.md#opspiloteventprocessingbudgetburn"
+              summary: "Events are not processed within 60 s"
+
+  - name: Events handled within a minute keep the budget intact
+    interval: 1m
+    input_series:
+      - series: 'opspilot_event_processing_delay_seconds_bucket{consumer="investigations",le="60"}'
+        values: '0+10x60'
+      - series: 'opspilot_event_processing_delay_seconds_count{consumer="investigations"}'
+        values: '0+10x60'
+    alert_rule_test:
+      - { eval_time: 30m, alertname: OpsPilotEventProcessingBudgetBurn, exp_alerts: [] }
+
+  - name: API failing 7.5 % of requests raises the error-rate page
+    interval: 30s
+    input_series:
+      - series: 'http_requests_total{service="opspilot-api",method="GET",route="/api/v1/incidents",status="200"}'
+        values: '0+270x40'
+      - series: 'http_requests_total{service="opspilot-api",method="GET",route="/api/v1/incidents",status="500"}'
+        values: '0+30x40'
+      - series: 'http_requests_total{service="opspilot-api",method="GET",route="/api/v1/services",status="200"}'
+        values: '0+100x40'
+    alert_rule_test:
+      - { eval_time: 3m, alertname: OpsPilotAPIErrorRateHigh, exp_alerts: [] }
+      - eval_time: 10m
+        alertname: OpsPilotAPIErrorRateHigh
+        exp_alerts:
+          - exp_labels: { severity: page }
+            exp_annotations:
+              description: "7.5% of API requests returned 5xx for 5 minutes."
+              runbook_url: "https://github.com/Kunj157/opspilot/blob/dev/docs/operations/alerts.md#opspilotapierrorratehigh"
+              summary: "More than 5 % of API requests fail"
+
+  - name: A healthy API raises no error-rate or latency alert
+    interval: 30s
+    input_series:
+      - series: 'http_requests_total{service="opspilot-api",method="GET",route="/api/v1/incidents",status="200"}'
+        values: '0+300x40'
+      - series: 'http_requests_total{service="opspilot-api",method="GET",route="/api/v1/incidents",status="503"}'
+        values: '0+1x40'
+      - series: 'http_request_duration_seconds_bucket{service="opspilot-api",method="GET",route="/api/v1/incidents",le="0.5"}'
+        values: '0+300x40'
+      - series: 'http_request_duration_seconds_bucket{service="opspilot-api",method="GET",route="/api/v1/incidents",le="+Inf"}'
+        values: '0+301x40'
+      - series: 'http_request_duration_seconds_count{service="opspilot-api",method="GET",route="/api/v1/incidents"}'
+        values: '0+301x40'
+    alert_rule_test:
+      - { eval_time: 20m, alertname: OpsPilotAPIErrorRateHigh, exp_alerts: [] }
+      - { eval_time: 20m, alertname: OpsPilotAPILatencyHigh, exp_alerts: [] }
+
+  - name: Slow API requests raise the p95 latency alert; SSE streams are ignored
+    interval: 30s
+    input_series:
+      # 80 % of regular requests take 0.5-1 s.
+      - series: 'http_request_duration_seconds_bucket{service="opspilot-api",method="GET",route="/api/v1/incidents",le="0.5"}'
+        values: '0+20x40'
+      - series: 'http_request_duration_seconds_bucket{service="opspilot-api",method="GET",route="/api/v1/incidents",le="1"}'
+        values: '0+100x40'
+      - series: 'http_request_duration_seconds_bucket{service="opspilot-api",method="GET",route="/api/v1/incidents",le="+Inf"}'
+        values: '0+100x40'
+      - series: 'http_request_duration_seconds_count{service="opspilot-api",method="GET",route="/api/v1/incidents"}'
+        values: '0+100x40'
+      # Streams last minutes by design; they would dominate a quantile otherwise.
+      - series: 'http_request_duration_seconds_bucket{service="opspilot-api",method="GET",route="/api/v1/incidents/stream",le="+Inf"}'
+        values: '0+1000x40'
+      - series: 'http_request_duration_seconds_count{service="opspilot-api",method="GET",route="/api/v1/incidents/stream"}'
+        values: '0+1000x40'
+    alert_rule_test:
+      - eval_time: 15m
+        alertname: OpsPilotAPILatencyHigh
+        exp_alerts:
+          - exp_labels: { severity: ticket }
+            exp_annotations:
+              description: "p95 latency is 968.8ms (target 500 ms)."
+              runbook_url: "https://github.com/Kunj157/opspilot/blob/dev/docs/operations/alerts.md#opspilotapilatencyhigh"
+              summary: "API p95 latency above 500 ms"
+
+  - name: A database pool above 90 % for 5 minutes pages
+    interval: 1m
+    input_series:
+      - series: 'opspilot_db_pool_connections_in_use{pool="api",pod="opspilot-api-0"}'
+        values: '5 15x10'
+      - series: 'opspilot_db_pool_connections_max{pool="api",pod="opspilot-api-0"}'
+        values: '15x10'
+      - series: 'opspilot_db_pool_connections_in_use{pool="worker",pod="opspilot-worker-0"}'
+        values: '3x10'
+      - series: 'opspilot_db_pool_connections_max{pool="worker",pod="opspilot-worker-0"}'
+        values: '15x10'
+    alert_rule_test:
+      - { eval_time: 3m, alertname: OpsPilotDatabasePoolExhausted, exp_alerts: [] }
+      - eval_time: 7m
+        alertname: OpsPilotDatabasePoolExhausted
+        exp_alerts:
+          - exp_labels: { severity: page, pool: api, pod: opspilot-api-0 }
+            exp_annotations:
+              description: "100% of the pool's connections are checked out; new requests will wait and then time out."
+              runbook_url: "https://github.com/Kunj157/opspilot/blob/dev/docs/operations/alerts.md#opspilotdatabasepoolexhausted"
+              summary: "Database pool api on opspilot-api-0 is nearly exhausted"
+
+  - name: Queues that stop draining alert; a busy but moving queue does not
+    interval: 1m
+    input_series:
+      - series: 'opspilot_queue_oldest_age_seconds{queue="investigations"}'
+        values: '0+60x20'
+      - series: 'opspilot_queue_oldest_age_seconds{queue="remediations"}'
+        values: '30x20'
+      - series: 'opspilot_consumer_lag{group="investigations",topic="incident.created.v1",partition="0"}'
+        values: '400x20'
+      - series: 'opspilot_consumer_lag{group="investigations",topic="incident.created.v1",partition="1"}'
+        values: '300x20'
+      - series: 'opspilot_queue_depth{queue="event_outbox"}'
+        values: '0+200x20'
+    alert_rule_test:
+      - { eval_time: 12m, alertname: OpsPilotWorkerQueueBacklog, exp_alerts: [] }
+      - eval_time: 16m
+        alertname: OpsPilotWorkerQueueBacklog
+        exp_alerts:
+          - exp_labels: { severity: page, queue: investigations }
+            exp_annotations:
+              description: "The oldest waiting job is 16m 0s old."
+              runbook_url: "https://github.com/Kunj157/opspilot/blob/dev/docs/operations/alerts.md#opspilotworkerqueuebacklog"
+              summary: "The investigations queue is not draining"
+      - eval_time: 12m
+        alertname: OpsPilotConsumerLagHigh
+        exp_alerts:
+          - exp_labels: { severity: ticket, group: investigations, topic: incident.created.v1 }
+            exp_annotations:
+              description: "The event consumer is not keeping up with the topic."
+              runbook_url: "https://github.com/Kunj157/opspilot/blob/dev/docs/operations/alerts.md#opspilotconsumerlaghigh"
+              summary: "Consumer investigations is 700 messages behind on incident.created.v1"
+      - eval_time: 20m
+        alertname: OpsPilotEventOutboxBacklog
+        exp_alerts:
+          - exp_labels: { severity: ticket }
+            exp_annotations:
+              description: "The outbox relay is not publishing; the broker may be down. Nothing is lost, but consumers are behind."
+              runbook_url: "https://github.com/Kunj157/opspilot/blob/dev/docs/operations/alerts.md#opspiloteventoutboxbacklog"
+              summary: "4000 timeline events are waiting to be published"
+
+  - name: Dead-lettered messages raise a ticket
+    interval: 1m
+    input_series:
+      - series: 'opspilot_events_handled_total{consumer="investigations",outcome="dead_lettered"}'
+        values: '0 0 0 1 1 1'
+      - series: 'opspilot_events_handled_total{consumer="investigations",outcome="handled"}'
+        values: '0+10x5'
+    alert_rule_test:
+      - { eval_time: 2m, alertname: OpsPilotDeadLetterMessages, exp_alerts: [] }
+      - eval_time: 5m
+        alertname: OpsPilotDeadLetterMessages
+        exp_alerts:
+          - exp_labels: { severity: ticket, consumer: investigations }
+            exp_annotations:
+              description: "1 messages were parked on a .dlq topic in the last 10 minutes."
+              runbook_url: "https://github.com/Kunj157/opspilot/blob/dev/docs/operations/alerts.md#opspilotdeadlettermessages"
+              summary: "Consumer investigations dead-lettered messages"
+
+  - name: Investigations failing a third of the time raise a ticket
+    interval: 1m
+    input_series:
+      - series: 'opspilot_agent_runs_total{agent="investigation",outcome="completed"}'
+        values: '0+2x30'
+      - series: 'opspilot_agent_runs_total{agent="investigation",outcome="crashed"}'
+        values: '0+1x30'
+      - series: 'opspilot_agent_runs_total{agent="postmortem",outcome="fallback"}'
+        values: '0+5x30'
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: OpsPilotAgentFailureRateHigh
+        exp_alerts:
+          - exp_labels: { severity: ticket }
+            exp_annotations:
+              description: "33.33% of investigation runs crashed or gave up in the last hour."
+              runbook_url: "https://github.com/Kunj157/opspilot/blob/dev/docs/operations/alerts.md#opspilotagentfailureratehigh"
+              summary: "More than 25 % of investigations fail"
+
+  - name: Too few investigations to judge stays quiet
+    interval: 1m
+    input_series:
+      - series: 'opspilot_agent_runs_total{agent="investigation",outcome="failed"}'
+        values: '0 1x30'
+    alert_rule_test:
+      - { eval_time: 20m, alertname: OpsPilotAgentFailureRateHigh, exp_alerts: [] }
+
+  - name: LLM spend over the configured budget pages; 80 % raises a ticket
+    interval: 10m
+    input_series:
+      - series: 'opspilot_llm_daily_budget_usd{pod="opspilot-worker-0"}'
+        values: '5x18'
+      - series: 'opspilot_llm_cost_usd_total{provider="anthropic",model="claude-sonnet-5-5"}'
+        values: '0+0.5x18'
+    alert_rule_test:
+      - { eval_time: 1h, alertname: OpsPilotLLMCostBudgetNearlySpent, exp_alerts: [] }
+      - eval_time: 90m
+        alertname: OpsPilotLLMCostBudgetNearlySpent
+        exp_alerts:
+          - exp_labels: { severity: ticket }
+            exp_annotations:
+              description: "Estimated spend in the last 24 h is $4.50."
+              runbook_url: "https://github.com/Kunj157/opspilot/blob/dev/docs/operations/alerts.md#opspilotllmcostbudgetbreach"
+              summary: "LLM spend passed 80 % of the 24-hour budget"
+      - { eval_time: 90m, alertname: OpsPilotLLMCostBudgetBreach, exp_alerts: [] }
+      - eval_time: 3h
+        alertname: OpsPilotLLMCostBudgetBreach
+        exp_alerts:
+          - exp_labels: { severity: page }
+            exp_annotations:
+              description: "Estimated spend in the last 24 h is $9.00."
+              runbook_url: "https://github.com/Kunj157/opspilot/blob/dev/docs/operations/alerts.md#opspilotllmcostbudgetbreach"
+              summary: "LLM spend exceeded the 24-hour budget"
+
+  - name: A detection worker that stops cycling pages
+    interval: 1m
+    input_series:
+      - series: 'opspilot_detection_cycles_total{outcome="ok"}'
+        values: '0+4x10 40x20'
+    alert_rule_test:
+      - { eval_time: 10m, alertname: OpsPilotDetectionWorkerStopped, exp_alerts: [] }
+      - eval_time: 22m
+        alertname: OpsPilotDetectionWorkerStopped
+        exp_alerts:
+          - exp_labels: { severity: page }
+            exp_annotations:
+              description: "No failures are being detected. Check the worker pod and its Prometheus connection."
+              runbook_url: "https://github.com/Kunj157/opspilot/blob/dev/docs/operations/alerts.md#opspilotdetectionworkerstopped"
+              summary: "The detection worker has not run a cycle for 10 minutes"
+
+  - name: A missing detection worker pages too
+    interval: 1m
+    input_series:
+      - series: 'up{job="pods"}'
+        values: '1x10'
+    alert_rule_test:
+      - eval_time: 6m
+        alertname: OpsPilotDetectionWorkerStopped
+        exp_alerts:
+          - exp_labels: { severity: page }
+            exp_annotations:
+              description: "No failures are being detected. Check the worker pod and its Prometheus connection."
+              runbook_url: "https://github.com/Kunj157/opspilot/blob/dev/docs/operations/alerts.md#opspilotdetectionworkerstopped"
+              summary: "The detection worker has not run a cycle for 10 minutes"
+
+  - name: Detection cycles without telemetry page
+    interval: 1m
+    input_series:
+      - series: 'opspilot_detection_cycles_total{outcome="telemetry_unavailable"}'
+        values: '0+4x30'
+      - series: 'opspilot_detection_cycles_total{outcome="ok"}'
+        values: '0+1x30'
+    alert_rule_test:
+      - eval_time: 25m
+        alertname: OpsPilotDetectionTelemetryUnavailable
+        exp_alerts:
+          - exp_labels: { severity: page }
+            exp_annotations:
+              description: "80% of detection cycles found Prometheus unavailable."
+              runbook_url: "https://github.com/Kunj157/opspilot/blob/dev/docs/operations/alerts.md#opspilotdetectionworkerstopped"
+              summary: "Most detection cycles cannot read telemetry"
+      - { eval_time: 25m, alertname: OpsPilotDetectionWorkerStopped, exp_alerts: [] }
+
+  - name: A failed remediation pages
+    interval: 1m
+    input_series:
+      - series: 'opspilot_remediation_executions_total{action="rollback_deployment",outcome="failed"}'
+        values: '0 0 1 1 1'
+      - series: 'opspilot_remediation_executions_total{action="restart_deployment",outcome="succeeded"}'
+        values: '0+1x4'
+    alert_rule_test:
+      - eval_time: 4m
+        alertname: OpsPilotRemediationFailed
+        exp_alerts:
+          - exp_labels: { severity: page, action: rollback_deployment }
+            exp_annotations:
+              description: "The incident was reopened for investigation; the service may still be degraded."
+              runbook_url: "https://github.com/Kunj157/opspilot/blob/dev/docs/operations/alerts.md#opspilotremediationfailed"
+              summary: "A rollback_deployment remediation failed"
+
+  - name: Backups older than 26 hours page; a failed backup job raises a ticket
+    interval: 1h
+    input_series:
+      - series: 'kube_cronjob_status_last_successful_time{namespace="opspilot",cronjob="opspilot-db-backup"}'
+        values: '0x30'
+      - series: 'kube_job_status_failed{namespace="opspilot",job_name="opspilot-db-backup-29012345"}'
+        values: '0 0 1'
+    alert_rule_test:
+      - { eval_time: 25h, alertname: OpsPilotBackupStale, exp_alerts: [] }
+      - eval_time: 27h
+        alertname: OpsPilotBackupStale
+        exp_alerts:
+          - exp_labels: { severity: page }
+            exp_annotations:
+              description: "The last successful backup finished 1d 3h 0m 0s ago (RPO target 24 h)."
+              runbook_url: "https://github.com/Kunj157/opspilot/blob/dev/docs/operations/alerts.md#opspilotbackupfailed"
+              summary: "No successful database backup for more than 26 hours"
+      - eval_time: 2h
+        alertname: OpsPilotBackupFailed
+        exp_alerts:
+          - exp_labels: { severity: ticket, namespace: opspilot, job_name: opspilot-db-backup-29012345 }
+            exp_annotations:
+              description: "Read the job's logs; the next scheduled run retries."
+              runbook_url: "https://github.com/Kunj157/opspilot/blob/dev/docs/operations/alerts.md#opspilotbackupfailed"
+              summary: "Backup job opspilot-db-backup-29012345 failed"
+
+  - name: A pushed backup timestamp counts as a success
+    interval: 1h
+    input_series:
+      - series: 'opspilot_backup_last_success_timestamp_seconds{job="opspilot-db-backup"}'
+        values: '0 3600 7200 10800 14400 18000 21600 25200 28800 32400 36000 39600 43200 46800 50400 54000 57600 61200 64800 68400 72000 75600 79200 82800 86400 90000 93600 97200'
+    alert_rule_test:
+      - { eval_time: 27h, alertname: OpsPilotBackupStale, exp_alerts: [] }
+
+  - name: Certificates raise a ticket two weeks out and page three days out
+    interval: 1h
+    input_series:
+      - series: 'certmanager_certificate_expiration_timestamp_seconds{namespace="opspilot",name="opspilot-tls"}'
+        values: '864000x2'
+      - series: 'probe_ssl_earliest_cert_expiry{instance="https://opspilot.example.com"}'
+        values: '172800x2'
+    alert_rule_test:
+      - eval_time: 1h
+        alertname: OpsPilotCertificateExpiringSoon
+        exp_alerts:
+          - exp_labels: { severity: ticket, namespace: opspilot, name: opspilot-tls }
+            exp_annotations:
+              description: "Renewal should have happened already; check cert-manager."
+              runbook_url: "https://github.com/Kunj157/opspilot/blob/dev/docs/operations/alerts.md#opspilotcertificateexpiringsoon"
+              summary: "A certificate expires in 9d 23h 0m 0s"
+          - exp_labels: { severity: ticket, instance: "https://opspilot.example.com" }
+            exp_annotations:
+              description: "Renewal should have happened already; check cert-manager."
+              runbook_url: "https://github.com/Kunj157/opspilot/blob/dev/docs/operations/alerts.md#opspilotcertificateexpiringsoon"
+              summary: "A certificate expires in 1d 23h 0m 0s"
+      - eval_time: 1h
+        alertname: OpsPilotCertificateExpiryImminent
+        exp_alerts:
+          - exp_labels: { severity: page, instance: "https://opspilot.example.com" }
+            exp_annotations:
+              description: "Users will see TLS errors when it expires."
+              runbook_url: "https://github.com/Kunj157/opspilot/blob/dev/docs/operations/alerts.md#opspilotcertificateexpiringsoon"
+              summary: "A certificate expires in 1d 23h 0m 0s"
