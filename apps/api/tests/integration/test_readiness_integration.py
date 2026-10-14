@@ -1,7 +1,7 @@
 """Readiness against real PostgreSQL and Redis containers.
 
-These tests must fail, not skip, when Docker is unavailable
-(DEVELOPMENT_WORKFLOW.md §5).
+These tests must fail, not skip, when Docker is unavailable: the local gate
+has to prove readiness against real dependencies.
 """
 
 from collections.abc import AsyncIterator, Iterator
