@@ -1,8 +1,24 @@
 """What each agent must return. Every model answer is validated against these."""
 
-from typing import Literal
+import re
+from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
+
+_REF = re.compile(r"\bE(\d{1,3})\b")
+
+
+def evidence_refs(values: Any) -> Any:
+    """Accept "E4" or a line that starts with it ("E4 [kubernetes] ..."), keep only the refs."""
+    if not isinstance(values, list):
+        return values
+    refs = []
+    for value in values:
+        match = _REF.search(str(value))
+        if match and f"E{match.group(1)}" not in refs:
+            refs.append(f"E{match.group(1)}")
+    return refs
+
 
 ToolName = Literal[
     "query_service_metrics",
@@ -44,9 +60,23 @@ class TriageOutput(Strict):
 
 class Hypothesis(Strict):
     description: str = Field(max_length=500)
-    confidence: float = Field(ge=0, le=1)
-    supporting_evidence: list[str] = Field(max_length=10)
+    confidence: float = Field(ge=0, le=1, description="Between 0 and 1")
+    supporting_evidence: list[str] = Field(
+        max_length=10, description="Evidence references, e.g. E2"
+    )
     contradicting_evidence: list[str] = Field(default_factory=list, max_length=10)
+
+    @field_validator("confidence", mode="before")
+    @classmethod
+    def percent_to_fraction(cls, value: Any) -> Any:
+        # Some models answer 80 for 80%.
+        if isinstance(value, int | float) and 1 < value <= 100:
+            return value / 100
+        return value
+
+    _refs = field_validator("supporting_evidence", "contradicting_evidence", mode="before")(
+        lambda cls, v: evidence_refs(v)
+    )
 
 
 class Synthesis(Strict):
@@ -61,6 +91,8 @@ class ProposalDraft(Strict):
     action_type: ActionType
     target_service: str = Field(max_length=63)
     reason: str = Field(max_length=600)
-    evidence: list[str] = Field(max_length=10)
+    evidence: list[str] = Field(max_length=10, description="Evidence references, e.g. E2")
     runbook_slug: str | None = Field(default=None, max_length=63)
     replicas: int | None = Field(default=None, ge=1, le=20)
+
+    _refs = field_validator("evidence", mode="before")(lambda cls, v: evidence_refs(v))
