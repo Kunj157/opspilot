@@ -5,11 +5,15 @@ import type { components } from "@opspilot/api-client/schema";
 import Link from "next/link";
 import { useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-query";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useState } from "react";
+import { useState, ViewTransition } from "react";
 
 import { SERVICES_KEY } from "@/components/services/service-catalog";
 import { Button } from "@/components/ui/button";
+import { EmptyState } from "@/components/ui/empty-state";
+import { Input, Select } from "@/components/ui/input";
 import { Modal } from "@/components/ui/modal";
+import { SkeletonRows } from "@/components/ui/skeleton";
+import { type Column, DataTable } from "@/components/ui/table";
 import { useToast } from "@/components/ui/toast";
 import {
   filtersToSearch,
@@ -27,13 +31,19 @@ import { IncidentForm } from "./incident-form";
 import { LiveIndicator } from "./live-indicator";
 
 type IncidentPage = components["schemas"]["IncidentPage"];
+type Incident = IncidentPage["items"][number];
 
 export const INCIDENTS_KEY = ["incidents"] as const;
 const PAGE_SIZE = 50;
 
 const time = new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" });
-const selectClass =
-  "h-9 w-full rounded-sm border border-border bg-surface-1 px-2 text-sm text-fg focus:border-accent focus:outline-none";
+const SEVERITY_RANK = Object.fromEntries(SEVERITIES.map((s, i) => [s, i]));
+const STATUS_RANK = Object.fromEntries(STATUSES.map((s, i) => [s, i]));
+
+/** Shared view-transition name, so the title morphs from the row into the incident page. */
+export function incidentTitleTransition(id: string): string {
+  return `incident-title-${id}`;
+}
 
 function FilterSelect({
   label,
@@ -49,9 +59,9 @@ function FilterSelect({
   return (
     <label className="flex flex-col gap-1.5 text-xs text-fg-secondary">
       {label}
-      <select value={value} onChange={(e) => onChange(e.target.value)} className={selectClass}>
+      <Select value={value} onChange={(e) => onChange(e.target.value)}>
         {children}
-      </select>
+      </Select>
     </label>
   );
 }
@@ -105,27 +115,96 @@ export function IncidentList({ canManage, currentUserId }: { canManage: boolean;
     void queryClient.invalidateQueries({ queryKey: INCIDENTS_KEY });
   });
 
+  // People who have incidents assigned, for the assignee filter (until the API lists users).
+  const assignees = useQuery({
+    queryKey: [...INCIDENTS_KEY, "assignees"],
+    queryFn: async ({ signal }) => {
+      const { data } = await createApiClient(window.location.origin).GET("/api/v1/incidents", {
+        params: { query: { limit: 200 } },
+        signal,
+      });
+      if (!data) throw new Error("assignees unavailable");
+      return [...new Set(data.items.map((i) => i.assigned_user_id).filter((id): id is string => Boolean(id)))];
+    },
+    staleTime: 60_000,
+  });
+  const otherAssignees = [
+    ...new Set([...(assignees.data ?? []), ...(filters.assignee && filters.assignee !== "me" ? [filters.assignee] : [])]),
+  ].filter((id) => id !== currentUserId);
+
   const rows = incidents.data?.pages.flatMap((p) => p.items) ?? [];
   const filtered = filtersToSearch(filters) !== "";
+  const serviceOf = (incident: Incident) => (incident.service_id ? (serviceName.get(incident.service_id) ?? "—") : "—");
+
+  const columns: Column<Incident>[] = [
+    {
+      id: "severity",
+      header: "Severity",
+      cell: (incident) => <SeverityBadge severity={incident.severity} />,
+      sortValue: (incident) => SEVERITY_RANK[incident.severity],
+      className: "w-px whitespace-nowrap",
+    },
+    {
+      id: "title",
+      header: "Incident",
+      cell: (incident) => (
+        <>
+          <ViewTransition name={incidentTitleTransition(incident.id)} share="morph" default="none">
+            <Link href={`/incidents/${incident.id}`} className="block w-fit max-w-full truncate font-medium hover:text-accent">
+              {incident.title}
+            </Link>
+          </ViewTransition>
+          {incident.source === "detector" && (
+            <span className="mt-0.5 block text-xs text-fg-muted">Detected automatically</span>
+          )}
+          <span className="mt-1 block sm:hidden">
+            <StatusBadge status={incident.status} />
+          </span>
+        </>
+      ),
+      sortValue: (incident) => incident.title.toLowerCase(),
+      className: "w-full max-w-0",
+    },
+    {
+      id: "service",
+      header: "Service",
+      cell: (incident) => <span className="block truncate text-fg-secondary">{serviceOf(incident)}</span>,
+      sortValue: serviceOf,
+      className: "hidden min-w-36 max-w-48 md:table-cell",
+    },
+    {
+      id: "status",
+      header: "Status",
+      cell: (incident) => <StatusBadge status={incident.status} />,
+      sortValue: (incident) => STATUS_RANK[incident.status],
+      className: "hidden min-w-36 whitespace-nowrap sm:table-cell",
+    },
+    {
+      id: "started",
+      header: "Started",
+      cell: (incident) => (
+        <time dateTime={incident.started_at} className="font-mono text-xs text-fg-muted">
+          {time.format(new Date(incident.started_at))}
+        </time>
+      ),
+      sortValue: (incident) => Date.parse(incident.started_at),
+      className: "hidden w-px whitespace-nowrap lg:table-cell",
+    },
+  ];
 
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <LiveIndicator state={stream} />
-        {canManage && (
-          <Button
-            onClick={() => setCreating(true)}
-          >
-            New incident
-          </Button>
-        )}
+        {canManage && <Button onClick={() => setCreating(true)}>New incident</Button>}
       </div>
 
-      <section className="overflow-hidden rounded-card border border-border bg-surface-2 shadow-3">
+      {/* overflow-clip, not hidden: the sticky table header must stick to the page scroll. */}
+      <section className="surface-raised overflow-clip rounded-card border border-border">
         <form
           aria-label="Filters"
           onSubmit={(e) => e.preventDefault()}
-          className="grid grid-cols-2 gap-3 border-b border-border p-5 lg:grid-cols-6"
+          className="grid grid-cols-2 gap-3 border-b border-border p-5 md:grid-cols-4 xl:grid-cols-7"
         >
           <FilterSelect label="Status" value={filters.status} onChange={(v) => setFilters({ status: v as IncidentFilters["status"] })}>
             <option value="active">Active</option>
@@ -168,112 +247,65 @@ export function IncidentList({ canManage, currentUserId }: { canManage: boolean;
               </option>
             ))}
           </FilterSelect>
+          <FilterSelect
+            label="Assignee"
+            value={filters.assignee ?? ""}
+            onChange={(v) => setFilters({ assignee: v || null })}
+          >
+            <option value="">Anyone</option>
+            <option value="me">Me</option>
+            {otherAssignees.map((id) => (
+              <option key={id} value={id}>
+                User {id.slice(0, 8)}
+              </option>
+            ))}
+          </FilterSelect>
           <label className="flex flex-col gap-1.5 text-xs text-fg-secondary">
             Started from
-            <input
-              type="date"
-              value={filters.since ?? ""}
-              onChange={(e) => setFilters({ since: e.target.value || null })}
-              className={selectClass}
-            />
+            <Input type="date" value={filters.since ?? ""} onChange={(e) => setFilters({ since: e.target.value || null })} />
           </label>
           <label className="flex flex-col gap-1.5 text-xs text-fg-secondary">
             Started until
-            <input
-              type="date"
-              value={filters.until ?? ""}
-              onChange={(e) => setFilters({ until: e.target.value || null })}
-              className={selectClass}
-            />
-          </label>
-          <label className="col-span-2 flex items-center gap-2 text-sm text-fg-secondary lg:col-span-6">
-            <input
-              type="checkbox"
-              checked={filters.mine}
-              onChange={(e) => setFilters({ mine: e.target.checked })}
-              className="size-4 accent-[var(--accent)]"
-            />
-            Assigned to me
+            <Input type="date" value={filters.until ?? ""} onChange={(e) => setFilters({ until: e.target.value || null })} />
           </label>
         </form>
 
-        {incidents.isPending && (
-          <div aria-hidden className="flex flex-col gap-2 p-5">
-            {[0, 1, 2, 3].map((i) => (
-              <div key={i} className="h-10 animate-pulse rounded-sm bg-surface-3" />
-            ))}
-          </div>
-        )}
+        {incidents.isPending && <SkeletonRows rows={5} />}
         {incidents.isError && (
           <div role="alert" className="flex flex-col items-center gap-3 px-5 py-10 text-sm">
             <p className="text-critical">Incidents could not be loaded.</p>
-            <button
-              type="button"
-              onClick={() => void incidents.refetch()}
-              className="rounded-sm border border-border px-3 py-1.5 text-fg-secondary hover:border-border-strong hover:text-fg"
-            >
+            <Button variant="secondary" size="sm" onClick={() => void incidents.refetch()}>
               Try again
-            </button>
+            </Button>
           </div>
         )}
         {incidents.isSuccess && rows.length === 0 && (
-          <p className="px-5 py-12 text-center text-sm text-fg-muted">
-            {filtered ? "No incidents match these filters." : "No active incidents. All quiet."}
-          </p>
+          <EmptyState
+            tone={filtered ? "neutral" : "positive"}
+            title={filtered ? "No incidents match these filters." : "No active incidents. All quiet."}
+            description={filtered ? "Widen the filters or clear them to see more." : "New incidents appear here live."}
+          />
         )}
         {rows.length > 0 && (
-          <table className="w-full text-left text-sm">
-            <caption className="sr-only">Incidents</caption>
-            <thead className="text-xs text-fg-muted">
-              <tr className="border-b border-border">
-                <th scope="col" className="w-px whitespace-nowrap px-5 py-3 font-medium">Severity</th>
-                <th scope="col" className="w-full px-2 py-3 font-medium">Incident</th>
-                <th scope="col" className="hidden min-w-36 px-2 py-3 font-medium md:table-cell">Service</th>
-                <th scope="col" className="hidden min-w-36 px-2 py-3 font-medium sm:table-cell">Status</th>
-                <th scope="col" className="hidden w-px whitespace-nowrap px-5 py-3 font-medium lg:table-cell">Started</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border">
-              {rows.map((incident) => (
-                <tr key={incident.id} className="transition-colors duration-base hover:bg-surface-3">
-                  <td className="w-px whitespace-nowrap px-5 py-3.5 align-top">
-                    <SeverityBadge severity={incident.severity} />
-                  </td>
-                  <td className="max-w-0 px-2 py-3.5">
-                    <Link href={`/incidents/${incident.id}`} className="block truncate font-medium hover:text-accent">
-                      {incident.title}
-                    </Link>
-                    {incident.source === "detector" && (
-                      <span className="mt-0.5 block text-xs text-fg-muted">Detected automatically</span>
-                    )}
-                    <span className="mt-1 block sm:hidden">
-                      <StatusBadge status={incident.status} />
-                    </span>
-                  </td>
-                  <td className="hidden max-w-48 truncate px-2 py-3.5 text-fg-secondary md:table-cell">
-                    {incident.service_id ? (serviceName.get(incident.service_id) ?? "—") : "—"}
-                  </td>
-                  <td className="hidden whitespace-nowrap px-2 py-3.5 sm:table-cell">
-                    <StatusBadge status={incident.status} />
-                  </td>
-                  <td className="hidden whitespace-nowrap px-5 py-3.5 font-mono text-xs text-fg-muted lg:table-cell">
-                    <time dateTime={incident.started_at}>{time.format(new Date(incident.started_at))}</time>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <DataTable
+            caption="Incidents"
+            columns={columns}
+            rows={rows}
+            rowKey={(incident) => incident.id}
+            rowHref={(incident) => `/incidents/${incident.id}`}
+            onNavigate={(href) => router.push(href)}
+          />
         )}
         {incidents.hasNextPage && (
           <div className="border-t border-border p-4 text-center">
-            <button
-              type="button"
+            <Button
+              variant="secondary"
+              size="sm"
               disabled={incidents.isFetchingNextPage}
               onClick={() => void incidents.fetchNextPage()}
-              className="rounded-sm border border-border px-3 py-1.5 text-sm text-fg-secondary hover:border-border-strong hover:text-fg disabled:opacity-50"
             >
               {incidents.isFetchingNextPage ? "Loading…" : "Load more"}
-            </button>
+            </Button>
           </div>
         )}
       </section>
