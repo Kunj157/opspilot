@@ -19,7 +19,9 @@ approves, verifies recovery, and writes the postmortem.
 | ![Evaluations dashboard](docs/media/evaluations.png) | ![ML detector in shadow mode against the baseline](docs/media/ml-detector.png) |
 
 Recorded on the live demo with the local model; `make demo-record` and
-`make demo-render` reproduce it.
+`make demo-render` reproduce it. The project's landing page lives in
+[`apps/landing`](apps/landing) (static, published to GitHub Pages;
+`pnpm --filter @opspilot/landing dev`).
 
 ## Contents
 
@@ -358,6 +360,7 @@ Each phase ends with a tagged release.
 ```
 apps/api            FastAPI service, migrations, tests
 apps/web            Next.js app and component tests
+apps/landing        Static landing page (3D hero, GitHub Pages)
 packages/api-client Typed API client generated from OpenAPI
 demo/services       Instrumented demo shop (one image, five services) and load generator
 demo/failure-injection  Faulty-release scenarios

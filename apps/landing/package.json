@@ -1,0 +1,33 @@
+{
+  "name": "@opspilot/landing",
+  "version": "0.15.0",
+  "private": true,
+  "scripts": {
+    "dev": "node scripts/copy-media.mjs && next dev --port 3100",
+    "build": "node scripts/copy-media.mjs && next build",
+    "lint": "eslint",
+    "typecheck": "next typegen && tsc --noEmit",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
+  },
+  "dependencies": {
+    "@react-three/fiber": "9.8.1",
+    "motion": "14.0.0",
+    "next": "16.4.0",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "three": "0.186.1"
+  },
+  "devDependencies": {
+    "@tailwindcss/turbopack": "^4",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "@types/three": "0.186.0",
+    "eslint": "^9",
+    "eslint-config-next": "16.4.0",
+    "prettier": "3.9.9",
+    "tailwindcss": "^4",
+    "typescript": "^5"
+  }
+}
