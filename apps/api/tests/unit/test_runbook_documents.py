@@ -50,6 +50,22 @@ def test_rejects_documents_without_valid_front_matter(broken: str) -> None:
         parse(broken)
 
 
+def test_environment_defaults_to_all() -> None:
+    assert parse(SAMPLE).environment == "all"
+
+
+def test_environment_comes_from_front_matter() -> None:
+    doc = parse(SAMPLE.replace("version: 2\n", "version: 2\nenvironment: production\n"))
+
+    assert doc.environment == "production"
+
+
+@pytest.mark.parametrize("value", ["[staging, production]", "Production", "prod env", ""])
+def test_rejects_an_invalid_environment(value: str) -> None:
+    with pytest.raises(RunbookDocumentError, match="environment"):
+        parse(SAMPLE.replace("version: 2\n", f"version: 2\nenvironment: {value}\n"))
+
+
 def test_the_demo_runbooks_exist() -> None:
     assert {p.stem for p in RUNBOOKS} >= {
         "checkout-high-error-rate",
