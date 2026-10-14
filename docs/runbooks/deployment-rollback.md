@@ -2,7 +2,7 @@
 title: Deployment rollback
 services: [storefront, checkout, payment, inventory, notification]
 owner: platform-team
-version: 1
+version: 2
 ---
 
 # Deployment rollback
@@ -15,8 +15,11 @@ release in namespace `demo`.
 
 ## Symptoms
 
-- Errors or latency started within minutes of a new rollout revision
+- HTTP 500 errors or higher latency on any demo service (storefront, checkout,
+  payment, inventory, notification) that started within minutes of its latest
+  release (a new rollout revision)
 - The newest revision's change cause names a new version
+- The previous revision ran without these errors
 
 ## Prerequisites
 
