@@ -99,6 +99,23 @@ cert-manager provides the `letsencrypt` and `letsencrypt-staging`
 ClusterIssuers (Route53 DNS-01) for certificates that live in the cluster.
 External Secrets provides the `aws-secrets-manager` ClusterSecretStore.
 
+## Application roles
+
+`modules/environment/app_iam.tf` creates one IRSA role per OpsPilot
+workload, each trusted only by its service account in the `opspilot`
+namespace (`app_namespace`), and outputs them as `app_role_arns`:
+
+| Role | Service account | Permissions |
+|---|---|---|
+| `opspilot-<env>-app-api` | `opspilot-api` | Read the `opspilot-<env>/app` secret; `elasticache:Connect` as the Redis IAM user |
+| `opspilot-<env>-app-worker` | `opspilot-worker` | As the API, plus read the ML model bucket |
+| `opspilot-<env>-app-backup` | `opspilot-backup` | Read the app secret; list and put objects in the backup bucket (no object reads, no delete) |
+
+KMS use is limited to decrypting through Secrets Manager or S3. The pods
+get credentials when their service account carries the
+`eks.amazonaws.com/role-arn` annotation with the matching ARN. Other
+outputs the chart needs: `app_secret_name`, `redis_app_user`, `buckets`.
+
 ## Cost controls
 
 - Small instances outside production: a Graviton `t4g` system node,
