@@ -7,7 +7,11 @@ import type { Topology } from "./model";
 import { TopologyPanel } from "./topology-panel";
 
 const push = vi.fn();
-vi.mock("next/navigation", () => ({ useRouter: () => ({ push }) }));
+const navigation = vi.hoisted(() => ({ search: "" }));
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push }),
+  useSearchParams: () => new URLSearchParams(navigation.search),
+}));
 
 function serve(topology: Topology) {
   vi.stubGlobal(
@@ -16,10 +20,11 @@ function serve(topology: Topology) {
   );
 }
 
-function renderIt() {
-  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+const client = () => new QueryClient({ defaultOptions: { queries: { retry: false } } });
+
+function renderIt(queryClient = client()) {
   return render(
-    <QueryClientProvider client={client}>
+    <QueryClientProvider client={queryClient}>
       <TopologyPanel />
     </QueryClientProvider>,
   );
@@ -28,6 +33,7 @@ function renderIt() {
 afterEach(() => {
   vi.unstubAllGlobals();
   push.mockReset();
+  navigation.search = "";
 });
 
 const shop: Topology = {
@@ -64,6 +70,18 @@ describe("TopologyPanel", () => {
     expect(within(details).getByRole("heading", { name: "Checkout" })).toBeInTheDocument();
     expect(within(details).getByRole("list", { name: "Calls" })).toHaveTextContent("Payment");
     expect(within(details).getByRole("link", { name: "Open Checkout" })).toHaveAttribute("href", "/services/c");
+  });
+
+  it("selects the service named in ?focus= and brings the map into view", async () => {
+    serve(shop);
+    const scroll = vi.fn();
+    Element.prototype.scrollIntoView = scroll;
+    navigation.search = "focus=c";
+    renderIt();
+
+    const details = await screen.findByRole("region", { name: "Selected service" });
+    expect(within(details).getByRole("heading", { name: "Checkout" })).toBeInTheDocument();
+    expect(scroll).toHaveBeenCalled();
   });
 
   it("opens a service from the keyboard", async () => {

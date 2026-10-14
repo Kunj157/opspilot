@@ -5,11 +5,24 @@ incidents in a cloud application, investigates them with AI agents and
 machine learning, proposes safe remediation, runs it only after a human
 approves, verifies recovery, and writes the postmortem.
 
-> **Status:** v0.15.0. The full incident loop works on the Kubernetes demo,
+> **Status:** v1.0.0. The full incident loop works on the Kubernetes demo,
 > hardened for production (rate limits, secure headers, alerts, backups,
-> chaos and load tests, signed images, a release pipeline) with a redesigned
-> interface. Terraform for AWS is validated but has not been applied. See
+> chaos and load tests, signed images, a release pipeline), with a
+> redesigned interface, a threat model, a recorded walkthrough, and a
+> landing page. Terraform for AWS is validated but has not been applied. See
 > [known limitations](#known-limitations).
+
+![OpsPilot walkthrough: command center, camera fly-to, and a faulty release detected](docs/media/walkthrough.gif)
+
+| | |
+|---|---|
+| ![Agent investigation with a grounded rollback proposal](docs/media/investigation.png) | ![3D service topology focused on Checkout](docs/media/topology-focus.png) |
+| ![Evaluations dashboard](docs/media/evaluations.png) | ![ML detector in shadow mode against the baseline](docs/media/ml-detector.png) |
+
+Recorded on the live demo with the local model; `make demo-record` and
+`make demo-render` reproduce it. The project's landing page lives in
+[`apps/landing`](apps/landing) (static, published to GitHub Pages;
+`pnpm --filter @opspilot/landing dev`).
 
 ## Contents
 
@@ -341,13 +354,14 @@ Each phase ends with a tagged release.
 | 13 | Containers, Kubernetes, and GitOps | ✅ v0.13.0 |
 | 14 | Production hardening | ✅ v0.15.0 |
 | 15 | Interface redesign | ✅ v0.15.0 |
-| 16 | Launch readiness: docs, threat model, walkthrough | 🚧 in progress |
+| 16 | Launch readiness: docs, threat model, walkthrough, landing page | ✅ v1.0.0 |
 
 ## Repository layout
 
 ```
 apps/api            FastAPI service, migrations, tests
 apps/web            Next.js app and component tests
+apps/landing        Static landing page (3D hero, GitHub Pages)
 packages/api-client Typed API client generated from OpenAPI
 demo/services       Instrumented demo shop (one image, five services) and load generator
 demo/failure-injection  Faulty-release scenarios

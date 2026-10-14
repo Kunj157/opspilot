@@ -1,0 +1,251 @@
+@import "tailwindcss";
+
+/* Graphite & Iris tokens, shared with apps/web (keep in sync). */
+:root {
+  --background: #0b0c0e;
+  --surface-1: #121418;
+  --surface-2: #181b20;
+  --surface-3: #20242b;
+  --surface-glass: rgba(24, 27, 32, 0.72);
+  /* Panels read as lit from above: a faint top sheen and a 1px inner highlight. */
+  --surface-sheen: linear-gradient(180deg, rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0) 45%);
+  --edge-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+
+  --text-primary: #edeef0;
+  --text-secondary: #a6abb5;
+  --text-muted: #868c97;
+
+  --border: rgba(255, 255, 255, 0.08);
+  --border-strong: rgba(255, 255, 255, 0.14);
+
+  --accent: #a79bff;
+  --accent-hover: #bbb2ff;
+  --accent-subtle: rgba(167, 155, 255, 0.12);
+  --accent-glow: rgba(167, 155, 255, 0.35);
+  --on-accent: #0b0c0e;
+
+  --status-healthy: #5cc98b;
+  --status-degraded: #e3b34c;
+  --status-critical: #f26a6a;
+  --status-unknown: #868c97;
+  /* Badge fills; the label on top uses the full status colour. */
+  --status-healthy-subtle: rgba(92, 201, 139, 0.12);
+  --status-degraded-subtle: rgba(227, 179, 76, 0.12);
+  --status-critical-subtle: rgba(242, 106, 106, 0.1);
+  --status-critical-glow: rgba(242, 106, 106, 0.4);
+
+  /* Charts: neutral steps (light → dark) beside at most one status colour. */
+  --chart-neutral-1: #a6abb5;
+  --chart-neutral-2: #7d838e;
+  --chart-neutral-3: #5d636e;
+
+  --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-2: 0 4px 12px rgba(0, 0, 0, 0.28), 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-3: 0 16px 40px rgba(0, 0, 0, 0.36), 0 2px 6px rgba(0, 0, 0, 0.3);
+  --shadow-glow-accent: 0 0 0 1px var(--accent-glow), 0 0 24px -6px var(--accent-glow);
+  --shadow-glow-critical: 0 0 0 1px var(--status-critical-glow), 0 0 20px -6px var(--status-critical-glow);
+  /* Height of sticky page chrome above content; sticky table headers sit below it. */
+  --sticky-top: 0px;
+  --radius-sm: 8px;
+  --radius-card: 14px;
+  --radius-lg: 20px;
+
+  /* Motion — mirrored in src/lib/motion.ts for the motion package. */
+  --duration-instant: 100ms;
+  --duration-fast: 150ms;
+  --duration-base: 220ms;
+  --duration-slow: 320ms;
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+
+  /* A 2% noise tile on the backdrop stops gradient banding. */
+  --noise: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.07'/%3E%3C/svg%3E");
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-surface-1: var(--surface-1);
+  --color-surface-2: var(--surface-2);
+  --color-surface-3: var(--surface-3);
+  --color-surface-glass: var(--surface-glass);
+  --color-fg: var(--text-primary);
+  --color-fg-secondary: var(--text-secondary);
+  --color-fg-muted: var(--text-muted);
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-subtle: var(--accent-subtle);
+  --color-accent-glow: var(--accent-glow);
+  --color-on-accent: var(--on-accent);
+  --color-healthy: var(--status-healthy);
+  --color-degraded: var(--status-degraded);
+  --color-critical: var(--status-critical);
+  --color-unknown: var(--status-unknown);
+  --color-healthy-subtle: var(--status-healthy-subtle);
+  --color-degraded-subtle: var(--status-degraded-subtle);
+  --color-critical-subtle: var(--status-critical-subtle);
+  --color-critical-glow: var(--status-critical-glow);
+  --color-chart-1: var(--chart-neutral-1);
+  --color-chart-2: var(--chart-neutral-2);
+  --color-chart-3: var(--chart-neutral-3);
+  --shadow-1: var(--shadow-1);
+  --shadow-2: var(--shadow-2);
+  --shadow-3: var(--shadow-3);
+  --shadow-edge: var(--edge-highlight);
+  --shadow-glow-accent: var(--shadow-glow-accent);
+  --shadow-glow-critical: var(--shadow-glow-critical);
+  --radius-card: var(--radius-card);
+  --radius-lg: var(--radius-lg);
+  --radius-sm: var(--radius-sm);
+  --ease-out: var(--ease-out);
+  --ease-in-out: var(--ease-in-out);
+  --duration-base: var(--duration-base);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+html {
+  background: var(--background);
+  color-scheme: dark;
+  scroll-behavior: smooth;
+}
+
+body {
+  background: var(--background);
+  color: var(--text-primary);
+  font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+::selection {
+  background: var(--accent-subtle);
+}
+
+/* Backdrop: a faint noise tile over radial iris and status glows. */
+.backdrop {
+  background:
+    var(--noise), radial-gradient(60% 50% at 50% -10%, var(--accent-subtle), transparent 70%),
+    radial-gradient(35% 30% at 85% 30%, var(--status-critical-subtle), transparent 70%),
+    radial-gradient(40% 35% at 10% 60%, var(--status-healthy-subtle), transparent 70%);
+}
+
+/* The receding grid under the hero. */
+.horizon-grid {
+  background-image:
+    linear-gradient(var(--border) 1px, transparent 1px), linear-gradient(90deg, var(--border) 1px, transparent 1px);
+  background-size: 56px 56px;
+  transform: perspective(600px) rotateX(62deg);
+  transform-origin: 50% 0;
+  mask-image: linear-gradient(to bottom, black 5%, transparent 55%);
+  animation: grid-drift 14s linear infinite;
+}
+
+@keyframes grid-drift {
+  to {
+    background-position: 0 56px;
+  }
+}
+
+/* Headline gradient sweep. */
+.text-sheen {
+  background: linear-gradient(110deg, var(--text-primary) 35%, var(--accent-hover) 50%, var(--text-primary) 65%);
+  background-size: 250% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: sheen 6s var(--ease-in-out) infinite;
+}
+
+@keyframes sheen {
+  from {
+    background-position: 100% 0;
+  }
+  to {
+    background-position: -100% 0;
+  }
+}
+
+/* Cards: a cursor-following spotlight (set --x/--y from JS) and a light that
+   runs around the border on hover. */
+.spotlight {
+  position: relative;
+  isolation: isolate;
+  background: var(--surface-sheen), var(--surface-1);
+  box-shadow: var(--edge-highlight), var(--shadow-2);
+}
+.spotlight::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  opacity: 0;
+  transition: opacity var(--duration-slow) var(--ease-out);
+  background: radial-gradient(420px circle at var(--x, 50%) var(--y, 50%), var(--accent-subtle), transparent 45%);
+}
+.spotlight:hover::before {
+  opacity: 1;
+}
+.border-trail {
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  padding: 1px;
+  background: conic-gradient(from var(--angle), transparent 70%, var(--accent) 85%, transparent 100%);
+  mask:
+    linear-gradient(black 0 0) content-box exclude,
+    linear-gradient(black 0 0);
+  opacity: 0;
+  transition: opacity var(--duration-slow) var(--ease-out);
+  animation: trail 3.5s linear infinite;
+  pointer-events: none;
+}
+.spotlight:hover .border-trail,
+.spotlight:focus-within .border-trail {
+  opacity: 1;
+}
+@property --angle {
+  syntax: "<angle>";
+  initial-value: 0deg;
+  inherits: false;
+}
+@keyframes trail {
+  to {
+    --angle: 360deg;
+  }
+}
+
+/* Cards lean a few degrees toward the pointer (set --rx/--ry from JS). */
+.tilt {
+  transform: perspective(900px) rotateX(var(--rx, 0deg)) rotateY(var(--ry, 0deg));
+  transition: transform var(--duration-base) var(--ease-out);
+}
+
+/* Infinite marquee for the stack. */
+.marquee {
+  mask-image: linear-gradient(90deg, transparent, black 12%, black 88%, transparent);
+}
+.marquee-track {
+  animation: marquee 40s linear infinite;
+}
+@keyframes marquee {
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  .horizon-grid,
+  .text-sheen,
+  .border-trail,
+  .marquee-track {
+    animation: none;
+  }
+  .tilt {
+    transform: none;
+  }
+}

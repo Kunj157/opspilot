@@ -20,7 +20,7 @@ DEMO_RELEASE = --set-string release.commit="$$(git rev-parse HEAD)" \
 	--set-literal release.author="$$(git log -1 --format=%an)" \
 	--set-literal release.message="$$(git log -1 --format=%s)"
 
-.PHONY: test-alerts db-upgrade db-downgrade db-revision keycloak-smoke token api-client web-dev dev build test-e2e test-lighthouse kind-create kind-delete docker-build deploy-local observability-up load-normal load-stop inject-failure reset-demo seed seed-runbooks test-telemetry test-detection worker help infra-up infra-down llm-up events-up stop secrets-scan install api-dev format lint typecheck test test-unit test-integration test-agent test-ml ml-scenarios ml-dataset ml-train images kind-load gitops-up tf-check tf-plan loadtest-teardown infra-smoke
+.PHONY: test-alerts db-upgrade db-downgrade db-revision keycloak-smoke token api-client web-dev dev build test-e2e test-lighthouse kind-create kind-delete docker-build deploy-local observability-up load-normal load-stop inject-failure reset-demo seed seed-runbooks test-telemetry test-detection worker help infra-up infra-down llm-up events-up stop secrets-scan install api-dev format lint typecheck test test-unit test-integration test-agent test-ml ml-scenarios ml-dataset ml-train images kind-load gitops-up demo-record demo-render tf-check tf-plan loadtest-teardown infra-smoke
 
 help: ## List available targets
 	@grep -hE '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | sort | \
@@ -257,3 +257,9 @@ loadtest-teardown: ## Destroy the loadtest environment if its ttl has passed: AR
 infra-smoke: ## After terraform apply: nodes, add-ons, secret sync, and database reachability: make infra-smoke ENV=development
 	@case " $(TF_ENVS) " in *" $(ENV) "*) ;; *) echo "ENV must be one of: $(TF_ENVS)"; exit 1;; esac
 	scripts/infra-smoke.sh $(ENV)
+
+demo-record: ## Record the walkthrough on the live demo (make dev, worker, kind demo, local LLM running): clips + shot list in walkthrough-output/
+	pnpm exec playwright test -c playwright.walkthrough.config.ts
+
+demo-render: ## Turn the recorded clips into MP4s, one full walkthrough, and a README GIF (needs ffmpeg)
+	scripts/render-walkthrough.sh walkthrough-output
