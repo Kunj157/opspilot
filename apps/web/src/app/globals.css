@@ -313,6 +313,17 @@ body {
   animation: bar-grow 520ms var(--ease-out) both;
 }
 
+.bar-grow-x {
+  transform-origin: left;
+  animation: bar-grow-x 600ms var(--ease-out) both;
+}
+
+@keyframes bar-grow-x {
+  from {
+    transform: scaleX(0);
+  }
+}
+
 @keyframes bar-grow {
   from {
     transform: scaleY(0);

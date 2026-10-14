@@ -50,6 +50,12 @@ export const icons = {
       <path d="M3.5 12V8.5M7 12V4M10.5 12V6.5M14 12V2.5" />
     </Icon>
   ),
+  evaluations: (p: IconProps) => (
+    <Icon {...p}>
+      <circle cx="8" cy="8" r="6" />
+      <path d="m5.5 8.2 1.8 1.8 3.4-3.6" />
+    </Icon>
+  ),
   status: (p: IconProps) => (
     <Icon {...p}>
       <path d="M1.5 8h3l2-4.5 3 9 2-4.5h3" />

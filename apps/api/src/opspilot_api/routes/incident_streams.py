@@ -53,6 +53,35 @@ async def _events_after(
         return [(row[0], row[1]) for row in (await session.execute(statement)).all()]
 
 
+Frames = list[tuple[int, str]]
+# In-flight reads keyed by (organization, incident or None, after): subscribers
+# at the same position share one query and one rendering instead of N.
+_inflight: dict[tuple[uuid.UUID, uuid.UUID | None, int], asyncio.Task[Frames]] = {}
+
+
+async def _frames_after(
+    factory: SessionFactory,
+    principal: Principal,
+    incident_id: uuid.UUID | None,
+    after: int,
+) -> Frames:
+    key = (principal.organization_id, incident_id, after)
+    task = _inflight.get(key)
+    if task is None:
+
+        async def read() -> Frames:
+            try:
+                rows = await _events_after(factory, principal, incident_id, after)
+                return [(event.sequence, _frame(event, incident)) for event, incident in rows]
+            finally:
+                _inflight.pop(key, None)
+
+        task = asyncio.ensure_future(read())
+        _inflight[key] = task
+    # shield: one subscriber disconnecting must not cancel the read for the others.
+    return await asyncio.shield(task)
+
+
 async def _latest_sequence(
     factory: SessionFactory, principal: Principal, incident_id: uuid.UUID | None
 ) -> int:
@@ -92,9 +121,9 @@ async def _stream(
         )
         yield "retry: 3000\n: subscribed\n\n"
         while True:
-            for event, incident in await _events_after(factory, principal, incident_id, after):
-                yield _frame(event, incident)
-                after = event.sequence
+            for sequence, frame in await _frames_after(factory, principal, incident_id, after):
+                yield frame
+                after = sequence
             try:
                 await asyncio.wait_for(subscription.wake.wait(), timeout=heartbeat)
                 subscription.wake.clear()

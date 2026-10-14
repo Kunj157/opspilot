@@ -56,6 +56,10 @@ class Settings(BaseSettings):
     llm_base_url: str | None = None
     llm_api_key: str | None = None
     llm_timeout_seconds: float = 120.0
+    # Estimated spend per 24 h above which the LLMCostBudgetBreach alert fires.
+    llm_daily_budget_usd: float = 5.0
+    # How often the worker refreshes the queue-depth gauges.
+    queue_metrics_seconds: float = 15.0
 
     # Investigations may only read (and, in phase 9, remediate) these namespaces.
     agent_allowed_namespaces: str = "demo"

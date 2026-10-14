@@ -1,22 +1,28 @@
 """Runs queued investigations: claims a job, builds the tools, runs the workflow.
 
 A crash leaves the job running with a lease; once the lease expires another
-claim resumes it from its last persisted node (up to three attempts).
+claim resumes it from its last persisted node (up to three attempts). While a
+worker is alive it renews its lease, so slow model calls never let a second
+worker take over a job that is still running; if the lease was lost anyway,
+the run stops.
 """
 
+import asyncio
 import uuid
 from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
+from typing import Any
 
 import structlog
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from opspilot_api.agents.investigation import ContextFactory, Investigator
 from opspilot_api.agents.queue import claim
 from opspilot_api.agents.tools import ServiceTarget, ToolContext
-from opspilot_api.db.models import Service
+from opspilot_api.db.models import Investigation, InvestigationStatus, Service
 from opspilot_api.kube import KubeReader
+from opspilot_api.ops_metrics import AGENT_RUNS
 from opspilot_api.runbooks.embeddings import Embedder
 from opspilot_api.telemetry import LogsProvider, MetricsProvider, TracesProvider
 
@@ -91,13 +97,47 @@ class InvestigationRunner:
             investigation_id=str(investigation.id),
             attempt=investigation.attempts,
         )
+        work = asyncio.ensure_future(self.new_investigator().run(investigation.id))
+        keeper = asyncio.create_task(
+            self._keep_lease(investigation.id, investigation.attempts, work)
+        )
         try:
-            status = await self.new_investigator().run(investigation.id)
+            status = await work
+        except asyncio.CancelledError:
+            if keeper.done():  # we cancelled it: another worker owns the job now
+                log.warning("investigation lease lost", investigation_id=str(investigation.id))
+                return True
+            raise
         except Exception:
             # Left running; the expired lease makes it claimable again (resumes at its last node).
             log.exception("investigation crashed", investigation_id=str(investigation.id))
+            AGENT_RUNS.labels("investigation", "crashed").inc()
             return True
+        finally:
+            keeper.cancel()
         log.info(
             "investigation finished", investigation_id=str(investigation.id), status=status.value
         )
         return True
+
+    async def _keep_lease(
+        self, investigation_id: uuid.UUID, attempt: int, work: "asyncio.Future[Any]"
+    ) -> None:
+        """Renew the lease every third of its length while this attempt still owns the job."""
+        lease = LEASE
+        while not work.done():
+            await asyncio.sleep(lease.total_seconds() / 3)
+            async with self.sessions() as session:
+                renewed = await session.execute(
+                    update(Investigation)
+                    .where(
+                        Investigation.id == investigation_id,
+                        Investigation.attempts == attempt,
+                        Investigation.status == InvestigationStatus.RUNNING,
+                    )
+                    .values(lease_until=datetime.now(UTC) + lease)
+                )
+                await session.commit()
+            if renewed.rowcount == 0 and not work.done():  # type: ignore[attr-defined]
+                work.cancel()
+                return

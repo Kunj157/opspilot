@@ -5,10 +5,11 @@ network, EKS with Karpenter, PostgreSQL, Redis, container registry, buckets,
 secrets, DNS and certificate, alerting, the CI deploy role, and cost controls.
 
 ```
-bootstrap/                 state bucket (once per AWS account, local state)
+bootstrap/                 state bucket, audit trail, GuardDuty (once per AWS account, local state)
 modules/                   network, eks, rds, redis, ecr, s3, secrets, iam, dns, observability
 modules/irsa/              one IAM role for named Kubernetes service accounts
 modules/karpenter/         node autoscaling: IAM, interruption queue, chart, default NodePool
+modules/audit/             multi-region CloudTrail into a locked-down bucket; optional GuardDuty
 modules/addons/            load balancer controller, cert-manager, External Secrets, issuers, secret store
 modules/environment/       one environment composed from the modules, plus budgets and schedules
 environments/<name>/       development, staging, production, loadtest: separate state and settings
@@ -20,13 +21,19 @@ Requires Terraform ≥ 1.10, the AWS CLI (the Helm provider signs in with
 `aws eks get-token`), and AWS credentials for the target account.
 
 ```bash
-# 1. Once per account: the encrypted, versioned state bucket.
+# 1. Once per account: the state bucket and the audit trail. List every
+#    principal that may read or write state; everyone else is denied.
 cd bootstrap
-terraform init && terraform apply -var state_bucket=opspilot-terraform-state-<account-id>
+terraform init && terraform apply \
+  -var state_bucket=opspilot-terraform-state-<account-id> \
+  -var audit_bucket=opspilot-audit-<account-id> \
+  -var 'admin_principal_arns=["arn:aws:iam::<account-id>:role/aws-reserved/sso.amazonaws.com/*/AWSReservedSSO_AdministratorAccess_*"]' \
+  -var 'ci_principal_arns=["arn:aws:iam::<account-id>:role/opspilot-*-ci-deploy"]' \
+  -var enable_guardduty=true
 
 # 2. Each environment: S3 backend with S3-native locking, separate state key.
 cd ../environments/development
-cp ../backend.hcl.example ../backend.hcl            # set the bucket name
+cp ../backend.hcl.example ../backend.hcl            # bucket name and state key ARN
 cp terraform.tfvars.example terraform.tfvars        # domain, alert e-mails
 terraform init -backend-config=../backend.hcl
 terraform plan -out=tfplan && terraform apply tfplan
@@ -56,6 +63,24 @@ database, takes a final snapshot, and keeps the state bucket.
 
 Every role, its trust, and its permissions, with the reason for each, are
 listed in [docs/security/iam-review.md](../../docs/security/iam-review.md).
+
+### State and audit
+
+- The state bucket's policy denies every principal not listed in
+  `admin_principal_arns` / `ci_principal_arns`, denies non-TLS requests, and
+  rejects puts that ask for SSE-S3 or a key other than the state key. The
+  backend therefore sets `kms_key_id` (see `backend.hcl.example`). If the
+  list is wrong and locks everyone out, the account root user can still
+  delete the bucket policy.
+- A multi-region CloudTrail trail with log file validation records
+  management events in every region, plus object-level reads and writes of
+  the state bucket. Logs go to a versioned bucket that is KMS-encrypted,
+  private, and TLS-only, owned by the bucket owner, and kept for 365 days.
+  Its policy denies deleting log objects.
+- `enable_guardduty` turns on GuardDuty with S3 data-event and EKS
+  audit-log protection.
+
+### Everything else
 
 - Every store is encrypted with a customer-managed KMS key that rotates
   yearly: state, flow logs, EKS secrets, node disks, RDS, Redis, buckets,

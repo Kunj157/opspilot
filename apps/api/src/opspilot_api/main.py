@@ -7,10 +7,11 @@ from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 
-from opspilot_api import http_metrics, readiness
+from opspilot_api import http_metrics, ops_metrics, readiness
 from opspilot_api.audit.middleware import AuditMiddleware
 from opspilot_api.auth.tokens import TokenVerifier, discovered_key_resolver
 from opspilot_api.config import Settings, get_settings
+from opspilot_api.db import errors as db_errors
 from opspilot_api.db.session import SessionFactory
 from opspilot_api.events.broker import EventBroker
 from opspilot_api.http_metrics import MetricsMiddleware
@@ -53,6 +54,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 engine = create_async_engine(settings.database_url, pool_pre_ping=True)
                 stack.push_async_callback(engine.dispose)
                 checks["database"] = readiness.database_check(engine)
+                ops_metrics.POOLS.track("api", engine)
+                stack.callback(ops_metrics.POOLS.untrack, "api")
                 session_factory = async_sessionmaker(engine, expire_on_commit=False)
                 event_broker = EventBroker(settings.database_url)
                 event_broker.start()
@@ -104,6 +107,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             host.strip() for host in settings.trusted_proxies.split(",") if host.strip()
         ],
     )
+    db_errors.install(app)
     app.add_route("/metrics", http_metrics.metrics, include_in_schema=False)
     app.include_router(readiness.router)
     app.include_router(me.router)

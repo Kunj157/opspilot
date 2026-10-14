@@ -1,3 +1,5 @@
 # Copy to backend.hcl (not committed) with the bucket from ../bootstrap.
 bucket = "opspilot-terraform-state-<account-id>"
 region = "eu-central-1"
+# The state bucket only accepts objects encrypted with its own key.
+kms_key_id = "<state_kms_key_arn output of ../bootstrap>"

@@ -1,8 +1,6 @@
 # Contributing to OpsPilot
 
-OpsPilot is a solo project. This file is the short version of the rules;
-[`DEVELOPMENT_WORKFLOW.md`](DEVELOPMENT_WORKFLOW.md) is the full, binding
-version and wins on any conflict.
+OpsPilot is a solo project. This file describes how changes are made.
 
 ## Before you start
 
