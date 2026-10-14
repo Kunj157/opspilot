@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "OpsPilot API",
-    "version": "0.11.0"
+    "version": "0.13.0"
   },
   "paths": {
     "/api/v1/health": {
@@ -81,6 +81,122 @@
             "HTTPBearer": []
           }
         ]
+      }
+    },
+    "/api/v1/users": {
+      "get": {
+        "tags": [
+          "users"
+        ],
+        "summary": "List Users",
+        "description": "Users of the caller's organization, newest first. Read-only: roles come from Keycloak.",
+        "operationId": "list_users_api_v1_users_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 200,
+              "minimum": 1,
+              "default": 50,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cursor"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserPage"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/users/{user_id}": {
+      "get": {
+        "tags": [
+          "users"
+        ],
+        "summary": "Get User",
+        "description": "One user of the caller's organization; another organization's user is 404.",
+        "operationId": "get_user_api_v1_users__user_id__get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "user_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "User Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserItem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/api/v1/audit-logs": {
@@ -1290,6 +1406,82 @@
         }
       }
     },
+    "/api/v1/evaluations": {
+      "get": {
+        "tags": [
+          "evaluations"
+        ],
+        "summary": "Evaluations",
+        "operationId": "evaluations_api_v1_evaluations_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "from",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Range start; default 30 days ago",
+              "title": "From"
+            },
+            "description": "Range start; default 30 days ago"
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Range end; default now",
+              "title": "To"
+            },
+            "description": "Range end; default now"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Evaluations"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/incidents/{incident_id}/detections": {
       "get": {
         "tags": [
@@ -1950,6 +2142,7 @@
           "runbooks"
         ],
         "summary": "Search Runbooks",
+        "description": "Runbooks for the service (or generic) and the environment (or all), best first.",
         "operationId": "search_runbooks_api_v1_runbooks_search_get",
         "security": [
           {
@@ -1983,6 +2176,23 @@
                 }
               ],
               "title": "Service"
+            }
+          },
+          {
+            "name": "environment",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 32
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Environment"
             }
           },
           {
@@ -2387,6 +2597,70 @@
         ],
         "title": "ActorType"
       },
+      "AgentMetrics": {
+        "properties": {
+          "runs": {
+            "type": "integer",
+            "title": "Runs",
+            "description": "Agent (model) calls started in the range"
+          },
+          "success_rate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Success Rate",
+            "description": "Share of agent runs with status succeeded; failed calls and runs that fell back to the fixed plan count against it"
+          },
+          "tool_calls": {
+            "type": "integer",
+            "title": "Tool Calls",
+            "description": "Tool calls made in the range"
+          },
+          "tool_error_rate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tool Error Rate",
+            "description": "Share of tool calls that returned a failed result"
+          },
+          "input_tokens": {
+            "type": "integer",
+            "title": "Input Tokens",
+            "description": "Sum of agent_runs.input_tokens"
+          },
+          "output_tokens": {
+            "type": "integer",
+            "title": "Output Tokens",
+            "description": "Sum of agent_runs.output_tokens"
+          },
+          "cost_usd": {
+            "type": "number",
+            "title": "Cost Usd",
+            "description": "Sum of agent_runs.estimated_cost (USD, estimated)"
+          }
+        },
+        "type": "object",
+        "required": [
+          "runs",
+          "success_rate",
+          "tool_calls",
+          "tool_error_rate",
+          "input_tokens",
+          "output_tokens",
+          "cost_usd"
+        ],
+        "title": "AgentMetrics"
+      },
       "AgentRunOut": {
         "properties": {
           "id": {
@@ -2778,6 +3052,46 @@
         ],
         "title": "DetectionList"
       },
+      "DetectionMetrics": {
+        "properties": {
+          "incidents": {
+            "type": "integer",
+            "title": "Incidents",
+            "description": "Detector-opened incidents started in the range"
+          },
+          "delay_p50_seconds": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Delay P50 Seconds",
+            "description": "Median seconds from the start of the first anomalous evaluation window linked to an incident (anomaly_detections.window_start) to the incident opening (incidents.started_at): the detection pipeline's own delay"
+          },
+          "delay_p95_seconds": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Delay P95 Seconds",
+            "description": "95th percentile of the same delay"
+          }
+        },
+        "type": "object",
+        "required": [
+          "incidents",
+          "delay_p50_seconds",
+          "delay_p95_seconds"
+        ],
+        "title": "DetectionMetrics"
+      },
       "DetectionOut": {
         "properties": {
           "id": {
@@ -2872,6 +3186,46 @@
           "created_at"
         ],
         "title": "DetectionOut"
+      },
+      "Evaluations": {
+        "properties": {
+          "range_start": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Range Start"
+          },
+          "range_end": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Range End"
+          },
+          "detection": {
+            "$ref": "#/components/schemas/DetectionMetrics"
+          },
+          "investigations": {
+            "$ref": "#/components/schemas/InvestigationMetrics"
+          },
+          "agents": {
+            "$ref": "#/components/schemas/AgentMetrics"
+          },
+          "remediation": {
+            "$ref": "#/components/schemas/RemediationMetrics"
+          },
+          "response": {
+            "$ref": "#/components/schemas/ResponseMetrics"
+          }
+        },
+        "type": "object",
+        "required": [
+          "range_start",
+          "range_end",
+          "detection",
+          "investigations",
+          "agents",
+          "remediation",
+          "response"
+        ],
+        "title": "Evaluations"
       },
       "EventList": {
         "properties": {
@@ -3551,6 +3905,38 @@
         ],
         "title": "IncidentUpdate"
       },
+      "InvestigationMetrics": {
+        "properties": {
+          "total": {
+            "type": "integer",
+            "title": "Total",
+            "description": "Investigations created in the range"
+          },
+          "succeeded": {
+            "type": "integer",
+            "title": "Succeeded",
+            "description": "Of those, finished with status completed"
+          },
+          "partial": {
+            "type": "integer",
+            "title": "Partial",
+            "description": "Of those, stopped early (limits or model failure)"
+          },
+          "failed": {
+            "type": "integer",
+            "title": "Failed",
+            "description": "Of those, gave up after repeated attempts"
+          }
+        },
+        "type": "object",
+        "required": [
+          "total",
+          "succeeded",
+          "partial",
+          "failed"
+        ],
+        "title": "InvestigationMetrics"
+      },
       "InvestigationOut": {
         "properties": {
           "id": {
@@ -4141,6 +4527,67 @@
         ],
         "title": "RemediationAction"
       },
+      "RemediationMetrics": {
+        "properties": {
+          "decisions": {
+            "type": "integer",
+            "title": "Decisions",
+            "description": "Human approve/reject decisions recorded in the range"
+          },
+          "approval_rate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Approval Rate",
+            "description": "Share of those decisions that approved"
+          }
+        },
+        "type": "object",
+        "required": [
+          "decisions",
+          "approval_rate"
+        ],
+        "title": "RemediationMetrics"
+      },
+      "ResponseMetrics": {
+        "properties": {
+          "mtta_seconds": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mtta Seconds",
+            "description": "Mean acknowledged_at - started_at over incidents started in the range"
+          },
+          "mttr_seconds": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mttr Seconds",
+            "description": "Mean resolved_at - started_at over incidents started in the range that are resolved"
+          }
+        },
+        "type": "object",
+        "required": [
+          "mtta_seconds",
+          "mttr_seconds"
+        ],
+        "title": "ResponseMetrics"
+      },
       "Role": {
         "type": "string",
         "enum": [
@@ -4310,6 +4757,10 @@
             "type": "array",
             "title": "Services"
           },
+          "environment": {
+            "type": "string",
+            "title": "Environment"
+          },
           "owner": {
             "anyOf": [
               {
@@ -4362,6 +4813,7 @@
           "slug",
           "title",
           "services",
+          "environment",
           "owner",
           "version",
           "status",
@@ -4401,6 +4853,10 @@
             },
             "type": "array",
             "title": "Services"
+          },
+          "environment": {
+            "type": "string",
+            "title": "Environment"
           },
           "owner": {
             "anyOf": [
@@ -4443,6 +4899,7 @@
           "slug",
           "title",
           "services",
+          "environment",
           "owner",
           "version",
           "status",
@@ -5142,6 +5599,108 @@
           "investigating"
         ],
         "title": "TopologyNode"
+      },
+      "UserItem": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email"
+          },
+          "display_name": {
+            "type": "string",
+            "title": "Display Name"
+          },
+          "status": {
+            "$ref": "#/components/schemas/UserStatus"
+          },
+          "roles": {
+            "items": {
+              "$ref": "#/components/schemas/Role"
+            },
+            "type": "array",
+            "title": "Roles",
+            "description": "Realm roles from the user's latest sign-in"
+          },
+          "permissions": {
+            "items": {
+              "$ref": "#/components/schemas/Permission"
+            },
+            "type": "array",
+            "title": "Permissions",
+            "description": "What those roles allow in OpsPilot"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At",
+            "description": "First sign-in"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "email",
+          "display_name",
+          "status",
+          "roles",
+          "permissions",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "UserItem"
+      },
+      "UserPage": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/UserItem"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "next_cursor"
+        ],
+        "title": "UserPage"
+      },
+      "UserStatus": {
+        "type": "string",
+        "enum": [
+          "active",
+          "disabled"
+        ],
+        "title": "UserStatus"
       },
       "ValidationError": {
         "properties": {

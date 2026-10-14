@@ -291,6 +291,9 @@ async def test_a_bad_release_is_investigated_and_a_rollback_proposed(
     assert all(r.prompt_version == PROMPT_VERSION for r in data["runs"])
     assert "incident.remediation_proposed" in data["events"]
     assert data["events"][-1] == "incident.investigation_finished"
+    # One evidence event per node that found something, never per evidence row.
+    agents = {e["agent"] for e in data["investigation"].state["evidence"]}
+    assert data["events"].count("incident.evidence_collected") == len(agents) >= 3
     result = data["investigation"].result
     assert result["hypotheses"][0]["supporting_evidence"] == ["E3", "E6"]
     assert result["manual_review"] is False

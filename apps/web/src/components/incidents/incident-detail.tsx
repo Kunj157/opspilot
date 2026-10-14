@@ -106,7 +106,7 @@ export function IncidentDetail({
     queryClient.setQueryData<Event[]>(eventsKey, (current = []) =>
       current.some((e) => e.sequence === event.sequence) ? current : [...current, event as Event],
     );
-    if (/^incident\.(agent_update|remediation_\w+|investigation_finished|verification_\w+)$/.test(event.event_type)) {
+    if (/^incident\.(agent_update|evidence_collected|investigation_\w+|remediation_\w+|verification_\w+)$/.test(event.event_type)) {
       void queryClient.invalidateQueries({ queryKey: investigationKeys(incidentId).all });
     }
   });

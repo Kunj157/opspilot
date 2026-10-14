@@ -4,6 +4,8 @@ import uuid
 from contextvars import ContextVar
 
 import structlog
+from opentelemetry import context as otel_context
+from opentelemetry import propagate, trace
 from starlette.datastructures import MutableHeaders
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
@@ -14,6 +16,32 @@ logger = structlog.get_logger()
 
 current_request_id: ContextVar[str | None] = ContextVar("current_request_id", default=None)
 current_client_ip: ContextVar[str | None] = ContextVar("current_client_ip", default=None)
+
+
+def _trace_context(scope: Scope) -> tuple[dict[str, str], otel_context.Context | None]:
+    """Trace and span IDs for the log context, and a context to attach, if any.
+
+    An active span (OpenTelemetry instrumentation in front of this middleware)
+    wins. Otherwise the W3C `traceparent` header is parsed by the configured
+    propagator; its span ID is the caller's span, the parent of this request.
+    Malformed headers are ignored.
+    """
+    span_context = trace.get_current_span().get_span_context()
+    extracted: otel_context.Context | None = None
+    if not span_context.is_valid:
+        carrier = {
+            name.decode("latin-1").lower(): value.decode("latin-1")
+            for name, value in scope.get("headers", [])
+        }
+        extracted = propagate.extract(carrier)
+        span_context = trace.get_current_span(extracted).get_span_context()
+        if not span_context.is_valid:
+            return {}, None
+    ids = {
+        "trace_id": trace.format_trace_id(span_context.trace_id),
+        "span_id": trace.format_span_id(span_context.span_id),
+    }
+    return ids, extracted
 
 
 def _request_id_from(scope: Scope) -> str:
@@ -44,7 +72,10 @@ class RequestContextMiddleware:
 
         request_id = _request_id_from(scope)
         structlog.contextvars.clear_contextvars()
-        structlog.contextvars.bind_contextvars(request_id=request_id)
+        trace_ids, extracted = _trace_context(scope)
+        structlog.contextvars.bind_contextvars(request_id=request_id, **trace_ids)
+        # Downstream calls (published events) continue the caller's trace.
+        otel_token = otel_context.attach(extracted) if extracted is not None else None
         client = scope.get("client")
         request_token = current_request_id.set(request_id)
         ip_token = current_client_ip.set(client[0] if client else None)
@@ -69,5 +100,7 @@ class RequestContextMiddleware:
                 duration_ms=round((time.perf_counter() - started) * 1000, 2),
             )
             structlog.contextvars.clear_contextvars()
+            if otel_token is not None:
+                otel_context.detach(otel_token)
             current_request_id.reset(request_token)
             current_client_ip.reset(ip_token)

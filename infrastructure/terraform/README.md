@@ -1,19 +1,22 @@
 # OpsPilot on AWS (Terraform)
 
 Everything an environment needs, created from code with no console steps:
-network, EKS, PostgreSQL, Redis, container registry, buckets, secrets, DNS and
-certificate, alerting, the CI deploy role, and cost controls.
+network, EKS with Karpenter, PostgreSQL, Redis, container registry, buckets,
+secrets, DNS and certificate, alerting, the CI deploy role, and cost controls.
 
 ```
 bootstrap/                 state bucket (once per AWS account, local state)
 modules/                   network, eks, rds, redis, ecr, s3, secrets, iam, dns, observability
+modules/irsa/              one IAM role for named Kubernetes service accounts
+modules/karpenter/         node autoscaling: IAM, interruption queue, chart, default NodePool
 modules/environment/       one environment composed from the modules, plus budgets and schedules
 environments/<name>/       development, staging, production: separate state and settings
 ```
 
 ## Create an environment
 
-Requires Terraform ≥ 1.10 and AWS credentials for the target account.
+Requires Terraform ≥ 1.10, the AWS CLI (the Helm provider signs in with
+`aws eks get-token`), and AWS credentials for the target account.
 
 ```bash
 # 1. Once per account: the encrypted, versioned state bucket.
@@ -55,13 +58,38 @@ database, takes a final snapshot, and keeps the state bucket.
 and module. Checkov exceptions are justified next to the resource they
 apply to.
 
+## Capacity
+
+The managed node group is a small, fixed `system` group (on-demand) that runs
+the add-ons, Karpenter included. Every other pod is placed on nodes that
+Karpenter launches for it:
+
+- One `EC2NodeClass` (private subnets, the cluster security group that the
+  databases trust, IMDSv2 only, encrypted gp3 disk) and one `default`
+  `NodePool` (amd64, the architecture the images are built for; current
+  generation c/m/r/t families; nodes replaced every 30 days).
+- Development and staging allow Spot with on-demand fallback; production is
+  on-demand only. Spot interruption, rebalance, and health events reach
+  Karpenter through an SQS queue, so nodes are drained before AWS reclaims
+  them.
+- Idle or underused nodes are consolidated after one minute, at most 10 %
+  of nodes at a time. A per-environment CPU limit (8 / 16 / 48 vCPU) caps
+  spend.
+- The controller role (IRSA) can only launch, tag, and terminate instances
+  tagged for its own cluster, and pass only the Karpenter node role.
+
+Chart versions are pinned in `modules/karpenter/variables.tf`.
+
 ## Cost controls
 
-- Small instances outside production: Graviton `t4g` nodes on Spot, and
-  `db.t4g.micro` / `cache.t4g.micro`.
+- Small instances outside production: a Graviton `t4g` system node,
+  Spot application nodes, and `db.t4g.micro` / `cache.t4g.micro`.
 - One NAT gateway in development and staging, one per zone in production.
-- Development and staging nodes scale to zero at 20:00 and back up at 07:00
-  on weekdays (Europe/Berlin).
+- Application nodes follow load: Karpenter removes empty nodes and packs
+  pods onto cheaper ones. The old clock-based scale-to-zero of the node
+  group (`office_hours`) is off wherever Karpenter runs, because stopping
+  the system group would stop Karpenter and strand its nodes; it remains
+  available for a cluster without Karpenter.
 - An AWS Budget per environment alerts at 80 % of actual and 100 % of
   forecast spend.
 
@@ -71,9 +99,9 @@ the AWS Pricing Calculator before applying.
 
 | Environment | Main items | Estimate | Budget |
 |---|---|---|---|
-| development | EKS control plane, 2 × t4g.medium Spot in office hours, 1 NAT, db.t4g.micro, cache.t4g.micro | ≈ $160 | $250 |
-| staging | as development with t4g.large nodes and db.t4g.small | ≈ $230 | $400 |
-| production | EKS, 3 × m7g.large, 3 NAT, Multi-AZ db.m7g.large, Redis with a replica | ≈ $700 | $1,500 |
+| development | EKS control plane, 1 × t4g.medium system node, ≈ 2 small Spot application nodes, 1 NAT, db.t4g.micro, cache.t4g.micro | ≈ $190 | $250 |
+| staging | as development with 2 system nodes and db.t4g.small | ≈ $250 | $400 |
+| production | EKS, 2 × m7g.large system nodes, ≈ 3 on-demand application nodes, 3 NAT, Multi-AZ db.m7g.large, Redis with a replica | ≈ $750 | $1,500 |
 
 The EKS control plane ($0.10/h) and NAT gateways dominate small
 environments. Destroy development when it is not in use.
