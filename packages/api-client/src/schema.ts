@@ -510,7 +510,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Search Runbooks */
+        /**
+         * Search Runbooks
+         * @description Runbooks for the service (or generic) and the environment (or all), best first.
+         */
         get: operations["search_runbooks_api_v1_runbooks_search_get"];
         put?: never;
         post?: never;
@@ -1497,6 +1500,8 @@ export interface components {
             title: string;
             /** Services */
             services: string[];
+            /** Environment */
+            environment: string;
             /** Owner */
             owner: string | null;
             /** Version */
@@ -1532,6 +1537,8 @@ export interface components {
             title: string;
             /** Services */
             services: string[];
+            /** Environment */
+            environment: string;
             /** Owner */
             owner: string | null;
             /** Version */
@@ -2989,6 +2996,7 @@ export interface operations {
             query: {
                 q: string;
                 service?: string | null;
+                environment?: string | null;
                 limit?: number;
             };
             header?: never;

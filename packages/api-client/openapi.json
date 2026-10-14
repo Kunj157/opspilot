@@ -2026,6 +2026,7 @@
           "runbooks"
         ],
         "summary": "Search Runbooks",
+        "description": "Runbooks for the service (or generic) and the environment (or all), best first.",
         "operationId": "search_runbooks_api_v1_runbooks_search_get",
         "security": [
           {
@@ -2059,6 +2060,23 @@
                 }
               ],
               "title": "Service"
+            }
+          },
+          {
+            "name": "environment",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 32
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Environment"
             }
           },
           {
@@ -4623,6 +4641,10 @@
             "type": "array",
             "title": "Services"
           },
+          "environment": {
+            "type": "string",
+            "title": "Environment"
+          },
           "owner": {
             "anyOf": [
               {
@@ -4675,6 +4697,7 @@
           "slug",
           "title",
           "services",
+          "environment",
           "owner",
           "version",
           "status",
@@ -4714,6 +4737,10 @@
             },
             "type": "array",
             "title": "Services"
+          },
+          "environment": {
+            "type": "string",
+            "title": "Environment"
           },
           "owner": {
             "anyOf": [
@@ -4756,6 +4783,7 @@
           "slug",
           "title",
           "services",
+          "environment",
           "owner",
           "version",
           "status",

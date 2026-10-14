@@ -33,6 +33,8 @@ spec:
     - from:
         - podSelector:
             matchLabels: {{- include "opspilot.selector" "opspilot-web" | nindent 14 }}
+        - podSelector:
+            matchLabels: {{- include "opspilot.selector" "opspilot-smoke" | nindent 14 }}
         - namespaceSelector:
             matchLabels: { kubernetes.io/metadata.name: observability }
         - namespaceSelector:

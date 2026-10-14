@@ -38,6 +38,9 @@ class Settings(BaseSettings):
     worker_metrics_port: int | None = None
     # 0.0.0.0 in containers, so the cluster's probes and Prometheus can reach it.
     worker_metrics_host: str = "127.0.0.1"
+    # Touched while the database is reachable; the readiness probe checks its age.
+    worker_heartbeat_file: str | None = None
+    worker_heartbeat_seconds: float = 10.0
     # Queue an agent investigation for every new detector incident.
     auto_investigate: bool = True
     investigation_poll_seconds: float = 2.0
@@ -59,6 +62,17 @@ class Settings(BaseSettings):
     # When true, detector incidents are investigated from incident.created
     # events instead of the direct call (which is then skipped).
     event_driven_investigations: bool = False
+
+    # Rate limits (Redis, shared by all replicas): requests per window. Reads,
+    # mutations, and sensitive actions are counted per user; requests without a
+    # token and rejected tokens per client IP.
+    rate_limit_enabled: bool = True
+    rate_limit_window_seconds: int = 60
+    rate_limit_read: int = 1200
+    rate_limit_write: int = 300
+    rate_limit_sensitive: int = 30
+    rate_limit_anonymous: int = 300
+    rate_limit_auth_failures: int = 30
 
     readiness_timeout_seconds: float = 2.0
     sse_heartbeat_seconds: float = 15.0
