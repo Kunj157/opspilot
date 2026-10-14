@@ -36,7 +36,8 @@ jobs:
     outputs:
       tag: ${{ steps.tag.outputs.tag }}
     env:
-      IMAGE: ghcr.io/${{ github.repository_owner }}/opspilot-${{ matrix.image }}
+      # Image references must be lowercase; the owner is Kunj157.
+      IMAGE: ghcr.io/kunj157/opspilot-${{ matrix.image }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - id: tag
