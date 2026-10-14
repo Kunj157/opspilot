@@ -10,10 +10,12 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Tabs } from "@/components/ui/tabs";
 import { useToast } from "@/components/ui/toast";
+import { useNow } from "@/lib/use-now";
+
+import { inFlight, type Proposal, RemediationReview } from "./remediation-review";
 
 type Investigation = components["schemas"]["InvestigationOut"];
 type Evidence = components["schemas"]["EvidenceOut"];
-type Proposal = components["schemas"]["ProposalOut"];
 type AgentRun = components["schemas"]["AgentRunOut"];
 type Hypothesis = { description: string; confidence: number; supporting_evidence: string[] };
 
@@ -39,10 +41,15 @@ function api() {
   return createApiClient(window.location.origin);
 }
 
-function useList<T>(key: readonly unknown[], path: "evidence" | "proposals" | "agent-runs", incidentId: string, live: boolean) {
-  return useQuery({
+function useList<T>(
+  key: readonly unknown[],
+  path: "evidence" | "proposals" | "agent-runs",
+  incidentId: string,
+  live: boolean | ((items: T[] | undefined) => boolean),
+) {
+  return useQuery<T[]>({
     queryKey: key,
-    refetchInterval: live ? 4000 : false,
+    refetchInterval: (q) => ((typeof live === "function" ? live(q.state.data) : live) ? 4000 : false),
     queryFn: async ({ signal }) => {
       const { data } = await api().GET(`/api/v1/incidents/{incident_id}/${path}` as "/api/v1/incidents/{incident_id}/evidence", {
         params: { path: { incident_id: incidentId } },
@@ -52,51 +59,6 @@ function useList<T>(key: readonly unknown[], path: "evidence" | "proposals" | "a
       return data.items as T[];
     },
   });
-}
-
-function describeProposal(p: Proposal): string {
-  const target = String(p.parameters.deployment ?? "the service");
-  switch (p.action_type) {
-    case "ROLLBACK_DEPLOYMENT":
-      return `Roll back ${target} to revision ${String(p.parameters.to_revision)}`;
-    case "RESTART_DEPLOYMENT":
-      return `Restart ${target}`;
-    case "SCALE_DEPLOYMENT":
-      return `Scale ${target} to ${String(p.parameters.replicas)} replicas`;
-    case "PAUSE_ROLLOUT":
-      return `Pause the rollout of ${target}`;
-    default:
-      return "No action";
-  }
-}
-
-function ProposalCard({ proposal, refs }: { proposal: Proposal; refs: Map<string, string> }) {
-  const versions =
-    proposal.parameters.from_version && proposal.parameters.to_version
-      ? `${String(proposal.parameters.from_version)} → ${String(proposal.parameters.to_version)}`
-      : null;
-  return (
-    <section aria-label="Proposed remediation" className="rounded-card border border-accent/40 bg-accent-subtle p-4">
-      <p className="text-xs font-medium uppercase tracking-wide text-accent">Proposed remediation</p>
-      <p className="mt-2 font-medium">
-        {describeProposal(proposal)}
-        {versions && <span className="ml-2 font-mono text-sm text-fg-secondary">{versions}</span>}
-      </p>
-      <p className="mt-1 text-sm text-fg-secondary">{proposal.description}</p>
-      <p className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-fg-secondary">
-        <span>{proposal.status === "PENDING" ? "Awaiting approval by an incident commander" : proposal.status.toLowerCase()}</span>
-        <span>{proposal.risk_level} risk</span>
-        <span>
-          Cites{" "}
-          {proposal.evidence_ids.map((id) => (
-            <a key={id} href={`#evidence-${id}`} className="ml-1 font-mono text-accent hover:underline">
-              {refs.get(id) ?? "evidence"}
-            </a>
-          ))}
-        </span>
-      </p>
-    </section>
-  );
 }
 
 function EvidenceList({ evidence }: { evidence: Evidence[] }) {
@@ -139,7 +101,15 @@ function ToolCalls({ runs }: { runs: AgentRun[] }) {
 }
 
 /** The agents' findings for an incident: hypotheses, cited evidence, tool calls, proposal. */
-export function AgentInvestigation({ incidentId, canInvestigate }: { incidentId: string; canInvestigate: boolean }) {
+export function AgentInvestigation({
+  incidentId,
+  canInvestigate,
+  canApprove = false,
+}: {
+  incidentId: string;
+  canInvestigate: boolean;
+  canApprove?: boolean;
+}) {
   const keys = investigationKeys(incidentId);
   const queryClient = useQueryClient();
   const toast = useToast();
@@ -159,7 +129,9 @@ export function AgentInvestigation({ incidentId, canInvestigate }: { incidentId:
   });
   const live = ["queued", "running"].includes(investigation.data?.status ?? "");
   const evidence = useList<Evidence>(keys.evidence, "evidence", incidentId, live);
-  const proposals = useList<Proposal>(keys.proposals, "proposals", incidentId, live);
+  // Keep polling while a remediation runs; the stream also refreshes on each step.
+  const proposals = useList<Proposal>(keys.proposals, "proposals", incidentId, (items) => live || inFlight(items?.[0]));
+  const now = useNow(30_000).getTime();
   const runs = useList<AgentRun>(keys.runs, "agent-runs", incidentId, live);
 
   async function start() {
@@ -246,7 +218,15 @@ export function AgentInvestigation({ incidentId, canInvestigate }: { incidentId:
         </div>
       )}
 
-      {proposal && <ProposalCard proposal={proposal} refs={refs} />}
+      {proposal && (
+        <RemediationReview
+          proposal={proposal}
+          refs={refs}
+          canApprove={canApprove}
+          now={now}
+          onDecided={() => void queryClient.invalidateQueries({ queryKey: keys.all })}
+        />
+      )}
 
       {inv && (
         <Tabs

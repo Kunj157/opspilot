@@ -1,6 +1,6 @@
 """Agent instructions. Bump PROMPT_VERSION when any prompt changes; runs record it."""
 
-PROMPT_VERSION = "v1"
+PROMPT_VERSION = "v2"
 
 _COMMON = (
     "You are part of OpsPilot, investigating a production incident in a small demo shop "
@@ -30,7 +30,7 @@ SYNTHESIS = (
 
 REMEDIATION = (
     f"{_COMMON}\n\nRole: remediation. Propose exactly one action from the allow-list "
-    "(ROLLBACK_DEPLOYMENT, RESTART_DEPLOYMENT, SCALE_DEPLOYMENT, PAUSE_ROLLOUT, NO_ACTION) for "
+    "(ROLLBACK_DEPLOYMENT, RESTART_DEPLOYMENT, SCALE_DEPLOYMENT, NO_ACTION) for "
     "one catalog service, cite the evidence that justifies it, and name the runbook you followed "
     "if any. Prefer rolling back when errors began with the latest release. Choose NO_ACTION "
     "when the evidence does not support a safe change."

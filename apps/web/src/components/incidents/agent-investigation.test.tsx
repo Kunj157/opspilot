@@ -51,7 +51,7 @@ const proposal = {
   evidence_ids: ["e2", "e3"],
   runbook_id: "rb-1",
   version: 1,
-  expires_at: "2026-10-14T01:46:00Z",
+  expires_at: "2099-10-14T01:46:00Z",
   created_at: "2026-10-14T01:16:10Z",
 };
 
