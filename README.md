@@ -339,7 +339,7 @@ Each phase ends with a tagged release.
 | 11 | Event-driven processing | ✅ v0.11.0 |
 | 12 | Cloud infrastructure (AWS, Terraform) | ✅ v0.12.0 |
 | 13 | Containers, Kubernetes, and GitOps | ✅ v0.13.0 |
-| 14 | Production hardening | ✅ v0.14.0 |
+| 14 | Production hardening | ✅ v0.15.0 |
 | 15 | Interface redesign | ✅ v0.15.0 |
 | 16 | Launch readiness: docs, threat model, walkthrough | 🚧 in progress |
 
