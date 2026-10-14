@@ -62,6 +62,7 @@ AGENT_TOOLS: dict[str, set[str]] = {
         "get_recent_deployments",
         "get_kubernetes_rollout_status",
         "get_recent_configuration_changes",
+        "get_commit_metadata",
     },
     "runbook": {"search_runbooks", "search_similar_incidents"},
 }
@@ -249,6 +250,7 @@ class Investigator:
                 "get_recent_deployments",
                 "get_kubernetes_rollout_status",
                 "get_recent_configuration_changes",
+                "get_commit_metadata",
             )
         ]
         await self._plan_and_execute(

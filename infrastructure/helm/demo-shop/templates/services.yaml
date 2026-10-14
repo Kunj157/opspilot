@@ -30,6 +30,12 @@ spec:
         prometheus.io/scrape: "true"
         prometheus.io/port: "8080"
         prometheus.io/path: /metrics
+        # Always rendered, so a reset replaces the commit of an injected release.
+        opspilot.io/commit-sha: {{ $.Values.release.commit | quote }}
+        opspilot.io/commit-author: {{ $.Values.release.author | quote }}
+        opspilot.io/commit-message: {{ $.Values.release.message | trunc 200 | quote }}
+        opspilot.io/pull-request: {{ $.Values.release.pullRequest | quote }}
+        opspilot.io/source: {{ $.Values.release.source | quote }}
     spec:
       serviceAccountName: {{ $name }}
       terminationGracePeriodSeconds: 20

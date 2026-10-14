@@ -428,6 +428,64 @@ async def get_recent_configuration_changes(ctx: ToolContext, args: ServiceArgs) 
     )
 
 
+def _describe_commit(commit: dict[str, str]) -> str:
+    text = f"commit {commit.get('sha', 'unknown')[:12]}"
+    if commit.get("author"):
+        text += f" by {commit['author']}"
+    if commit.get("message"):
+        text += f": {commit['message'].splitlines()[0]!r}"
+    if commit.get("pull_request"):
+        text += f" ({commit['pull_request']})"
+    return text
+
+
+async def get_commit_metadata(ctx: ToolContext, args: ServiceArgs) -> ToolResult:
+    target = await _target(ctx, args.service)
+    revisions = await ctx.kube.rollout_history(target.namespace or "", target.deployment or "")
+    if not revisions:
+        raise ToolFailure(f"no rollout history for {target.slug}")
+    latest = revisions[0]
+    previous = revisions[1] if len(revisions) > 1 else None
+    if not latest.commit:
+        raise ToolFailure(
+            f"{target.slug} revision {latest.revision} has no commit metadata "
+            "(opspilot.io/commit-* pod template annotations)"
+        )
+    summary = (
+        f"{target.name} revision {latest.revision} ({latest.version}) was built from "
+        f"{_describe_commit(latest.commit)}"
+    )
+    if previous and previous.commit:
+        same = previous.commit.get("sha") == latest.commit.get("sha")
+        summary += (
+            f"; revision {previous.revision} ran the same commit (configuration-only change)"
+            if same
+            else f"; revision {previous.revision} ran {_describe_commit(previous.commit)}"
+        )
+    data = {
+        "revision": latest.revision,
+        "commit": latest.commit,
+        "previous_revision": previous.revision if previous else None,
+        "previous_commit": previous.commit if previous else None,
+    }
+    return ToolResult(
+        "get_commit_metadata",
+        True,
+        summary,
+        data,
+        EvidenceDraft(
+            "deployment",
+            "kubernetes",
+            summary,
+            f"commit annotations of deployment/{target.deployment} revisions",
+            latest.created_at,
+            ctx.now,
+            0.85,
+            data,
+        ),
+    )
+
+
 async def get_kubernetes_rollout_status(ctx: ToolContext, args: ServiceArgs) -> ToolResult:
     target = await _target(ctx, args.service)
     status = await ctx.kube.rollout_status(target.namespace or "", target.deployment or "")
@@ -642,6 +700,11 @@ TOOLS: dict[str, tuple[type[BaseModel], ToolFunction, str]] = {
         ServiceArgs,
         get_recent_configuration_changes,
         "Environment, ConfigMap, and Secret reference changes in the latest rollout",
+    ),
+    "get_commit_metadata": (
+        ServiceArgs,
+        get_commit_metadata,
+        "Commit SHA, author, message, and pull request of the latest two revisions",
     ),
     "search_runbooks": (
         RunbookArgs,

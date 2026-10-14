@@ -13,6 +13,16 @@ changeCause: ""
 # Service version reported in telemetry; a release bumps it.
 serviceVersion: "1.0.0"
 
+# Source commit of the release, as pod template annotations (opspilot.io/commit-*)
+# that OpsPilot's deployment agent reads. make deploy-local / reset-demo set the
+# repository's HEAD commit.
+release:
+  commit: ""
+  author: ""
+  message: ""
+  pullRequest: ""
+  source: https://github.com/Kunj157/opspilot
+
 resources:
   requests: { cpu: 25m, memory: 64Mi }
   limits: { cpu: 250m, memory: 192Mi }

@@ -115,6 +115,12 @@ class Kube:
                     "DB_PASSWORD": "[REDACTED]",
                 },
                 config_refs=("configmap/shop", "secret/db"),
+                commit={
+                    "sha": "9f2c1e7ab0d4c3e2f1a0b9c8d7e6f5a4b3c2d1e0",
+                    "author": "Dana Developer",
+                    "message": "Retry orders on 5xx\n\nLonger body",
+                    "pull_request": "#42",
+                },
             ),
             Revision(
                 3,
@@ -124,6 +130,7 @@ class Kube:
                 "img",
                 env={"SERVICE_VERSION": "1.0.0", "FAULT_ERROR_RATE": "0", "LOG_LEVEL": "info"},
                 config_refs=("configmap/shop",),
+                commit={"sha": "1111111111aaaa", "author": "Sam", "message": "Initial release"},
             ),
         ]
 
@@ -227,6 +234,33 @@ async def test_configuration_changes_refuse_services_outside_allowed_namespaces(
 
     assert not result.ok
     assert "not allowed" in (result.error or "")
+
+
+async def test_commit_metadata_names_the_commits_of_the_latest_two_revisions() -> None:
+    result = await run_tool(context(), "get_commit_metadata", {"service": "checkout"})
+
+    assert result.ok, result.error
+    assert result.summary == (
+        "Checkout revision 4 (1.4.2) was built from commit 9f2c1e7ab0d4 by Dana Developer: "
+        "'Retry orders on 5xx' (#42); revision 3 ran commit 1111111111aa by Sam: "
+        "'Initial release'"
+    )
+    assert result.data["commit"]["pull_request"] == "#42"
+    assert result.data["previous_commit"]["sha"] == "1111111111aaaa"
+
+
+async def test_commit_metadata_reports_missing_annotations_and_refuses_other_namespaces() -> None:
+    class Bare(Kube):
+        async def rollout_history(self, namespace: str, deployment: str) -> list[Revision]:
+            return [Revision(2, NOW, None, "1.0.0", "img")]
+
+    missing = await run_tool(context(kube=Bare()), "get_commit_metadata", {"service": "checkout"})
+    foreign = await run_tool(context(), "get_commit_metadata", {"service": "dns"})
+
+    assert missing.error == (
+        "checkout revision 2 has no commit metadata (opspilot.io/commit-* pod template annotations)"
+    )
+    assert "not allowed" in (foreign.error or "")
 
 
 async def test_rollout_status() -> None:
