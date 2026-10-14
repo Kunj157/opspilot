@@ -14,6 +14,7 @@ resource "aws_sns_topic_subscription" "email" {
 }
 
 resource "aws_cloudwatch_log_group" "application" {
+  #checkov:skip=CKV_AWS_338: retention is per environment: one year in production, shorter outside it to save cost
   name              = "/opspilot/${var.name}/application"
   retention_in_days = var.log_retention_days
   kms_key_id        = var.kms_key_arn
