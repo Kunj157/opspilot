@@ -49,6 +49,11 @@ anyone's behalf.
   same smoke test against the stable Services; a failure marks the sync
   failed in Argo CD. The smoke Jobs run from the API image as a non-root user
   with a read-only root filesystem and no service account token.
+- The event stream is optional in-cluster: `redpanda.enabled: true` in the
+  environment values adds a single-node Redpanda (development only, like
+  `devDatabases`) and points the API and worker at it
+  (`KAFKA_BOOTSTRAP_SERVERS`); set `config.EVENT_DRIVEN_INVESTIGATIONS` to
+  let the consumer queue investigations.
 - Migrations run as a Job per image between the databases and the workloads
   (sync waves).
 

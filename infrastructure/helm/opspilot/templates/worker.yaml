@@ -64,7 +64,7 @@ spec:
       annotations:
         prometheus.io/scrape: "true"
         prometheus.io/port: "9100"
-        checksum/config: {{ toJson .Values.config | sha256sum | trunc 16 }}
+        checksum/config: {{ toJson (list .Values.config .Values.redpanda.enabled) | sha256sum | trunc 16 }}
     spec:
       serviceAccountName: {{ $name }}
       # Leases and idempotency keys make a stopped worker's jobs safe to retry.
