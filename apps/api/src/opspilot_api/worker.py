@@ -109,7 +109,11 @@ async def run(settings: Settings) -> None:
         config_file=settings.kubeconfig,
     )
     llm = build_llm(
-        settings.llm_provider, settings.llm_model, settings.llm_base_url, settings.llm_api_key
+        settings.llm_provider,
+        settings.llm_model,
+        settings.llm_base_url,
+        settings.llm_api_key,
+        timeout=settings.llm_timeout_seconds,
     )
     make_context = context_factory(
         sessions,
