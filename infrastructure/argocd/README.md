@@ -30,3 +30,8 @@ Push a commit, run the script again, and Argo CD rolls it out as a canary.
 kubectl --context kind-opspilot -n opspilot get rollouts -w
 kubectl --context kind-opspilot -n argocd get application opspilot-development
 ```
+
+Verified on kind: a new commit synced, the API canary paused at 10 %, 25 %,
+and 50 % with a successful Prometheus analysis, and was promoted. A commit
+whose API image never became ready was aborted at the progress deadline, and
+the previous version kept serving.
