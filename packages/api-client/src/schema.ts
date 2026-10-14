@@ -55,6 +55,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/users": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Users
+         * @description Users of the caller's organization, newest first. Read-only: roles come from Keycloak.
+         */
+        get: operations["list_users_api_v1_users_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/users/{user_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get User
+         * @description One user of the caller's organization; another organization's user is 404.
+         */
+        get: operations["get_user_api_v1_users__user_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/audit-logs": {
         parameters: {
             query?: never;
@@ -1801,6 +1841,52 @@ export interface components {
             /** Investigating */
             investigating: boolean;
         };
+        /** UserItem */
+        UserItem: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Email */
+            email: string | null;
+            /** Display Name */
+            display_name: string;
+            status: components["schemas"]["UserStatus"];
+            /**
+             * Roles
+             * @description Realm roles from the user's latest sign-in
+             */
+            roles: components["schemas"]["Role"][];
+            /**
+             * Permissions
+             * @description What those roles allow in OpsPilot
+             */
+            permissions: components["schemas"]["Permission"][];
+            /**
+             * Created At
+             * Format: date-time
+             * @description First sign-in
+             */
+            created_at: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
+        /** UserPage */
+        UserPage: {
+            /** Items */
+            items: components["schemas"]["UserItem"][];
+            /** Next Cursor */
+            next_cursor: string | null;
+        };
+        /**
+         * UserStatus
+         * @enum {string}
+         */
+        UserStatus: "active" | "disabled";
         /** ValidationError */
         ValidationError: {
             /** Location */
@@ -1920,6 +2006,69 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["MeResponse"];
+                };
+            };
+        };
+    };
+    list_users_api_v1_users_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+                cursor?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserPage"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_user_api_v1_users__user_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                user_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserItem"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
