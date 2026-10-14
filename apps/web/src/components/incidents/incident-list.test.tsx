@@ -52,6 +52,7 @@ function incident(n: number, overrides: Record<string, unknown> = {}) {
 }
 
 let incidents: ReturnType<typeof incident>[];
+let users: { id: string; display_name: string | null; email: string | null }[] | null;
 const requests: URL[] = [];
 
 beforeEach(() => {
@@ -59,12 +60,20 @@ beforeEach(() => {
   navigation.replace.mockReset();
   requests.length = 0;
   incidents = [incident(1)];
+  users = null;
   vi.stubGlobal("EventSource", FakeEventSource);
   vi.stubGlobal(
     "fetch",
     vi.fn(async (input: Request) => {
       const url = new URL(input.url);
       requests.push(url);
+      if (url.pathname === "/api/v1/users") {
+        return users
+          ? new Response(JSON.stringify({ items: users, next_cursor: null }), {
+              headers: { "Content-Type": "application/json" },
+            })
+          : new Response(JSON.stringify({ detail: "Forbidden" }), { status: 403 });
+      }
       const body =
         url.pathname === "/api/v1/services"
           ? { items: [{ id: "svc-1", name: "Checkout" }] }
@@ -105,6 +114,24 @@ describe("IncidentList", () => {
     expect(list.searchParams.getAll("status")).toEqual([]);
     expect(list.searchParams.getAll("severity")).toEqual(["critical"]);
     expect(list.searchParams.get("assigned_user_id")).toBe("user-1");
+  });
+
+  it("names assignees from the user directory when it is readable", async () => {
+    incidents = [incident(1, { assigned_user_id: "user-2" })];
+    users = [{ id: "user-3", display_name: "Grace Hopper", email: "grace@example.com" }];
+    renderIt();
+
+    const filter = await screen.findByLabelText("Assignee");
+    expect(await within(filter).findByRole("option", { name: "Grace Hopper" })).toBeInTheDocument();
+    expect(within(filter).getByRole("option", { name: "User user-2" })).toBeInTheDocument();
+  });
+
+  it("falls back to short ids when the directory is forbidden", async () => {
+    incidents = [incident(1, { assigned_user_id: "a1b2c3d4-0000-4000-8000-000000000000" })];
+    renderIt();
+
+    const filter = await screen.findByLabelText("Assignee");
+    expect(await within(filter).findByRole("option", { name: "User a1b2c3d4" })).toBeInTheDocument();
   });
 
   it("writes a changed filter to the URL", async () => {
