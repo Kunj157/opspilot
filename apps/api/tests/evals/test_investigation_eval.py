@@ -43,7 +43,7 @@ from opspilot_api.db.models import (
     ServiceDependency,
     Severity,
 )
-from opspilot_api.kube import Revision, RolloutStatus, check_namespace
+from opspilot_api.kube import ConfigMapInfo, Revision, RolloutStatus, check_namespace
 from opspilot_api.runbooks.document import parse
 from opspilot_api.runbooks.embeddings import Embedder, build_embedder
 from opspilot_api.runbooks.ingest import ingest
@@ -134,6 +134,7 @@ class Kube:
                 d["change_cause"],
                 d["version"],
                 f"opspilot/demo-shop:{d['version']}",
+                env=d.get("env", {}),
             )
             for d in self.world.deployments.get(deployment, [])
         ]
@@ -141,6 +142,9 @@ class Kube:
     async def rollout_status(self, namespace: str, deployment: str) -> RolloutStatus:
         check_namespace(namespace, ALLOWED)
         return RolloutStatus(2, 2, 2, 2, True, [])
+
+    async def config_maps(self, namespace: str, names: list[str]) -> list[ConfigMapInfo]:
+        return []
 
 
 def scripted_model(case: dict[str, Any]) -> Callable[[type[BaseModel], str], dict[str, Any]]:

@@ -352,6 +352,82 @@ async def _errors_around(
     return before, after
 
 
+def _env_changes(before: dict[str, str], after: dict[str, str]) -> list[dict[str, Any]]:
+    changes: list[dict[str, Any]] = []
+    for name in sorted({*before, *after}):
+        old, new = before.get(name), after.get(name)
+        if old != new:
+            change = "added" if old is None else "removed" if new is None else "changed"
+            changes.append({"name": name, "change": change, "before": old, "after": new})
+    return changes
+
+
+async def get_recent_configuration_changes(ctx: ToolContext, args: ServiceArgs) -> ToolResult:
+    target = await _target(ctx, args.service)
+    namespace, deployment = target.namespace or "", target.deployment or ""
+    revisions = await ctx.kube.rollout_history(namespace, deployment)
+    if not revisions:
+        raise ToolFailure(f"no rollout history for {target.slug}")
+    latest = revisions[0]
+    previous = revisions[1] if len(revisions) > 1 else None
+    env = _env_changes(previous.env if previous else {}, latest.env) if previous else []
+    refs_added = sorted(set(latest.config_refs) - set(previous.config_refs if previous else ()))
+    refs_removed = sorted(set(previous.config_refs if previous else ()) - set(latest.config_refs))
+    # ConfigMaps can change without a new revision; Secrets are never read, only named.
+    names = [r.removeprefix("configmap/") for r in latest.config_refs if r.startswith("configmap/")]
+    since = ctx.now - timedelta(hours=24)
+    recent = [
+        cm
+        for cm in (await ctx.kube.config_maps(namespace, names) if names else [])
+        if cm.updated_at is not None and cm.updated_at >= since
+    ]
+    config_maps = [
+        {"name": cm.name, "updated_at": cm.updated_at.isoformat(), "keys": list(cm.keys)}
+        for cm in recent
+        if cm.updated_at is not None
+    ]
+    described = [
+        f"{c['name']} {c['before']} -> {c['after']}"
+        if c["change"] == "changed"
+        else f"{c['name']} {c['change']}"
+        for c in env
+    ]
+    parts = (
+        ([f"environment: {', '.join(described)}"] if described else [])
+        + ([f"now uses {', '.join(refs_added)}"] if refs_added else [])
+        + ([f"no longer uses {', '.join(refs_removed)}"] if refs_removed else [])
+        + [f"configmap {cm.name} updated {_ago(ctx.now, cm.updated_at)}" for cm in recent]
+    )
+    head = f"{target.name} revision {latest.revision}"
+    if previous:
+        head += f" vs {previous.revision}"
+    summary = f"{head}: " + ("; ".join(parts) if parts else "no configuration changes")
+    data = {
+        "revision": latest.revision,
+        "previous_revision": previous.revision if previous else None,
+        "env_changes": env,
+        "references_added": refs_added,
+        "references_removed": refs_removed,
+        "config_maps_updated": config_maps,
+    }
+    return ToolResult(
+        "get_recent_configuration_changes",
+        True,
+        summary,
+        data,
+        EvidenceDraft(
+            "configuration",
+            "kubernetes",
+            summary,
+            f"configuration of deployment/{deployment} revisions",
+            previous.created_at if previous else since,
+            ctx.now,
+            0.9,
+            data,
+        ),
+    )
+
+
 async def get_kubernetes_rollout_status(ctx: ToolContext, args: ServiceArgs) -> ToolResult:
     target = await _target(ctx, args.service)
     status = await ctx.kube.rollout_status(target.namespace or "", target.deployment or "")
@@ -561,6 +637,11 @@ TOOLS: dict[str, tuple[type[BaseModel], ToolFunction, str]] = {
         ServiceArgs,
         get_kubernetes_rollout_status,
         "Current rollout progress",
+    ),
+    "get_recent_configuration_changes": (
+        ServiceArgs,
+        get_recent_configuration_changes,
+        "Environment, ConfigMap, and Secret reference changes in the latest rollout",
     ),
     "search_runbooks": (
         RunbookArgs,

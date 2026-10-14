@@ -22,7 +22,7 @@ from opspilot_api.db.models import (
     RemediationProposal,
     Severity,
 )
-from opspilot_api.kube import Revision, RolloutStatus
+from opspilot_api.kube import ConfigMapInfo, Revision, RolloutStatus
 from opspilot_api.remediation.verification import pending, verify
 from opspilot_api.telemetry import Sample, Series, TelemetryUnavailable
 
@@ -76,6 +76,9 @@ class Kube:
 
     async def rollout_status(self, namespace: str, deployment: str) -> RolloutStatus:
         return self.status
+
+    async def config_maps(self, namespace: str, names: list[str]) -> list[ConfigMapInfo]:
+        return []
 
 
 @pytest.fixture
