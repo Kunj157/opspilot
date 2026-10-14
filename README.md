@@ -5,11 +5,10 @@ incidents in a cloud application, investigates them with AI agents and
 machine learning, proposes safe remediation, runs human-approved runbooks,
 verifies recovery, and writes the postmortem.
 
-> **Status:** v0.11.0 released. The full incident loop works on the demo, from
-> detection through agent investigation, approved rollback, verification,
-> and postmortem; an ML detector runs in shadow mode; and incident events
-> flow through Redpanda with idempotent consumers. Phase 12, cloud
-> infrastructure, is next. See the [roadmap](#roadmap).
+> **Status:** v0.12.0 released. The full incident loop works on the demo, an
+> ML detector runs in shadow mode, incident events flow through Redpanda,
+> and Terraform describes complete AWS environments. Phase 13, containers,
+> Kubernetes, and GitOps, is next. See the [roadmap](#roadmap).
 
 ## What it does today
 
@@ -85,6 +84,13 @@ verifies recovery, and writes the postmortem.
   incidents can be investigated from `incident.created.v1` events instead
   of a direct call (`make events-up`, `KAFKA_BOOTSTRAP_SERVERS`,
   `EVENT_DRIVEN_INVESTIGATIONS`).
+- **Cloud infrastructure:** Terraform modules for the VPC, EKS, RDS
+  PostgreSQL, ElastiCache Redis, ECR, S3, Secrets Manager, Route 53 and ACM,
+  alerting, and a GitHub OIDC deploy role, composed into development,
+  staging, and production with encrypted remote state, budgets, and
+  off-hours scaling. Static checks run in CI (fmt, validate, tflint,
+  checkov). Not applied yet: this project has no AWS account configured.
+  See [`infrastructure/terraform`](infrastructure/terraform/README.md).
 - **Design system:** Graphite & Iris tokens with contrast checked in CI,
   shared primitives (buttons, tilting cards, tabs, drawer, toasts), and
   Lighthouse budgets on primary pages.
@@ -113,7 +119,8 @@ verifies recovery, and writes the postmortem.
 | Agents | LangGraph, Ollama (local, default) or the Anthropic API |
 | ML (`ml/`) | pandas, scikit-learn, MLflow |
 | Events | Redpanda (Kafka API), aiokafka |
-| Planned | Terraform on AWS, Argo CD |
+| Cloud | Terraform (AWS provider 6), tflint, checkov |
+| Planned | Argo CD |
 
 Design notes and decisions live in [`docs/`](docs): the
 [architecture overview](docs/architecture/overview.md), [SLOs](docs/architecture/slos.md),
@@ -137,8 +144,8 @@ Each phase ends with a tagged release.
 | 9 | Approval and safe remediation | ✅ v0.9.0 |
 | 10 | ML anomaly detection | ✅ v0.10.0 |
 | 11 | Event-driven processing | ✅ v0.11.0 |
-| 12 | Cloud infrastructure (AWS, Terraform) | 🚧 next |
-| 13 | Containers, Kubernetes, and GitOps | planned |
+| 12 | Cloud infrastructure (AWS, Terraform) | ✅ v0.12.0 |
+| 13 | Containers, Kubernetes, and GitOps | 🚧 next |
 
 ## Local development
 
