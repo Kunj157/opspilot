@@ -1,0 +1,118 @@
+# OpsPilot alerting and recording rules (Prometheus rule-file format).
+#
+# One source for two deployments: observability/k8s mounts this file into
+# Prometheus, and the Helm chart ships an identical copy as a PrometheusRule
+# (infrastructure/helm/opspilot/files/prometheus-rules.yaml; CI checks they
+# match). Unit tests: observability/k8s/rules/tests (`make test-alerts`).
+# Every alert links to its section in docs/operations/alerts.md.
+#
+# Severities: `page` wakes someone up; `ticket` is handled in working hours.
+groups:
+  - name: opspilot-slo-recording
+    interval: 30s
+    rules:
+      # SLO 1, API availability: share of 5xx responses.
+      - record: slo:api_errors:ratio_rate5m
+        expr: |
+          sum(rate(http_requests_total{service="opspilot-api",status=~"5.."}[5m]))
+            / sum(rate(http_requests_total{service="opspilot-api"}[5m]))
+      - record: slo:api_errors:ratio_rate30m
+        expr: |
+          sum(rate(http_requests_total{service="opspilot-api",status=~"5.."}[30m]))
+            / sum(rate(http_requests_total{service="opspilot-api"}[30m]))
+      - record: slo:api_errors:ratio_rate1h
+        expr: |
+          sum(rate(http_requests_total{service="opspilot-api",status=~"5.."}[1h]))
+            / sum(rate(http_requests_total{service="opspilot-api"}[1h]))
+      - record: slo:api_errors:ratio_rate6h
+        expr: |
+          sum(rate(http_requests_total{service="opspilot-api",status=~"5.."}[6h]))
+            / sum(rate(http_requests_total{service="opspilot-api"}[6h]))
+      # SLO 2, API latency: share of non-streaming requests slower than 500 ms.
+      - record: slo:api_slow_requests:ratio_rate5m
+        expr: |
+          1 - sum(rate(http_request_duration_seconds_bucket{service="opspilot-api",route!~".*/stream",le="0.5"}[5m]))
+            / sum(rate(http_request_duration_seconds_count{service="opspilot-api",route!~".*/stream"}[5m]))
+      - record: slo:api_slow_requests:ratio_rate30m
+        expr: |
+          1 - sum(rate(http_request_duration_seconds_bucket{service="opspilot-api",route!~".*/stream",le="0.5"}[30m]))
+            / sum(rate(http_request_duration_seconds_count{service="opspilot-api",route!~".*/stream"}[30m]))
+      - record: slo:api_slow_requests:ratio_rate1h
+        expr: |
+          1 - sum(rate(http_request_duration_seconds_bucket{service="opspilot-api",route!~".*/stream",le="0.5"}[1h]))
+            / sum(rate(http_request_duration_seconds_count{service="opspilot-api",route!~".*/stream"}[1h]))
+      - record: slo:api_slow_requests:ratio_rate6h
+        expr: |
+          1 - sum(rate(http_request_duration_seconds_bucket{service="opspilot-api",route!~".*/stream",le="0.5"}[6h]))
+            / sum(rate(http_request_duration_seconds_count{service="opspilot-api",route!~".*/stream"}[6h]))
+      # SLO 7, event processing: share of events not processed within 60 s.
+      - record: slo:event_slow:ratio_rate5m
+        expr: |
+          1 - sum(rate(opspilot_event_processing_delay_seconds_bucket{le="60"}[5m]))
+            / sum(rate(opspilot_event_processing_delay_seconds_count[5m]))
+      - record: slo:event_slow:ratio_rate1h
+        expr: |
+          1 - sum(rate(opspilot_event_processing_delay_seconds_bucket{le="60"}[1h]))
+            / sum(rate(opspilot_event_processing_delay_seconds_count[1h]))
+
+  # Multi-window burn-rate alerts (docs/architecture/slos.md). Error budgets:
+  # availability 0.5 %, latency 5 %, event processing 1 %.
+  - name: opspilot-slo-burn
+    rules:
+      - alert: OpsPilotAPIAvailabilityFastBurn
+        expr: |
+          slo:api_errors:ratio_rate1h > (14.4 * 0.005)
+            and slo:api_errors:ratio_rate5m > (14.4 * 0.005)
+        for: 2m
+        labels: { severity: page, slo: api-availability }
+        annotations:
+          summary: API availability error budget burning 14x too fast
+          description: "{{ $value | humanizePercentage }} of API requests fail (5xx); at this rate the 30-day budget is gone in about 2 days."
+          runbook_url: https://github.com/Kunj157/opspilot/blob/dev/docs/operations/alerts.md#opspilotapiavailabilityfastburn
+      - alert: OpsPilotAPIAvailabilitySlowBurn
+        expr: |
+          slo:api_errors:ratio_rate6h > (6 * 0.005)
+            and slo:api_errors:ratio_rate30m > (6 * 0.005)
+        for: 15m
+        labels: { severity: ticket, slo: api-availability }
+        annotations:
+          summary: API availability error budget burning 6x too fast
+          description: "{{ $value | humanizePercentage }} of API requests failed over 6 h."
+          runbook_url: https://github.com/Kunj157/opspilot/blob/dev/docs/operations/alerts.md#opspilotapiavailabilityslowburn
+      - alert: OpsPilotAPILatencyFastBurn
+        expr: |
+          slo:api_slow_requests:ratio_rate1h > (14.4 * 0.05)
+            and slo:api_slow_requests:ratio_rate5m > (14.4 * 0.05)
+        for: 2m
+        labels: { severity: page, slo: api-latency }
+        annotations:
+          summary: API latency error budget burning 14x too fast
+          description: "{{ $value | humanizePercentage }} of API requests take longer than 500 ms."
+          runbook_url: https://github.com/Kunj157/opspilot/blob/dev/docs/operations/alerts.md#opspilotapilatencyfastburn
+      - alert: OpsPilotAPILatencySlowBurn
+        expr: |
+          slo:api_slow_requests:ratio_rate6h > (6 * 0.05)
+            and slo:api_slow_requests:ratio_rate30m > (6 * 0.05)
+        for: 15m
+        labels: { severity: ticket, slo: api-latency }
+        annotations:
+          summary: API latency error budget burning 6x too fast
+          description: "{{ $value | humanizePercentage }} of API requests took longer than 500 ms over 6 h."
+          runbook_url: https://github.com/Kunj157/opspilot/blob/dev/docs/operations/alerts.md#opspilotapilatencyslowburn
+      - alert: OpsPilotEventProcessingBudgetBurn
+        expr: |
+          slo:event_slow:ratio_rate1h > (14.4 * 0.01)
+            and slo:event_slow:ratio_rate5m > (14.4 * 0.01)
+        for: 5m
+        labels: { severity: page, slo: event-processing }
+        annotations:
+          summary: Events are not processed within 60 s
+          description: "{{ $value | humanizePercentage }} of events took longer than 60 s to process."
+          runbook_url: https://github.com/Kunj157/opspilot/blob/dev/docs/operations/alerts.md#opspiloteventprocessingbudgetburn
+      - alert: OpsPilotRemediationWithoutApproval
+        expr: sum(increase(opspilot_remediation_blocked_total{reason="unapproved"}[10m])) > 0
+        labels: { severity: page, slo: remediation-safety }
+        annotations:
+          summary: A remediation reached the executor without an approval
+          description: The executor's recheck refused it, but something queued an unapproved action. Investigate before anything else runs.
+          runbook_url: https://github.com/Kunj157/opspilot/blob/dev/docs/operations/alerts.md#opspilotremediationwithoutapproval
