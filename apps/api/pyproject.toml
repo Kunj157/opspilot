@@ -1,6 +1,6 @@
 [project]
 name = "opspilot-api"
-version = "0.9.0"
+version = "0.10.0"
 description = "OpsPilot API service"
 
 authors = [
@@ -15,6 +15,7 @@ dependencies = [
     "httpx>=0.28.1",
     "httpx2>=2.13.1",
     "kubernetes>=37.0.1",
+    "opspilot-ml",
     "langgraph>=1.2.15",
     "pgvector>=0.5.1",
     "prometheus-client>=0.26.0",
@@ -39,6 +40,7 @@ build-backend = "uv_build"
 dev = [
     "asgi-lifespan>=2.1.0",
     "mypy>=2.4.0",
+    "pandas-stubs>=3.0.5.260914",
     "pytest>=9.1.1",
     "pytest-asyncio>=1.4.0",
     "pytest-cov>=7.1.0",
@@ -74,3 +76,6 @@ testpaths = ["tests"]
 markers = ["integration: needs Docker (Testcontainers)"]
 addopts = "-ra --strict-markers"
 filterwarnings = ["error"]
+
+[tool.uv.sources]
+opspilot-ml = { path = "../../ml", editable = true }

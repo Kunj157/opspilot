@@ -24,6 +24,7 @@ class Permission(enum.StrEnum):
     VIEW_AUDIT_LOGS = "view_audit_logs"
     MANAGE_SERVICES = "manage_services"
     MANAGE_INCIDENTS = "manage_incidents"
+    MANAGE_MODELS = "manage_models"
 
 
 _VIEWER = {Permission.VIEW_SERVICES, Permission.VIEW_INCIDENTS}
