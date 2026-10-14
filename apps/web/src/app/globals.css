@@ -189,6 +189,17 @@ body {
   animation: text-shimmer 2.4s linear infinite;
 }
 
+.text-shimmer-accent {
+  background-image: linear-gradient(
+    100deg,
+    var(--accent) 0%,
+    var(--accent) 40%,
+    var(--accent-hover) 50%,
+    var(--accent) 60%,
+    var(--accent) 100%
+  );
+}
+
 @keyframes text-shimmer {
   from {
     background-position: 100% 0;

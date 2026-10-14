@@ -142,7 +142,7 @@ export function IncidentDetail({
           <h1 className="w-fit max-w-full text-3xl font-semibold tracking-tight break-words sm:text-4xl">{i.title}</h1>
         </ViewTransition>
         {i.description && <p className="max-w-2xl text-fg-secondary">{i.description}</p>}
-        <dl className="grid grid-cols-2 gap-5 rounded-card border border-border bg-surface-2 p-5 shadow-2 lg:grid-cols-4">
+        <dl className="surface-raised grid grid-cols-2 gap-5 rounded-card border border-border p-5 lg:grid-cols-4">
           <Fact label="Service">
             {i.service_id ? (
               <Link href={`/services/${i.service_id}`} className="text-accent hover:underline">
@@ -184,11 +184,11 @@ export function IncidentDetail({
       )}
 
       <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
-        <section aria-labelledby="timeline-heading" className="rounded-card border border-border bg-surface-1 shadow-3">
+        <section aria-labelledby="timeline-heading" className="rounded-card border border-border bg-surface-1 shadow-edge">
           <h2 id="timeline-heading" className="border-b border-border px-5 py-4 text-sm font-medium text-fg-secondary">
             Timeline
           </h2>
-          {events.isPending && <div aria-hidden className="m-5 h-24 animate-pulse rounded-card bg-surface-2" />}
+          {events.isPending && <div aria-hidden className="skeleton m-5 h-24 rounded-card" />}
           {events.isError && (
             <p role="alert" className="px-5 py-8 text-center text-sm text-critical">
               The timeline could not be loaded.

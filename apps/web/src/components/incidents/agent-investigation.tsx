@@ -7,6 +7,8 @@ import Link from "next/link";
 import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
+import { BorderTrail } from "@/components/motion/border-trail";
+import { TextShimmer } from "@/components/motion/text-shimmer";
 import { Card } from "@/components/ui/card";
 import { Tabs } from "@/components/ui/tabs";
 import { useToast } from "@/components/ui/toast";
@@ -154,15 +156,23 @@ export function AgentInvestigation({
   const canStart = canInvestigate && !live;
 
   return (
-    <Card as="section" aria-label="Agent investigation" className="flex flex-col gap-4 p-5">
+    <Card as="section" aria-label="Agent investigation" className="relative flex flex-col gap-4 p-5">
+      {/* While agents work, a light travels around the panel (static under reduced motion). */}
+      {live && <BorderTrail />}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h2 className="text-sm font-medium text-fg-secondary">Agent investigation</h2>
         <div className="flex items-center gap-3">
           {inv && (
             <span className={`inline-flex items-center gap-1.5 text-xs ${live ? "text-accent" : "text-fg-secondary"}`}>
               <span aria-hidden className={`size-1.5 rounded-full ${live ? "animate-pulse bg-accent" : "bg-fg-muted"}`} />
-              {STATUS[inv.status] ?? inv.status}
-              {inv.status === "running" && inv.current_node ? ` · ${inv.current_node}` : ""}
+              {live ? (
+                <TextShimmer className="text-shimmer-accent">
+                  {STATUS[inv.status] ?? inv.status}
+                  {inv.status === "running" && inv.current_node ? ` · ${inv.current_node}` : ""}
+                </TextShimmer>
+              ) : (
+                (STATUS[inv.status] ?? inv.status)
+              )}
             </span>
           )}
           {canStart && (
@@ -173,7 +183,7 @@ export function AgentInvestigation({
         </div>
       </div>
 
-      {investigation.isPending && <div aria-hidden className="h-24 animate-pulse rounded-sm bg-surface-3" />}
+      {investigation.isPending && <div aria-hidden className="skeleton h-24 rounded-sm" />}
       {investigation.isSuccess && !inv && (
         <p className="text-sm text-fg-muted">No agent has investigated this incident yet.</p>
       )}
