@@ -5,12 +5,10 @@ incidents in a cloud application, investigates them with AI agents and
 machine learning, proposes safe remediation, runs human-approved runbooks,
 verifies recovery, and writes the postmortem.
 
-> **Status:** v0.8.0 released: foundation, authentication and audit, service
-> catalog and incident management, the modern UI with a 3D service topology,
-> an instrumented demo shop on Kubernetes with full telemetry, automatic
-> incident detection, runbook retrieval, and multi-agent investigation with
-> evidence-backed remediation proposals and drafted postmortems. Phase 9,
-> approval and safe remediation, is next. See the [roadmap](#roadmap).
+> **Status:** v0.9.0 released. The full incident loop works on the demo: a
+> faulty release is detected, investigated by agents, rolled back after a
+> human approves, verified, resolved, and written up as a postmortem.
+> Phase 10, ML anomaly detection, is next. See the [roadmap](#roadmap).
 
 ## What it does today
 
@@ -57,6 +55,15 @@ verifies recovery, and writes the postmortem.
   worker restart. Measured on the demo: a faulty checkout release is
   detected in about 60 s and investigated in about 10 s, with a correct
   rollback proposal.
+- **Approval and safe remediation:** an incident commander approves or
+  rejects the exact proposal version they reviewed. The worker then runs it
+  once (idempotency key, row locks, leases) through a Kubernetes adapter
+  with only three actions: roll back, restart, and scale within bounds, in
+  allow-listed namespaces. Everything is checked again just before acting.
+  Recovery is then verified: the rollout completes, and the error rate and
+  p95 over a 3-minute window are compared with the pre-incident baseline.
+  The incident is resolved, or the investigation reopens. Measured on the
+  demo: approval to rollback in 1 s, resolved 3 min 20 s later.
 - **Postmortems:** resolved incidents get a drafted, blameless postmortem
   whose findings are labelled confirmed, strong or weak hypothesis, or
   unknown, each citing its evidence.
@@ -107,8 +114,8 @@ Each phase ends with a tagged release.
 | 6 | Detection engine | ✅ v0.6.0 |
 | 7 | Runbook retrieval (RAG) | ✅ v0.7.0 |
 | 8 | Multi-agent investigation | ✅ v0.8.0 |
-| 9 | Approval and safe remediation | 🚧 next |
-| 10 | ML anomaly detection | planned |
+| 9 | Approval and safe remediation | ✅ v0.9.0 |
+| 10 | ML anomaly detection | 🚧 next |
 | 11 | Event-driven processing | planned |
 | 12 | Cloud infrastructure (AWS, Terraform) | planned |
 | 13 | Containers, Kubernetes, and GitOps | planned |
