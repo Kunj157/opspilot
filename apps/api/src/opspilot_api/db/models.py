@@ -603,6 +603,30 @@ class ModelVersion(UUIDPrimaryKey, Timestamps, Base):
     promoted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
+class EventRelayCheckpoint(Base):
+    """How far the outbox relay has published the incident timeline."""
+
+    __tablename__ = "event_relay_checkpoints"
+
+    name: Mapped[str] = mapped_column(String(100), primary_key=True)
+    last_sequence: Mapped[int] = mapped_column(BigInteger)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class ProcessedEvent(Base):
+    """Idempotency: an event a consumer has handled, recorded with the handler's effects."""
+
+    __tablename__ = "processed_events"
+
+    consumer: Mapped[str] = mapped_column(String(100), primary_key=True)
+    event_id: Mapped[uuid.UUID] = mapped_column(primary_key=True)
+    topic: Mapped[str] = mapped_column(String(200))
+    outcome: Mapped[str] = mapped_column(String(50))
+    processed_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+
 class Postmortem(UUIDPrimaryKey, Timestamps, OrganizationScoped, Base):
     """A drafted postmortem for a resolved incident; regenerated on request."""
 
