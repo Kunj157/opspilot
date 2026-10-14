@@ -5,6 +5,7 @@ from collections.abc import AsyncIterator, Callable
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
+import httpx
 import pytest
 import sqlalchemy as sa
 from pydantic import BaseModel
@@ -16,7 +17,7 @@ from sqlalchemy.ext.asyncio import (
 )
 
 from opspilot_api.agents.investigation import Investigator, Limits
-from opspilot_api.agents.llm import LLMError, ScriptedLLM
+from opspilot_api.agents.llm import LLMError, OllamaLLM, ScriptedLLM
 from opspilot_api.agents.prompts import PROMPT_VERSION
 from opspilot_api.agents.queue import enqueue
 from opspilot_api.agents.schemas import ProposalDraft, Synthesis, ToolPlan, TriageOutput
@@ -212,7 +213,8 @@ def investigator(
             incident_id=incident_id,
         )
 
-    return Investigator(sessions, ScriptedLLM(model), make_context, limits=limits)
+    llm = model if isinstance(model, OllamaLLM) else ScriptedLLM(model)
+    return Investigator(sessions, llm, make_context, limits=limits)
 
 
 async def load(
@@ -311,6 +313,31 @@ async def test_model_failure_keeps_evidence_and_proposes_nothing(
     assert data["proposals"] == []
     assert data["investigation"].result["manual_review"] is True
     assert {r.status for r in data["runs"] if r.agent_name == "synthesis"} == {"fallback"}
+
+
+async def test_model_timeouts_are_recorded_and_the_run_ends_partial(
+    sessions: async_sessionmaker[AsyncSession],
+) -> None:
+    investigation_id = await setup(sessions)
+    calls = {"n": 0}
+
+    def hangs(request: httpx.Request) -> httpx.Response:
+        calls["n"] += 1
+        raise httpx.ReadTimeout("timed out", request=request)
+
+    model = OllamaLLM("http://ollama:11434", "m", transport=httpx.MockTransport(hangs), backoff=0)
+    status = await investigator(sessions, model).run(investigation_id)
+    await model.aclose()
+
+    data = await load(sessions, investigation_id)
+    assert status is InvestigationStatus.PARTIAL
+    assert data["runs"]
+    assert {r.status for r in data["runs"]} == {"fallback"}
+    assert {r.error_code for r in data["runs"]} == {"ollama unavailable: ReadTimeout"}
+    assert calls["n"] == 3 * len(data["runs"])  # every call retried three times
+    assert data["evidence"], "fixed tool plans still collect evidence"
+    assert data["proposals"] == []
+    assert data["investigation"].result["manual_review"] is True
 
 
 async def test_ungrounded_hypotheses_are_dropped_and_the_run_stops_at_max_rounds(
