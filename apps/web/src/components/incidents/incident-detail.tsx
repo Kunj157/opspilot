@@ -14,6 +14,7 @@ import { type StreamedEvent, useIncidentStream } from "@/lib/use-incident-stream
 import { SeverityBadge, StatusBadge } from "./badges";
 import { AgentInvestigation, investigationKeys } from "./agent-investigation";
 import { DetectionEvidence } from "./detection-evidence";
+import { PostmortemView } from "./postmortem-view";
 import { IncidentActions } from "./incident-actions";
 import { INCIDENTS_KEY } from "./incident-list";
 import { IncidentTimeline } from "./incident-timeline";
@@ -160,6 +161,8 @@ export function IncidentDetail({ permissions }: { permissions: { manage: boolean
           onConflict={() => void queryClient.invalidateQueries({ queryKey: incidentKey })}
         />
       </header>
+
+      {i.status === "RESOLVED" && <PostmortemView incidentId={i.id} canManage={permissions.manage} />}
 
       {i.source === "detector" && (
         <DetectionEvidence

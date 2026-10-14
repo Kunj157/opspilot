@@ -38,3 +38,19 @@ test.describe("as a viewer", () => {
     await expect(panel.getByRole("button")).toHaveCount(0);
   });
 });
+
+test("a resolved incident offers a postmortem draft", async ({ page, baseURL }) => {
+  const incident = await createIncident(page, baseURL!, `Postmortem ${Date.now()}`);
+  const url = `/api/v1/incidents/${incident.id}`;
+  const headers = { Origin: baseURL! };
+  let step = await page.request.post(`${url}/investigate`, { headers, data: { version: 1 } });
+  step = await page.request.patch(url, { headers, data: { version: (await step.json()).version, status: "MONITORING" } });
+  await page.request.post(`${url}/resolve`, { headers, data: { version: (await step.json()).version } });
+
+  await page.goto(`/incidents/${incident.id}`);
+  const section = page.getByRole("region", { name: "Postmortem" });
+  await expect(section).toContainText("No postmortem drafted yet.");
+  await section.getByRole("button", { name: "Draft postmortem" }).click();
+
+  await expect(section.getByRole("status")).toHaveText("Drafting the postmortem…");
+});
