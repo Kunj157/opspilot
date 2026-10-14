@@ -321,6 +321,78 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/incidents/{incident_id}/investigation": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Latest Investigation */
+        get: operations["latest_investigation_api_v1_incidents__incident_id__investigation_get"];
+        put?: never;
+        /**
+         * Start Investigation
+         * @description Queue an agent investigation; returns the running one if there already is one.
+         */
+        post: operations["start_investigation_api_v1_incidents__incident_id__investigation_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/incidents/{incident_id}/evidence": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Evidence */
+        get: operations["list_evidence_api_v1_incidents__incident_id__evidence_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/incidents/{incident_id}/agent-runs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Agent Runs */
+        get: operations["list_agent_runs_api_v1_incidents__incident_id__agent_runs_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/incidents/{incident_id}/proposals": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Proposals */
+        get: operations["list_proposals_api_v1_incidents__incident_id__proposals_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/runbooks": {
         parameters: {
             query?: never;
@@ -423,6 +495,50 @@ export interface components {
          * @enum {string}
          */
         ActorType: "user" | "agent" | "system";
+        /** AgentRunOut */
+        AgentRunOut: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Agent Name */
+            agent_name: string;
+            /** Status */
+            status: string;
+            /** Model Provider */
+            model_provider: string;
+            /** Model Name */
+            model_name: string;
+            /** Prompt Version */
+            prompt_version: string;
+            /** Input Tokens */
+            input_tokens: number;
+            /** Output Tokens */
+            output_tokens: number;
+            /** Estimated Cost */
+            estimated_cost: number;
+            /** Latency Ms */
+            latency_ms: number;
+            /** Error Code */
+            error_code: string | null;
+            /** Output */
+            output: {
+                [key: string]: unknown;
+            } | null;
+            /**
+             * Started At
+             * Format: date-time
+             */
+            started_at: string;
+            /** Completed At */
+            completed_at: string | null;
+            /**
+             * Tool Calls
+             * @default []
+             */
+            tool_calls: components["schemas"]["ToolCallOut"][];
+        };
         /** AuditLogItem */
         AuditLogItem: {
             /**
@@ -585,6 +701,37 @@ export interface components {
              */
             created_at: string;
         };
+        /** EvidenceOut */
+        EvidenceOut: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Evidence Type */
+            evidence_type: string;
+            /** Source */
+            source: string;
+            /** Summary */
+            summary: string;
+            /** Content */
+            content: {
+                [key: string]: unknown;
+            };
+            /** Query */
+            query: string | null;
+            /** Time Range Start */
+            time_range_start: string | null;
+            /** Time Range End */
+            time_range_end: string | null;
+            /** Confidence */
+            confidence: number;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+        };
         /** HTTPValidationError */
         HTTPValidationError: {
             /** Detail */
@@ -708,6 +855,67 @@ export interface components {
             assigned_user_id?: string | null;
             status?: components["schemas"]["IncidentStatus"] | null;
         };
+        /** InvestigationOut */
+        InvestigationOut: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Incident Id
+             * Format: uuid
+             */
+            incident_id: string;
+            status: components["schemas"]["InvestigationStatus"];
+            /** Current Node */
+            current_node: string | null;
+            /** Round */
+            round: number;
+            /** Result */
+            result: {
+                [key: string]: unknown;
+            } | null;
+            /** Error */
+            error: string | null;
+            /** Tool Calls */
+            tool_calls: number;
+            /** Input Tokens */
+            input_tokens: number;
+            /** Output Tokens */
+            output_tokens: number;
+            /** Cost Usd */
+            cost_usd: number;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Started At */
+            started_at: string | null;
+            /** Completed At */
+            completed_at: string | null;
+        };
+        /**
+         * InvestigationStatus
+         * @enum {string}
+         */
+        InvestigationStatus: "queued" | "running" | "completed" | "partial" | "failed";
+        /** Items[AgentRunOut] */
+        Items_AgentRunOut_: {
+            /** Items */
+            items: components["schemas"]["AgentRunOut"][];
+        };
+        /** Items[EvidenceOut] */
+        Items_EvidenceOut_: {
+            /** Items */
+            items: components["schemas"]["EvidenceOut"][];
+        };
+        /** Items[ProposalOut] */
+        Items_ProposalOut_: {
+            /** Items */
+            items: components["schemas"]["ProposalOut"][];
+        };
         /** MeResponse */
         MeResponse: {
             /**
@@ -740,6 +948,46 @@ export interface components {
          * @enum {string}
          */
         Permission: "view_services" | "view_incidents" | "start_investigation" | "approve_remediation" | "manage_users" | "manage_runbooks" | "view_audit_logs" | "manage_services" | "manage_incidents";
+        /** ProposalOut */
+        ProposalOut: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            action_type: components["schemas"]["RemediationAction"];
+            /** Description */
+            description: string;
+            /** Parameters */
+            parameters: {
+                [key: string]: unknown;
+            };
+            /** Risk Level */
+            risk_level: string;
+            status: components["schemas"]["ProposalStatus"];
+            /** Verification Plan */
+            verification_plan: {
+                [key: string]: unknown;
+            };
+            /** Evidence Ids */
+            evidence_ids: string[];
+            /** Runbook Id */
+            runbook_id: string | null;
+            /** Version */
+            version: number;
+            /** Expires At */
+            expires_at: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+        };
+        /**
+         * ProposalStatus
+         * @enum {string}
+         */
+        ProposalStatus: "PENDING" | "APPROVED" | "REJECTED" | "EXECUTING" | "EXECUTED" | "FAILED" | "SUPERSEDED" | "EXPIRED";
         /** ReadinessResponse */
         ReadinessResponse: {
             /**
@@ -759,6 +1007,11 @@ export interface components {
             /** Chunks */
             chunks: number;
         };
+        /**
+         * RemediationAction
+         * @enum {string}
+         */
+        RemediationAction: "ROLLBACK_DEPLOYMENT" | "RESTART_DEPLOYMENT" | "SCALE_DEPLOYMENT" | "PAUSE_ROLLOUT" | "NO_ACTION";
         /**
          * Role
          * @enum {string}
@@ -984,6 +1237,33 @@ export interface components {
              * @default 0
              */
             low: number;
+        };
+        /** ToolCallOut */
+        ToolCallOut: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Tool Name */
+            tool_name: string;
+            /** Arguments */
+            arguments: {
+                [key: string]: unknown;
+            };
+            /** Status */
+            status: string;
+            /** Result Summary */
+            result_summary: string | null;
+            /** Error */
+            error: string | null;
+            /** Duration Ms */
+            duration_ms: number;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
         };
         /** Topology */
         Topology: {
@@ -1747,6 +2027,170 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DetectionList"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    latest_investigation_api_v1_incidents__incident_id__investigation_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                incident_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InvestigationOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    start_investigation_api_v1_incidents__incident_id__investigation_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                incident_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Already investigating */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InvestigationOut"];
+                };
+            };
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InvestigationOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_evidence_api_v1_incidents__incident_id__evidence_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                incident_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Items_EvidenceOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_agent_runs_api_v1_incidents__incident_id__agent_runs_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                incident_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Items_AgentRunOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_proposals_api_v1_incidents__incident_id__proposals_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                incident_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Items_ProposalOut_"];
                 };
             };
             /** @description Validation Error */
