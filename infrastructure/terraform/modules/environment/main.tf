@@ -133,6 +133,7 @@ module "ecr" {
   prefix       = local.name
   repositories = ["api", "web", "worker", "demo-shop"]
   kms_key_arn  = aws_kms_key.platform.arn
+  force_delete = !var.deletion_protection
 }
 
 module "backups" {
@@ -157,6 +158,8 @@ module "secrets" {
   source  = "../secrets"
   name    = local.name
   secrets = ["app", "oidc-client-secret", "llm-api-key", "session-secret"]
+  # Temporary environments delete secrets at once, so a re-create can reuse the names.
+  recovery_window_in_days = var.deletion_protection ? 30 : 0
 }
 
 module "dns" {

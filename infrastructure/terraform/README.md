@@ -11,7 +11,7 @@ modules/irsa/              one IAM role for named Kubernetes service accounts
 modules/karpenter/         node autoscaling: IAM, interruption queue, chart, default NodePool
 modules/addons/            load balancer controller, cert-manager, External Secrets, issuers, secret store
 modules/environment/       one environment composed from the modules, plus budgets and schedules
-environments/<name>/       development, staging, production: separate state and settings
+environments/<name>/       development, staging, production, loadtest: separate state and settings
 ```
 
 ## Create an environment
@@ -35,6 +35,10 @@ terraform plan -out=tfplan && terraform apply tfplan
 Then delegate the environment's domain to the `name_servers` output, put the
 OIDC client secret and model API key into the Secrets Manager entries
 (`opspilot-<env>/...`), and point CI at the `ci_role_arn` output.
+
+`make tf-plan ENV=<environment>` runs the init and plan steps from the repository
+root, and `make tf-check` runs fmt, validate, tflint, and checkov the way CI
+does.
 
 Destroy a temporary environment with `terraform destroy`. Development and
 staging have deletion protection off. Production refuses to drop its
@@ -116,6 +120,49 @@ get credentials when their service account carries the
 `eks.amazonaws.com/role-arn` annotation with the matching ARN. Other
 outputs the chart needs: `app_secret_name`, `redis_app_user`, `buckets`.
 
+## Temporary load-test environment
+
+`environments/loadtest` is the smallest composition (two zones, one system
+node, Spot application nodes up to 16 vCPU, micro databases, 7-day logs,
+$100 budget) with no deletion protection. Every resource it creates
+carries a `ttl` tag from the required `expires_at` variable:
+
+```bash
+cd environments/loadtest
+terraform init -backend-config=../backend.hcl
+terraform apply -var expires_at=2026-10-20T18:00:00Z   # plus domain / alert_emails
+```
+
+The **Load-test teardown** workflow (`.github/workflows/loadtest-teardown.yml`)
+runs hourly and on demand. It calls `scripts/loadtest-teardown.sh`, which
+reads the earliest `ttl` tag of resources tagged `environment=loadtest`.
+Once that time has passed, or when the run is forced, the script:
+
+1. forgets the Helm releases, because the runner cannot reach the private
+   cluster API and the releases go with the cluster;
+2. destroys the EKS cluster, which stops Karpenter and the load balancer
+   controller;
+3. deletes what those controllers created outside Terraform: Karpenter
+   instances and instance profiles, ALBs, target groups, and security
+   groups;
+4. runs `terraform destroy`.
+
+Guards:
+- The script's target, state key, and environment name are constants.
+  It refuses to run unless the configuration really is the loadtest
+  composition, and no workflow input can change the target.
+- The workflow runs only on the default branch, in the `loadtest` GitHub
+  environment (protect it with required reviewers for manual runs).
+- It is a no-op until that environment defines `LOADTEST_TEARDOWN_ROLE_ARN`
+  (plus `TF_STATE_BUCKET`, `TF_STATE_KMS_KEY_ARN`, `LOADTEST_DOMAIN`, and
+  `LOADTEST_ALERT_EMAILS` as a JSON list).
+- Give that role a trust policy for
+  `repo:Kunj157/opspilot:environment:loadtest` only, and permissions
+  limited to resources tagged `environment=loadtest` and the
+  `opspilot/loadtest/*` state key.
+
+Run it by hand with `make loadtest-teardown ARGS=--dry-run`.
+
 ## Cost controls
 
 - Small instances outside production: a Graviton `t4g` system node,
@@ -139,5 +186,7 @@ the AWS Pricing Calculator before applying.
 | staging | as development with 2 system nodes and db.t4g.small | ≈ $250 | $400 |
 | production | EKS, 2 × m7g.large system nodes, ≈ 3 on-demand application nodes, 3 NAT, Multi-AZ db.m7g.large, Redis with a replica | ≈ $750 | $1,500 |
 
-The EKS control plane ($0.10/h) and NAT gateways dominate small
-environments. Destroy development when it is not in use.
+A load-test environment costs about $6 per day (control plane, NAT, system
+node, micro databases) plus the Spot nodes the test asks for. The EKS
+control plane ($0.10/h) and NAT gateways dominate small environments.
+Destroy development when it is not in use.
