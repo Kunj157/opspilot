@@ -34,6 +34,7 @@ from opspilot_api.routes import (
     users,
 )
 from opspilot_api.runbooks.embeddings import build_embedder
+from opspilot_api.security_headers import SecurityHeadersMiddleware, add_cors
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -92,6 +93,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.add_middleware(AuditMiddleware)
     app.add_middleware(MetricsMiddleware)
     app.add_middleware(RequestContextMiddleware)
+    # Every response, including errors and CORS preflights, gets the headers.
+    add_cors(app, settings)
+    app.add_middleware(SecurityHeadersMiddleware)
     # Outermost: take the client address from X-Forwarded-For only when the
     # connection comes from a trusted proxy, so direct callers cannot spoof it.
     app.add_middleware(

@@ -1,5 +1,7 @@
 from functools import lru_cache
+from urllib.parse import urlsplit
 
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -20,6 +22,9 @@ class Settings(BaseSettings):
 
     # Comma-separated addresses allowed to set X-Forwarded-For (the web app's proxy).
     trusted_proxies: str = "127.0.0.1"
+    # Comma-separated browser origins allowed to call the API cross-origin
+    # (e.g. "https://ops.example.com"). Empty: no CORS headers at all.
+    cors_allowed_origins: str = ""
 
     # Observability backends (read-only). Optional: the API runs without them.
     prometheus_url: str | None = None
@@ -76,6 +81,19 @@ class Settings(BaseSettings):
 
     readiness_timeout_seconds: float = 2.0
     sse_heartbeat_seconds: float = 15.0
+
+    @field_validator("cors_allowed_origins")
+    @classmethod
+    def _explicit_origins(cls, value: str) -> str:
+        for origin in (o.strip() for o in value.split(",") if o.strip()):
+            parts = urlsplit(origin)
+            if parts.scheme not in {"http", "https"} or not parts.hostname or parts.path:
+                raise ValueError(f"not an origin (scheme://host[:port]): {origin!r}")
+        return value
+
+    @property
+    def cors_origins(self) -> tuple[str, ...]:
+        return tuple(o.strip() for o in self.cors_allowed_origins.split(",") if o.strip())
 
     @property
     def allowed_namespaces(self) -> frozenset[str]:
