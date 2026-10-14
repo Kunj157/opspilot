@@ -23,12 +23,14 @@ class Finding(BaseModel):
 
 
 def test_prompts_are_redacted_before_they_leave() -> None:
+    # Fake secrets are assembled at runtime so no secret-shaped literal is committed.
+    api_key = "sk-" + "ant-" + "x" * 24
+    aws_key = "AKIA" + "Z" * 16
     text = redact_prompt(
-        "token=abc123 password: hunter2 Authorization: Bearer eyJa.b.c "
-        "key sk-ant-REDACTME0123456789abcd and AKIAABCDEFGHIJKLMNOP"
+        f"token=abc123 password: hunter2 Authorization: Bearer eyJa.b.c key {api_key} and {aws_key}"
     )
 
-    for secret in ("abc123", "hunter2", "eyJa.b.c", "sk-ant-REDACTME", "AKIAABCDEFGHIJKLMNOP"):
+    for secret in ("abc123", "hunter2", "eyJa.b.c", api_key, aws_key):
         assert secret not in text
     assert "token=[REDACTED]" in text
 
