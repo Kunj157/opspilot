@@ -44,6 +44,8 @@
   --shadow-3: 0 16px 40px rgba(0, 0, 0, 0.36), 0 2px 6px rgba(0, 0, 0, 0.3);
   --shadow-glow-accent: 0 0 0 1px var(--accent-glow), 0 0 24px -6px var(--accent-glow);
   --shadow-glow-critical: 0 0 0 1px var(--status-critical-glow), 0 0 20px -6px var(--status-critical-glow);
+  /* Height of sticky page chrome above content; sticky table headers sit below it. */
+  --sticky-top: 0px;
   --radius-sm: 8px;
   --radius-card: 14px;
   --radius-lg: 20px;
