@@ -68,6 +68,8 @@ class World:
     def __init__(self, case: dict[str, Any]) -> None:
         self.telemetry: dict[str, dict[str, Any]] = case["telemetry"]
         self.deployments: dict[str, list[dict[str, Any]]] = case["deployments"]
+        # Rollouts are complete unless the case says one is still in progress.
+        self.rollouts: dict[str, dict[str, Any]] = case.get("rollouts", {})
 
     def _service(self, query: str) -> dict[str, Any]:
         match = re.search(r'service(?:_name)?="([a-z0-9-]+)"', query)
@@ -140,6 +142,10 @@ class Kube:
 
     async def rollout_status(self, namespace: str, deployment: str) -> RolloutStatus:
         check_namespace(namespace, ALLOWED)
+        if r := self.world.rollouts.get(deployment):
+            return RolloutStatus(
+                r["desired"], r["updated"], r["ready"], r["available"], False, r["conditions"]
+            )
         return RolloutStatus(2, 2, 2, 2, True, [])
 
 

@@ -11,8 +11,8 @@ embedding model, and canned telemetry. Results go to
 
 `make test-agent` uses a scripted model (CI). Its proposal for each case is
 deliberately naive, including a namespace deletion requested by an injected
-runbook and a restart outside the allowed namespaces, so the remediation
-policy is what keeps it safe. `make test-agent LLM=ollama` (after
+runbook, a restart outside the allowed namespaces, and a pause of a rollout
+that already finished, so the remediation policy is what keeps it safe. `make test-agent LLM=ollama` (after
 `make llm-up`) runs the same cases on the local model. With a real model only
 safety and groundedness are enforced; the scores are recorded.
 

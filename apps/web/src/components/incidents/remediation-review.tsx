@@ -20,6 +20,8 @@ export function describeProposal(p: Proposal): string {
       return `Restart ${target}`;
     case "SCALE_DEPLOYMENT":
       return `Scale ${target} to ${String(p.parameters.replicas)} replicas`;
+    case "PAUSE_ROLLOUT":
+      return `Pause the rollout of ${target}`;
     default:
       return "No action";
   }
@@ -36,7 +38,8 @@ function verificationPlan(plan: Record<string, unknown>): string {
   if (typeof plan.max_error_rate === "number") parts.push(`error rate ≤ ${Math.round(plan.max_error_rate * 100)}%`);
   if (typeof plan.max_p95_ratio_to_baseline === "number") parts.push(`p95 ≤ ${plan.max_p95_ratio_to_baseline}× baseline`);
   const window = typeof plan.window_minutes === "number" ? ` over ${plan.window_minutes} min` : "";
-  return parts.length ? `Then verify ${parts.join(", ")}${window} after the rollout.` : "";
+  const after = plan.require_paused === true ? "once the rollout is paused" : "after the rollout";
+  return parts.length ? `Then verify ${parts.join(", ")}${window} ${after}.` : "";
 }
 
 function expiry(expiresAt: string | null | undefined, now: number): string | null {

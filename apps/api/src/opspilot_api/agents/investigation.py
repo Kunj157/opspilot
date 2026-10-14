@@ -24,7 +24,13 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from opspilot_api.agents import prompts
 from opspilot_api.agents.llm import LLM, LLMError, Usage, as_json
-from opspilot_api.agents.policy import PROPOSAL_TTL, VERIFICATION_PLAN, Approved, Rejected, evaluate
+from opspilot_api.agents.policy import (
+    PROPOSAL_TTL,
+    Approved,
+    Rejected,
+    evaluate,
+    verification_plan,
+)
 from opspilot_api.agents.schemas import (
     PlannedCall,
     ProposalDraft,
@@ -517,8 +523,13 @@ class Investigator:
                 if tool == "search_runbooks":
                     state["runbooks"] = result.data.get("runbooks", [])
                     state["runbook_excerpts"] = result.data.get("excerpts", "")
-                if tool == "get_recent_deployments":
-                    state["deployments"][arguments.get("service", "")] = result.data
+                # What the policy needs about a service's rollouts, merged across both tools.
+                if tool in {"get_recent_deployments", "get_kubernetes_rollout_status"}:
+                    known = state["deployments"].setdefault(arguments.get("service", ""), {})
+                    if tool == "get_recent_deployments":
+                        known.update(result.data)
+                    else:
+                        known["rollout"] = result.data
             await session.commit()
 
     async def _store_proposal(
@@ -542,7 +553,7 @@ class Investigator:
                 description=draft.reason[:2000],
                 parameters=decision.parameters,
                 risk_level=decision.risk_level,
-                verification_plan=VERIFICATION_PLAN,
+                verification_plan=verification_plan(decision.action),
                 evidence_ids=decision.evidence_ids,
                 created_by_agent_run_id=run_id,
                 expires_at=datetime.now(UTC) + PROPOSAL_TTL,
