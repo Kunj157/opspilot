@@ -304,6 +304,17 @@ body {
   }
 }
 
+/* Toast countdown: a hairline that shrinks to nothing. */
+.toast-timer {
+  animation: toast-timer linear forwards;
+}
+
+@keyframes toast-timer {
+  to {
+    transform: scaleX(0);
+  }
+}
+
 /* Metrics never jitter while digits change. */
 .tabular {
   font-variant-numeric: tabular-nums;

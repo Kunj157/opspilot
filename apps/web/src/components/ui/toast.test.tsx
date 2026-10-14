@@ -1,4 +1,4 @@
-import { act, render, screen } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -28,7 +28,8 @@ describe("Toast", () => {
     expect(region).toHaveAttribute("aria-live", "polite");
     expect(region).toHaveTextContent("Incident resolved");
     await user.click(screen.getByRole("button", { name: "Dismiss" }));
-    expect(region).not.toHaveTextContent("Incident resolved");
+    // It slides out first.
+    await waitFor(() => expect(region).not.toHaveTextContent("Incident resolved"));
   });
 
   it("announces errors assertively", async () => {
