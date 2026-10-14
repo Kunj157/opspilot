@@ -71,7 +71,15 @@ function capitalize(value: string) {
   return value[0].toUpperCase() + value.slice(1);
 }
 
-export function IncidentList({ canManage, currentUserId }: { canManage: boolean; currentUserId: string }) {
+export function IncidentList({
+  canManage,
+  canReadUsers = false,
+  currentUserId,
+}: {
+  canManage: boolean;
+  canReadUsers?: boolean;
+  currentUserId: string;
+}) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -130,8 +138,9 @@ export function IncidentList({ canManage, currentUserId }: { canManage: boolean;
     staleTime: 60_000,
   });
   // Names come from the user directory, which only administrators may read;
-  // everyone else sees short ids.
+  // everyone else sees short ids (and never requests it).
   const directory = useQuery({
+    enabled: canReadUsers,
     queryKey: ["users", "directory"],
     queryFn: async ({ signal }) => {
       const { data } = await createApiClient(window.location.origin).GET("/api/v1/users", {
@@ -141,7 +150,6 @@ export function IncidentList({ canManage, currentUserId }: { canManage: boolean;
       if (!data) throw new Error("user directory unavailable");
       return data.items;
     },
-    retry: false,
     staleTime: 300_000,
   });
   const userName = new Map((directory.data ?? []).map((u) => [u.id, u.display_name || u.email || null]));

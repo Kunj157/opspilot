@@ -8,7 +8,13 @@ export const metadata = { title: "Incidents · OpsPilot" };
 
 async function List() {
   const user = await getCurrentUser();
-  return <IncidentList canManage={user.permissions.includes("manage_incidents")} currentUserId={user.id} />;
+  return (
+    <IncidentList
+      canManage={user.permissions.includes("manage_incidents")}
+      canReadUsers={user.permissions.includes("manage_users")}
+      currentUserId={user.id}
+    />
+  );
 }
 
 export default function IncidentsPage() {

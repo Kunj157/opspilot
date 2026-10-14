@@ -84,12 +84,12 @@ beforeEach(() => {
 });
 afterEach(() => vi.unstubAllGlobals());
 
-function renderIt(canManage = true) {
+function renderIt(canManage = true, canReadUsers = false) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={client}>
       <ToastProvider>
-        <IncidentList canManage={canManage} currentUserId="user-1" />
+        <IncidentList canManage={canManage} canReadUsers={canReadUsers} currentUserId="user-1" />
       </ToastProvider>
     </QueryClientProvider>,
   );
@@ -119,19 +119,20 @@ describe("IncidentList", () => {
   it("names assignees from the user directory when it is readable", async () => {
     incidents = [incident(1, { assigned_user_id: "user-2" })];
     users = [{ id: "user-3", display_name: "Grace Hopper", email: "grace@example.com" }];
-    renderIt();
+    renderIt(true, true);
 
     const filter = await screen.findByLabelText("Assignee");
     expect(await within(filter).findByRole("option", { name: "Grace Hopper" })).toBeInTheDocument();
     expect(within(filter).getByRole("option", { name: "User user-2" })).toBeInTheDocument();
   });
 
-  it("falls back to short ids when the directory is forbidden", async () => {
+  it("uses short ids, without asking for the directory, for everyone else", async () => {
     incidents = [incident(1, { assigned_user_id: "a1b2c3d4-0000-4000-8000-000000000000" })];
     renderIt();
 
     const filter = await screen.findByLabelText("Assignee");
     expect(await within(filter).findByRole("option", { name: "User a1b2c3d4" })).toBeInTheDocument();
+    expect(requests.some((u) => u.pathname === "/api/v1/users")).toBe(false);
   });
 
   it("writes a changed filter to the URL", async () => {
