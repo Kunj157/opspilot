@@ -45,3 +45,15 @@ export function upstreamHeaders(
   if (client) headers.set("x-forwarded-for", client);
   return headers;
 }
+
+/**
+ * The API URL for a proxied path, or null when a segment would escape
+ * `/api/v1` ("." or ".."; Next.js decodes `%2e%2e` into the segment), so the
+ * proxy can only ever reach the API's public routes.
+ */
+export function upstreamUrl(segments: string[], search: string, apiUrl: string): URL | null {
+  if (segments.some((segment) => segment === "." || segment === "..")) return null;
+  const target = new URL(`/api/v1/${segments.map(encodeURIComponent).join("/")}`, apiUrl);
+  target.search = search;
+  return target;
+}
