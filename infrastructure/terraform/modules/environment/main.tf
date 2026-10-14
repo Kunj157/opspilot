@@ -173,6 +173,19 @@ module "observability" {
   rds_instance_id    = local.name
 }
 
+module "addons" {
+  source              = "../addons"
+  name                = local.name
+  cluster_name        = module.eks.cluster_name
+  oidc_provider_arn   = module.eks.oidc_provider_arn
+  vpc_id              = module.network.vpc_id
+  domain              = var.domain
+  zone_id             = module.dns.zone_id
+  acme_email          = var.alert_emails[0]
+  secrets_kms_key_arn = module.secrets.kms_key_arn
+  replicas            = var.karpenter.controller_replicas
+}
+
 module "iam" {
   source                      = "../iam"
   name                        = local.name
