@@ -19,6 +19,9 @@ RISK = {
     RemediationAction.PAUSE_ROLLOUT: "low",
 }
 MAX_REPLICAS = 6
+# A rollback must undo a release that introduced the errors: low before it, high after.
+HEALTHY_ERROR_RATE = 0.02
+FAILING_ERROR_RATE = 0.05
 PROPOSAL_TTL = timedelta(minutes=30)
 VERIFICATION_PLAN: dict[str, Any] = {
     "window_minutes": 5,
@@ -67,6 +70,14 @@ def evaluate(
         previous = (deployments or {}).get("previous")
         if not previous:
             return Rejected("no earlier revision is known to roll back to")
+        before = (deployments or {}).get("error_rate_before_latest")
+        now = (deployments or {}).get("error_rate_now")
+        if before is None or now is None:
+            return Rejected("error rates around the latest rollout are unknown")
+        if before >= HEALTHY_ERROR_RATE or now < FAILING_ERROR_RATE:
+            return Rejected(
+                f"errors did not begin with the latest release (before {before:.1%}, now {now:.1%})"
+            )
         parameters["to_revision"] = previous["revision"]
         parameters["from_version"] = (deployments or {}).get("latest", {}).get("version")
         parameters["to_version"] = previous.get("version")

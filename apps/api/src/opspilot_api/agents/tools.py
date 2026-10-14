@@ -294,6 +294,7 @@ async def get_recent_deployments(ctx: ToolContext, args: ServiceArgs) -> ToolRes
             "created_at": r.created_at.isoformat() if r.created_at else None,
         }
 
+    before, after = await _errors_around(ctx, target, latest.created_at)
     summary = (
         f"{target.name} revision {latest.revision} (version {latest.version}) rolled out "
         f"{_ago(ctx.now, latest.created_at)}"
@@ -303,8 +304,14 @@ async def get_recent_deployments(ctx: ToolContext, args: ServiceArgs) -> ToolRes
             if previous
             else ""
         )
+        + f"; error rate before that rollout {_pct(before)}, now {_pct(after)}"
     )
-    data = {"latest": describe(latest), "previous": describe(previous) if previous else None}
+    data = {
+        "latest": describe(latest),
+        "previous": describe(previous) if previous else None,
+        "error_rate_before_latest": before,
+        "error_rate_now": after,
+    }
     return ToolResult(
         "get_recent_deployments",
         True,
@@ -321,6 +328,28 @@ async def get_recent_deployments(ctx: ToolContext, args: ServiceArgs) -> ToolRes
             data,
         ),
     )
+
+
+async def _error_rate(ctx: ToolContext, target: ServiceTarget, at: datetime) -> float | None:
+    """Error rate over the 2 minutes ending at `at`."""
+    sel = _selector(target)
+    rps = await _scalar(ctx, f"sum(rate(http_requests_total{{{sel}}}[2m]))", at)
+    if not rps:
+        return None
+    errors = await _scalar(ctx, f"sum(rate(http_errors_total{{{sel}}}[2m]))", at)
+    return (errors or 0.0) / rps
+
+
+async def _errors_around(
+    ctx: ToolContext, target: ServiceTarget, rolled_out: datetime | None
+) -> tuple[float | None, float | None]:
+    """Error rate in the 2 minutes before the latest rollout started, and now. None when unknown."""
+    try:
+        before = await _error_rate(ctx, target, rolled_out) if rolled_out else None
+        after = await _error_rate(ctx, target, ctx.now)
+    except TelemetryUnavailable:
+        return None, None
+    return before, after
 
 
 async def get_kubernetes_rollout_status(ctx: ToolContext, args: ServiceArgs) -> ToolResult:
