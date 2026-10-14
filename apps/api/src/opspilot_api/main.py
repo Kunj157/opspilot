@@ -29,6 +29,7 @@ from opspilot_api.routes import (
     runbooks,
     services,
     topology,
+    users,
 )
 from opspilot_api.runbooks.embeddings import build_embedder
 
@@ -94,6 +95,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.add_route("/metrics", http_metrics.metrics, include_in_schema=False)
     app.include_router(readiness.router)
     app.include_router(me.router)
+    app.include_router(users.router)
     app.include_router(audit_logs.router)
     app.include_router(services.router)
     app.include_router(topology.router)
