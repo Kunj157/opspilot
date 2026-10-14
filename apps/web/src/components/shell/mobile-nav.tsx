@@ -30,7 +30,7 @@ export function MobileNav({ items, footer }: { items: NavItem[]; footer: ReactNo
         ref={dialog}
         aria-label="Navigation"
         onClose={() => setOpen(false)}
-        className="m-0 h-full max-h-none w-72 max-w-[85vw] border-r border-border bg-surface-1 p-0 text-fg shadow-3 backdrop:bg-black/60"
+        className="nav-dialog m-0 h-full max-h-none w-72 max-w-[85vw] border-r border-border bg-surface-1 p-0 text-fg shadow-3 backdrop:bg-black/60"
       >
         {open && (
         <div className="flex h-full flex-col gap-6 p-4">

@@ -29,7 +29,7 @@ export function Modal({
       ref={dialog}
       aria-label={title}
       onClose={onClose}
-      className="m-auto w-[min(36rem,calc(100vw-2rem))] rounded-lg border border-border bg-surface-2 p-0 text-fg shadow-3 backdrop:bg-black/60"
+      className="modal-dialog surface-raised m-auto w-[min(36rem,calc(100vw-2rem))] rounded-lg border border-border-strong p-0 text-fg shadow-3 backdrop:bg-black/60 backdrop:backdrop-blur-[2px]"
     >
       {open && (
         <div className="p-6">
