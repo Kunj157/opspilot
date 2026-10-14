@@ -66,6 +66,10 @@ class FakeWriter:
         await self._call("scale", namespace, deployment, replicas)
         return {"replicas": replicas}
 
+    async def pause_rollout(self, namespace: str, deployment: str) -> dict[str, Any]:
+        await self._call("pause", namespace, deployment)
+        return {"paused": True}
+
 
 @pytest.fixture
 async def sessions(migrated_database_url: str) -> AsyncIterator[async_sessionmaker[AsyncSession]]:
@@ -206,6 +210,27 @@ async def test_an_approved_rollback_runs_once_and_moves_to_verifying(
     assert execution.idempotency_key == f"{proposal_id}:v1"
     assert execution.output == {"rolled_back_to": 6, "version": "1.0.0"}
     assert execution.completed_at is not None
+    assert "incident.remediation_executed" in events
+    assert "remediation.executed" in audit
+
+
+async def test_an_approved_pause_pauses_the_rollout(
+    sessions: async_sessionmaker[AsyncSession],
+) -> None:
+    proposal_id = await approved(
+        sessions,
+        action=RemediationAction.PAUSE_ROLLOUT,
+        parameters={"namespace": "demo", "deployment": "checkout", "revision": 7},
+    )
+    writer = FakeWriter()
+
+    assert await run_once(sessions, writer) is ExecutionStatus.SUCCEEDED
+
+    proposal, incident, [execution], events, audit, _ = await snapshot(sessions, proposal_id)
+    assert writer.calls == [("pause", "demo", "checkout")]
+    assert execution.output == {"paused": True}
+    assert proposal.status is ProposalStatus.EXECUTED
+    assert incident.status is IncidentStatus.VERIFYING
     assert "incident.remediation_executed" in events
     assert "remediation.executed" in audit
 
