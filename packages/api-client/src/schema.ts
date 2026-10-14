@@ -515,6 +515,11 @@ export interface components {
              * Format: uuid
              */
             id: string;
+            /**
+             * Service Id
+             * Format: uuid
+             */
+            service_id: string;
             /** Detector */
             detector: string;
             /** Failure Category */

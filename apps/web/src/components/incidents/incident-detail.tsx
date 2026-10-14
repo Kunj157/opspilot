@@ -12,6 +12,7 @@ import { formatSeconds } from "@/lib/durations";
 import { type StreamedEvent, useIncidentStream } from "@/lib/use-incident-stream";
 
 import { SeverityBadge, StatusBadge } from "./badges";
+import { DetectionEvidence } from "./detection-evidence";
 import { IncidentActions } from "./incident-actions";
 import { INCIDENTS_KEY } from "./incident-list";
 import { IncidentTimeline } from "./incident-timeline";
@@ -155,6 +156,14 @@ export function IncidentDetail({ permissions }: { permissions: { manage: boolean
           onConflict={() => void queryClient.invalidateQueries({ queryKey: incidentKey })}
         />
       </header>
+
+      {i.source === "detector" && (
+        <DetectionEvidence
+          incidentId={i.id}
+          serviceId={i.service_id}
+          serviceNames={new Map((services.data ?? []).map((s) => [s.id, s.name]))}
+        />
+      )}
 
       <section aria-labelledby="timeline-heading" className="rounded-card border border-border bg-surface-1 shadow-3">
         <h2 id="timeline-heading" className="border-b border-border px-5 py-4 text-sm font-medium text-fg-secondary">
