@@ -236,11 +236,17 @@ jobs:
       - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
       - name: Semgrep
         run: uvx semgrep scan --config p/default --error --metrics off --exclude node_modules --exclude .venv .
-      - name: Python dependency audit
-        working-directory: apps/api
+      - name: Python dependency audit (API, ML, demo services)
+        # The exports pin every transitive dependency, so pip-audit checks the
+        # lockfile versions as they are instead of re-resolving them (which
+        # needs each project's Python version).
         run: |
-          uv export --no-hashes --no-emit-project -q > /tmp/requirements.txt
-          uvx pip-audit -r /tmp/requirements.txt
+          for project in apps/api ml demo/services; do
+            echo "::group::$project"
+            (cd "$project" && uv export --no-hashes --no-emit-project -q > /tmp/requirements.txt)
+            uvx pip-audit -r /tmp/requirements.txt --no-deps --disable-pip
+            echo "::endgroup::"
+          done
       - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
