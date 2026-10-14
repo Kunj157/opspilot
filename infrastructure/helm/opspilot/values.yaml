@@ -63,3 +63,15 @@ smokeTest:
 devDatabases:
   enabled: false
   postgresPassword: opspilot-dev
+
+# Kyverno ClusterPolicy: OpsPilot images must carry the keyless signature of
+# .github/workflows/images.yml on main. Needs Kyverno (argocd/bootstrap/kyverno).
+imageVerification:
+  enabled: false
+  # Audit (report) or Enforce (reject unsigned Pods).
+  failureAction: Audit
+  images:
+    - ghcr.io/kunj157/opspilot-api*
+    - ghcr.io/kunj157/opspilot-web*
+  issuer: https://token.actions.githubusercontent.com
+  subjectRegExp: ^https://github\.com/Kunj157/opspilot/\.github/workflows/images\.yml@refs/heads/main$
