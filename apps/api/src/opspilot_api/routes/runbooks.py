@@ -48,6 +48,7 @@ class RunbookSummary(BaseModel):
     slug: str
     title: str
     services: list[str]
+    environment: str
     owner: str | None
     version: int
     status: RunbookStatus
@@ -156,6 +157,7 @@ async def create_runbook(
         slug=body.slug or _slugify(doc.title),
         title=doc.title,
         services=doc.services,
+        environment=doc.environment,
         owner=doc.owner,
         content=body.content,
         content_hash=_hash(body.content),
@@ -192,14 +194,17 @@ async def search_runbooks(
     embedder: Annotated[Embedder, Depends(get_embedder)],
     q: Annotated[str, Query(min_length=2, max_length=500)],
     service: Annotated[str | None, Query(max_length=63)] = None,
+    environment: Annotated[str | None, Query(max_length=32)] = None,
     limit: Annotated[int, Query(ge=1, le=20)] = 5,
 ) -> RunbookHits:
+    """Runbooks for the service (or generic) and the environment (or all), best first."""
     hits = await search(
         session,
         embedder,
         organization_id=principal.organization_id,
         query=q,
         service=service,
+        environment=environment,
         limit=limit,
     )
     return RunbookHits(items=[RunbookHitOut.model_validate(h) for h in hits])
@@ -258,6 +263,7 @@ async def update_runbook(
     runbook.version = max(runbook.version + 1, doc.version)
     runbook.title = doc.title
     runbook.services = doc.services
+    runbook.environment = doc.environment
     runbook.owner = doc.owner
     runbook.content = body.content
     runbook.content_hash = _hash(body.content)
