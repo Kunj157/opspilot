@@ -1,6 +1,6 @@
 # Architecture Overview
 
-Status: current as of v0.15 (phases 0–15). Updated in the same PR as any
+Status: current as of v1.0 (phases 0–16). Updated in the same PR as any
 change that moves a component, a data flow, or a trust boundary.
 
 ## 1. System context
