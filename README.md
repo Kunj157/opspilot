@@ -5,7 +5,7 @@ incidents in a cloud application, investigates them with AI agents and
 machine learning, proposes safe remediation, runs it only after a human
 approves, verifies recovery, and writes the postmortem.
 
-> **Status:** v1.0.0. The full incident loop works on the Kubernetes demo,
+> **Status:** v1.0.1. The full incident loop works on the Kubernetes demo,
 > hardened for production (rate limits, secure headers, alerts, backups,
 > chaos and load tests, signed images, a release pipeline), with a
 > redesigned interface, a threat model, a recorded walkthrough, and a
