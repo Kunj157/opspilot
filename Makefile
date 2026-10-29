@@ -20,7 +20,7 @@ DEMO_RELEASE = --set-string release.commit="$$(git rev-parse HEAD)" \
 	--set-literal release.author="$$(git log -1 --format=%an)" \
 	--set-literal release.message="$$(git log -1 --format=%s)"
 
-.PHONY: test-alerts db-upgrade db-downgrade db-revision keycloak-smoke token api-client web-dev dev build test-e2e test-lighthouse kind-create kind-delete docker-build deploy-local observability-up load-normal load-stop inject-failure reset-demo seed seed-runbooks test-telemetry test-detection worker help infra-up infra-down llm-up events-up stop secrets-scan install api-dev format lint typecheck test test-unit test-integration test-agent test-ml ml-scenarios ml-dataset ml-train images kind-load gitops-up demo-record demo-render tf-check tf-plan loadtest-teardown infra-smoke
+.PHONY: test-alerts db-upgrade db-downgrade db-revision keycloak-smoke token api-client api-docs web-dev dev build test-e2e test-lighthouse kind-create kind-delete docker-build deploy-local observability-up load-normal load-stop inject-failure reset-demo seed seed-runbooks test-telemetry test-detection worker help infra-up infra-down llm-up events-up stop secrets-scan install api-dev format lint typecheck test test-unit test-integration test-agent test-ml ml-scenarios ml-dataset ml-train images kind-load gitops-up demo-record demo-render tf-check tf-plan loadtest-teardown infra-smoke
 
 help: ## List available targets
 	@grep -hE '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | sort | \
@@ -109,6 +109,9 @@ api-client: ## Regenerate the typed API client from the API's OpenAPI schema
 		from opspilot_api.main import create_app; \
 		print(json.dumps(create_app(Settings()).openapi(), indent=2))" > ../../packages/api-client/openapi.json
 	pnpm --filter @opspilot/api-client generate
+
+api-docs: ## Render docs/api/reference.md from the committed OpenAPI schema (stdlib only)
+	python3 scripts/api-docs.py
 
 worker: ## Run the detection worker against local infra and the kind cluster's Prometheus
 	cd apps/api && uv run opspilot-worker
