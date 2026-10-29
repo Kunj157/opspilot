@@ -125,7 +125,8 @@ flowchart LR
 | Delivery | Docker, Helm, Argo CD, Argo Rollouts, cosign, Kyverno, GitHub Actions |
 
 More in [`docs/`](docs): [architecture overview](docs/architecture/overview.md),
-[threat model](docs/threat-model/threat-model.md), [SLOs](docs/architecture/slos.md),
+[threat model](docs/threat-model/threat-model.md), [API reference](docs/api/reference.md),
+[sample postmortem](docs/postmortems/sample-checkout-bad-release.md), [SLOs](docs/architecture/slos.md),
 [ADRs](docs/adr), [interface spec](docs/design/interface-v2.md), and
 [operations](docs/operations).
 
