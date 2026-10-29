@@ -5,7 +5,7 @@ incidents in a cloud application, investigates them with AI agents and
 machine learning, proposes safe remediation, runs it only after a human
 approves, verifies recovery, and writes the postmortem.
 
-> **Status:** v1.0.0. The full incident loop works on the Kubernetes demo,
+> **Status:** v1.0.1. The full incident loop works on the Kubernetes demo,
 > hardened for production (rate limits, secure headers, alerts, backups,
 > chaos and load tests, signed images, a release pipeline), with a
 > redesigned interface, a threat model, a recorded walkthrough, and a
@@ -125,7 +125,8 @@ flowchart LR
 | Delivery | Docker, Helm, Argo CD, Argo Rollouts, cosign, Kyverno, GitHub Actions |
 
 More in [`docs/`](docs): [architecture overview](docs/architecture/overview.md),
-[threat model](docs/threat-model/threat-model.md), [SLOs](docs/architecture/slos.md),
+[threat model](docs/threat-model/threat-model.md), [API reference](docs/api/reference.md),
+[sample postmortem](docs/postmortems/sample-checkout-bad-release.md), [SLOs](docs/architecture/slos.md),
 [ADRs](docs/adr), [interface spec](docs/design/interface-v2.md), and
 [operations](docs/operations).
 
@@ -352,7 +353,7 @@ Each phase ends with a tagged release.
 | 11 | Event-driven processing | ✅ v0.11.0 |
 | 12 | Cloud infrastructure (AWS, Terraform) | ✅ v0.12.0 |
 | 13 | Containers, Kubernetes, and GitOps | ✅ v0.13.0 |
-| 14 | Production hardening | ✅ v0.15.0 |
+| 14 | Production hardening | ✅ v0.15.0 (shipped with phase 15; there is no v0.14.0) |
 | 15 | Interface redesign | ✅ v0.15.0 |
 | 16 | Launch readiness: docs, threat model, walkthrough, landing page | ✅ v1.0.0 |
 
