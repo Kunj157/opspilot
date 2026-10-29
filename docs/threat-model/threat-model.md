@@ -1,6 +1,6 @@
 # Threat Model
 
-Consolidated model for OpsPilot v0.15, following the method in
+Consolidated model for OpsPilot v1.0, following the method in
 [`scope.md`](scope.md): STRIDE per trust boundary on the data-flow diagram in
 the [architecture overview](../architecture/overview.md#4-trust-boundaries),
 plus the OWASP Top 10 for LLM applications on the agent and retrieval paths.
@@ -83,8 +83,8 @@ rejects containers running as root; kubeconform validates the charts.
 | ID | Risk | Why open | Next step |
 |---|---|---|---|
 | R1 | CSP keeps `'unsafe-inline'` for scripts | Next.js Cache Components are incompatible with per-request nonces | Revisit when nonces work with partial prerendering |
-| R2 | Kyverno and cosign v3 signature storage not yet verified on a real cluster | No signed images have run through admission yet | Verify on the first cluster with signed images |
-| R3 | Cloud controls validated statically only | No AWS account configured; Terraform never applied | `make infra-smoke` after the first apply |
+| R2 | Kyverno and cosign v3 signature storage not yet verified on a real cluster | Images are signed in CI, but none has run through Kyverno admission on a real cluster; the policy has not been exercised on a cluster | Verify on the first cluster with signed images |
+| R3 | Cloud controls validated statically only | No AWS account configured; Terraform never applied (validate, tflint, and checkov only) | `make infra-smoke` after the first apply |
 | R4 | AWS Load Balancer Controller policy is broad (upstream) | Upstream-managed policy | Track in `docs/security/iam-review.md` |
 | R5 | Model promotion endpoint does not scope model versions by organization | Model versions are global by design today | Decide deliberately if models become per-tenant |
-| R6 | Agent evals in CI use a scripted model | Real-model scores vary and need a GPU | Run `make test-agent LLM=ollama` before releases and record results |
+| R6 | Agent evals in CI use a scripted model | Real-model scores vary and need a GPU; no real-model results are published for v1.0 | Run `make test-agent LLM=ollama` before releases and record results |
