@@ -6,6 +6,7 @@ image:
 config:
   APP_ENV: development
   LOG_LEVEL: info
+  REMEDIATION_ENABLED: "true"
 
 rollouts:
   enabled: true

@@ -48,7 +48,12 @@ async def client(
 ) -> AsyncIterator[httpx.AsyncClient]:
     Redis.from_url(redis_url).flushdb()
     async with api_client(
-        migrated_database_url, factory, peer=PEER, redis_url=redis_url, **LIMITS
+        migrated_database_url,
+        factory,
+        peer=PEER,
+        redis_url=redis_url,
+        remediation_enabled=True,
+        **LIMITS,
     ) as c:
         yield c
 

@@ -47,7 +47,7 @@ def factory() -> TokenFactory:
 async def client(
     migrated_database_url: str, factory: TokenFactory
 ) -> AsyncIterator[httpx.AsyncClient]:
-    async with api_client(migrated_database_url, factory) as c:
+    async with api_client(migrated_database_url, factory, remediation_enabled=True) as c:
         yield c
 
 

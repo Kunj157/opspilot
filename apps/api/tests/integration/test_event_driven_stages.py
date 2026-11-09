@@ -56,10 +56,18 @@ async def proposal(sessions: async_sessionmaker[AsyncSession], pid: uuid.UUID) -
 
 
 def executor(
-    sessions: async_sessionmaker[AsyncSession], writer: FakeWriter, *, authoritative: bool
+    sessions: async_sessionmaker[AsyncSession],
+    writer: FakeWriter,
+    *,
+    authoritative: bool,
+    enabled: bool = True,
 ) -> EventProcessor:
     handler = remediation_executor(
-        authoritative=authoritative, sessions=sessions, writer=writer, allowed_namespaces=ALLOWED
+        authoritative=authoritative,
+        enabled=enabled,
+        sessions=sessions,
+        writer=writer,
+        allowed_namespaces=ALLOWED,
     )
     return EventProcessor(f"remediation-{uuid.uuid4().hex[:6]}", sessions, handler, Recorder())
 
@@ -90,7 +98,7 @@ async def test_shadow_mode_only_checks_that_polling_started_it(
     p = executor(sessions, writer, authoritative=False)
 
     before = await p.process(APPROVED, b"k", event(APPROVED, org, {"proposal_id": str(pid)}))
-    assert await claim(sessions) is not None
+    assert await claim(sessions, enabled=True) is not None
     after = await p.process(APPROVED, b"k", event(APPROVED, org, {"proposal_id": str(pid)}))
 
     assert before.detail == "shadow: polling has not started it"
@@ -118,8 +126,15 @@ async def test_the_fallback_sweep_leaves_fresh_approvals_to_their_event(
 ) -> None:
     await approved(sessions)
 
-    assert await claim(sessions, approved_before=datetime.now(UTC) - timedelta(minutes=1)) is None
-    assert await claim(sessions, approved_before=datetime.now(UTC) + timedelta(seconds=1))
+    assert (
+        await claim(
+            sessions, enabled=True, approved_before=datetime.now(UTC) - timedelta(minutes=1)
+        )
+        is None
+    )
+    assert await claim(
+        sessions, enabled=True, approved_before=datetime.now(UTC) + timedelta(seconds=1)
+    )
 
 
 def starter(
@@ -190,3 +205,18 @@ async def test_polling_waits_before_taking_over_from_the_event(
     early = before - timedelta(minutes=1, seconds=30)
     assert eid not in await pending(sessions, completed_before=early)
     assert eid in await pending(sessions, completed_before=datetime.now(UTC))
+
+
+async def test_a_disabled_kill_switch_leaves_the_approval_event_unexecuted(
+    sessions: async_sessionmaker[AsyncSession],
+) -> None:
+    pid = await approved(sessions)
+    org = (await proposal(sessions, pid)).organization_id
+    writer = FakeWriter()
+    p = executor(sessions, writer, authoritative=True, enabled=False)
+
+    result = await p.process(APPROVED, b"k", event(APPROVED, org, {"proposal_id": str(pid)}))
+
+    assert result.detail == "skipped: remediation disabled"
+    assert writer.calls == []
+    assert (await proposal(sessions, pid)).status is ProposalStatus.APPROVED

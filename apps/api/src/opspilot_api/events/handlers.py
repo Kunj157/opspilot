@@ -79,6 +79,7 @@ def _uuid(envelope: Envelope, field: str) -> uuid.UUID:
 def remediation_executor(
     *,
     authoritative: bool,
+    enabled: bool,
     sessions: async_sessionmaker[AsyncSession],
     writer: KubeWriter,
     allowed_namespaces: frozenset[str],
@@ -106,9 +107,9 @@ def remediation_executor(
             return "shadow: agrees" if agrees else "shadow: polling has not started it"
         if proposal.status is not ProposalStatus.APPROVED:
             return f"skipped: proposal is {proposal.status.value.lower()}"
-        execution_id = await claim(sessions, proposal_id=proposal.id)
+        execution_id = await claim(sessions, enabled=enabled, proposal_id=proposal.id)
         if execution_id is None:
-            return "skipped: already running"
+            return "skipped: remediation disabled" if not enabled else "skipped: already running"
         outcome = await execute(
             sessions, writer, execution_id, allowed_namespaces=allowed_namespaces
         )

@@ -189,6 +189,11 @@ incidents are investigated automatically, and the incident page shows the
 hypotheses, cited evidence, tool calls, and the proposed remediation.
 `make test-agent LLM=ollama` runs the agent evals on the local model.
 
+Remediation is off by default (`REMEDIATION_ENABLED=false`, the kill switch in
+[ADR-003](docs/adr/003-human-approved-remediation.md)): approvals are refused
+and nothing executes. Set `REMEDIATION_ENABLED=true` in `.env` before `make dev`
+to let approved proposals run against the demo.
+
 The cluster uses its own kubeconfig (`.kube/config`), so other clusters are
 never touched. It publishes fixed localhost ports: Grafana
 http://localhost:33300, Prometheus :39090, Loki :33100, Tempo :33200, and the

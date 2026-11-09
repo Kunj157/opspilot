@@ -158,7 +158,7 @@ async def approved(
 async def run_once(
     sessions: async_sessionmaker[AsyncSession], writer: FakeWriter
 ) -> ExecutionStatus | None:
-    execution_id = await claim(sessions)
+    execution_id = await claim(sessions, enabled=True)
     if execution_id is None:
         return None
     return (await execute(sessions, writer, execution_id, allowed_namespaces=ALLOWED)).status
@@ -379,7 +379,7 @@ async def test_a_dead_workers_execution_is_taken_over(
     sessions: async_sessionmaker[AsyncSession],
 ) -> None:
     proposal_id = await approved(sessions)
-    crashed = await claim(sessions)
+    crashed = await claim(sessions, enabled=True)
     assert crashed is not None
     async with sessions() as session:
         execution = await session.get_one(RemediationExecution, crashed)
@@ -409,3 +409,52 @@ async def test_proposals_show_their_execution(
     assert out.execution is not None
     assert out.execution.status is ExecutionStatus.SUCCEEDED
     assert out.execution.output["rolled_back_to"] == 6
+
+
+async def test_a_disabled_kill_switch_starts_no_execution(
+    sessions: async_sessionmaker[AsyncSession],
+) -> None:
+    proposal_id = await approved(sessions)
+    writer = FakeWriter()
+
+    assert await claim(sessions, enabled=False) is None
+    assert await claim(sessions, enabled=False, approved_before=datetime.now(UTC)) is None
+
+    proposal, incident, executions, *_ = await snapshot(sessions, proposal_id)
+    assert proposal.status is ProposalStatus.APPROVED
+    assert incident.status is IncidentStatus.REMEDIATING
+    assert executions == []
+    assert writer.calls == []
+
+
+async def test_a_disabled_kill_switch_stops_a_takeover(
+    sessions: async_sessionmaker[AsyncSession],
+) -> None:
+    proposal_id = await approved(sessions)
+    crashed = await claim(sessions, enabled=True)
+    assert crashed is not None
+    async with sessions() as session:
+        execution = await session.get_one(RemediationExecution, crashed)
+        execution.lease_until = datetime.now(UTC) - timedelta(seconds=1)
+        await session.commit()
+
+    assert await claim(sessions, enabled=False) is None
+
+    _, _, [execution], *_ = await snapshot(sessions, proposal_id)
+    assert execution.attempts == 1
+    assert execution.status is ExecutionStatus.RUNNING
+
+
+async def test_re_enabling_runs_the_approval_once(
+    sessions: async_sessionmaker[AsyncSession],
+) -> None:
+    proposal_id = await approved(sessions)
+    assert await claim(sessions, enabled=False) is None
+    writer = FakeWriter()
+
+    assert await run_once(sessions, writer) is ExecutionStatus.SUCCEEDED
+    assert await run_once(sessions, writer) is None
+
+    _, _, [execution], *_ = await snapshot(sessions, proposal_id)
+    assert execution.attempts == 1
+    assert len(writer.calls) == 1
