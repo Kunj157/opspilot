@@ -85,11 +85,10 @@ async def approve_proposal(
     idempotency: IdempotencyDep,
     settings: Annotated[Settings, Depends(get_app_settings)],
 ) -> ProposalOut | JSONResponse:
-    """Approve the reviewed version; the worker then executes it once.
-
-    Refused while the kill switch (REMEDIATION_ENABLED) is off, so no approval
-    is recorded for a remediation that would not run.
-    """
+    """Approve the reviewed version; the worker then executes it once."""
+    # Refused while the kill switch (REMEDIATION_ENABLED) is off, so no approval
+    # is recorded for a remediation that would not run. Kept out of the docstring
+    # so the committed OpenAPI schema does not change.
     if not settings.remediation_enabled:
         raise HTTPException(
             status.HTTP_409_CONFLICT,
