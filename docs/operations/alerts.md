@@ -51,8 +51,9 @@ More than 72 % of non-streaming requests take over 500 ms (1 h and 5 m).
 1. `histogram_quantile(0.95, sum by (le, route) (rate(http_request_duration_seconds_bucket{service="opspilot-api",route!~".*/stream"}[5m])))`
    finds the slow routes.
 2. CPU throttling: `rate(container_cpu_cfs_throttled_seconds_total{namespace="opspilot"}[5m])`;
-   scale out (`kubectl -n opspilot scale rollout/opspilot-api --replicas=4`)
-   if the HPA is already at its maximum.
+   if the HPA is at its maximum, raise `api.autoscaling.maxReplicas` in the
+   environment values and roll it out with Argo CD. Do not scale by hand: the
+   HPA reconciles the replica count back to its own target.
 3. Database: pool saturation (see below) or slow queries in the PostgreSQL
    logs.
 
