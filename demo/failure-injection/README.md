@@ -20,6 +20,7 @@ make load-stop
 | `checkout-latency` | checkout 1.4.3 | +900 ms on every checkout request |
 | `payment-timeout` | payment 2.1.0 | +3 s on payment, past checkout's 2 s timeout, so checkouts fail with 502 |
 | `inventory-http-500` | inventory 1.2.1 | 30% of inventory requests fail; browsing and checkout both degrade |
+| `payment-outage` | payment 2.1.1 | Every payment charge fails with 500; checkouts return 502 |
 
 Scenarios are defined in `scenarios.env` and applied by
 `scripts/inject-failure.sh`. The script prints a UTC timestamp for the
