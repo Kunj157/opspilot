@@ -18,7 +18,7 @@ from opspilot_api.events.consumer import EventProcessor
 from opspilot_api.events.handlers import remediation_executor, verification_starter
 from opspilot_api.remediation.executor import claim
 from opspilot_api.remediation.verification import pending
-from tests.integration.test_recovery_verification import EXECUTED, Kube, Metrics, executed
+from tests.integration.test_recovery_verification import Kube, Metrics, executed
 from tests.integration.test_remediation_execution import (
     ALLOWED,
     FakeWriter,
@@ -199,9 +199,11 @@ async def test_a_failed_remediation_is_not_verified(
 async def test_polling_waits_before_taking_over_from_the_event(
     sessions: async_sessionmaker[AsyncSession],
 ) -> None:
-    eid = await executed(sessions)
+    before = datetime.now(UTC)
+    eid = await executed(sessions)  # completed one minute before it was built
 
-    assert eid not in await pending(sessions, completed_before=EXECUTED - timedelta(seconds=30))
+    early = before - timedelta(minutes=1, seconds=30)
+    assert eid not in await pending(sessions, completed_before=early)
     assert eid in await pending(sessions, completed_before=datetime.now(UTC))
 
 
