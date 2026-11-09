@@ -51,7 +51,7 @@ status from kube-state-metrics.
 |---|---|
 | Dump size (custom format, compression 6) | 4.2 MB |
 | Backup duration | 1.1 s |
-| Restore duration (recreate + restore) | 4.7 s |
+| Restore duration (drop, recreate, restore) | 4.7 s |
 | **RTO measured** (destroy -> API ready again) | **6.8 s** (first run 5.2 s) |
 | **RPO measured** | **1.4 s** in the drill (the event written after the backup was lost, as expected) |
 | RPO by design | the backup interval: **24 h** with the default nightly schedule (target 24 h) |
