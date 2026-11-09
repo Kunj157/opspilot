@@ -13,7 +13,7 @@ A service's memory grows until pods hit their limit and are OOM-killed.
 
 ## Symptoms
 
-- `process_memory_usage` (container memory) climbing steadily
+- `process_resident_memory_bytes` on a service's pods climbing steadily
 - Pods restarting with reason OOMKilled; latency rising before each restart
 
 ## Prerequisites
