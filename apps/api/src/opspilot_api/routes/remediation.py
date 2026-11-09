@@ -11,10 +11,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from opspilot_api.auth.permissions import Permission, require
 from opspilot_api.auth.principal import Principal
 from opspilot_api.auth.tenancy import get_owned_or_404
+from opspilot_api.config import Settings
 from opspilot_api.db.models import RemediationProposal
 from opspilot_api.db.session import get_session
 from opspilot_api.idempotency import Idempotency, IdempotencyDep
 from opspilot_api.incidents.service import IncidentConflictError, InvalidTransitionError
+from opspilot_api.readiness import get_app_settings
 from opspilot_api.remediation.approval import DecisionConflict, ProposalExpired, decide
 from opspilot_api.routes.investigations import ProposalOut, proposals_out
 
@@ -81,8 +83,18 @@ async def approve_proposal(
     principal: Annotated[Principal, Depends(require(Permission.APPROVE_REMEDIATION))],
     session: Annotated[AsyncSession, Depends(get_session)],
     idempotency: IdempotencyDep,
+    settings: Annotated[Settings, Depends(get_app_settings)],
 ) -> ProposalOut | JSONResponse:
-    """Approve the reviewed version; the worker then executes it once."""
+    """Approve the reviewed version; the worker then executes it once.
+
+    Refused while the kill switch (REMEDIATION_ENABLED) is off, so no approval
+    is recorded for a remediation that would not run.
+    """
+    if not settings.remediation_enabled:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            "Remediation is disabled (REMEDIATION_ENABLED=false); the proposal was not approved",
+        )
     return await _decide(session, principal, proposal_id, body, idempotency, approve=True)
 
 
