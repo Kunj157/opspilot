@@ -7,7 +7,7 @@
  * docs/postmortems/sample-checkout-bad-release.md); nothing is generated live.
  */
 
-import type { Me } from "@opspilot/api-client";
+import { DEMO_USER } from "./user";
 
 const id = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, "0")}`;
 const t0 = Date.now();
@@ -596,26 +596,6 @@ function postmortem() {
 }
 
 // ---- everything else -----------------------------------------------------
-
-export const DEMO_USER: Me = {
-  id: id(9001),
-  email: "commander@demo.opspilot",
-  display_name: "Demo Commander",
-  organization: { id: id(9100), slug: "demo-shop" },
-  roles: ["incident-commander"],
-  permissions: [
-    "view_services",
-    "view_incidents",
-    "manage_incidents",
-    "start_investigation",
-    "approve_remediation",
-    "manage_services",
-    "manage_runbooks",
-    "view_audit_logs",
-    "manage_users",
-    "manage_models",
-  ],
-};
 
 function health(n: number) {
   const p = phase();

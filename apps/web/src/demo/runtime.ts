@@ -70,7 +70,3 @@ function install() {
 }
 
 install();
-
-export function DemoRuntime() {
-  return null;
-}

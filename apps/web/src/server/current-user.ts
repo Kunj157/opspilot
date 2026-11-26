@@ -6,7 +6,7 @@ import { redirect } from "next/navigation";
 
 import { createApiClient, type Me } from "@opspilot/api-client";
 
-import { DEMO_USER } from "@/demo/scenario";
+import { DEMO_USER } from "@/demo/user";
 
 import { serverConfig } from "./config";
 import { accessTokenFor } from "./oidc";
