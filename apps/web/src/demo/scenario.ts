@@ -172,7 +172,7 @@ function events(): (DemoEvent & { id: string; sequence: number; created_at: stri
       actor_type: "system",
       actor_id: "detector",
       title: "Incident opened by the detector",
-      description: "checkout error rate above 5% for 3 consecutive windows (isolation-forest:2 + rule)",
+      description: "checkout error rate above 5% for 3 consecutive windows (error-rate rule)",
       metadata: {},
     },
     {
@@ -672,40 +672,53 @@ const runbooks = () => ({
   })),
 });
 
+// Numbers from the recorded evaluation (ml/evaluation/report-v1.json): on the held-out
+// runs the rolling z-score baseline wins, so the Isolation Forest stays in shadow mode.
 const model = (version: number, status: string) => ({
   id: id(300 + version),
   name: "isolation-forest",
   version,
   status,
-  feature_schema: { version: "v1", features: ["request_rate", "error_rate"] },
+  feature_schema: {
+    version: "v1",
+    features: [
+      "request_rate",
+      "error_rate",
+      "p50_seconds",
+      "p95_seconds",
+      "p99_seconds",
+      "restarts_5m",
+      "availability",
+    ],
+  },
   metrics: {
     test: { runs: [5, 6], scenarios: ["checkout-http-500", "checkout-latency"] },
     model: {
-      f1: 0.87,
-      recall: 0.84,
-      precision: 0.91,
-      missed_incidents: 0,
-      false_alerts_per_hour: 0.4,
-      p95_detection_delay_s: 60,
-      inference_ms_per_window: 0.8,
-      median_detection_delay_s: 45,
+      f1: 0.615,
+      recall: 0.457,
+      precision: 0.941,
+      missed_incidents: 1,
+      false_alerts_per_hour: 2.33,
+      p95_detection_delay_s: 23,
+      inference_ms_per_window: 0.439,
+      median_detection_delay_s: 23,
     },
     baseline: {
-      f1: 0.75,
-      recall: 0.62,
-      precision: 0.95,
-      missed_incidents: 1,
-      false_alerts_per_hour: 0.2,
-      p95_detection_delay_s: 90,
-      inference_ms_per_window: 0.3,
-      median_detection_delay_s: 75,
+      f1: 0.971,
+      recall: 0.943,
+      precision: 1.0,
+      missed_incidents: 0,
+      false_alerts_per_hour: 0,
+      p95_detection_delay_s: 23,
+      inference_ms_per_window: 0.45,
+      median_detection_delay_s: 23,
     },
-    reason: "beats or complements the baseline",
-    promotable: true,
+    reason: "2.33 false alerts per hour",
+    promotable: false,
   },
-  mlflow_run_id: null,
+  mlflow_run_id: "a983f7b9296c4578834c87f3f0dfd0fe",
   created_at: ago(60 * 24 * 4),
-  promoted_at: ago(60 * 24 * 4),
+  promoted_at: null,
 });
 
 const audit = () => ({
@@ -731,7 +744,7 @@ const audit = () => ({
 const evaluations = () => ({
   range_start: ago(30 * 24 * 60),
   range_end: at(0),
-  detection: { incidents: 14, delay_p50_seconds: 95, delay_p95_seconds: 210 },
+  detection: { incidents: 14, delay_p50_seconds: 70, delay_p95_seconds: 95 },
   investigations: { total: 22, succeeded: 17, partial: 3, failed: 2 },
   agents: {
     runs: 96,
@@ -751,8 +764,8 @@ const detections = () => ({
     {
       id: id(1401),
       service_id: CHECKOUT,
-      detector: "isolation-forest",
-      model_version: 2,
+      detector: "error-rate",
+      model_version: null,
       score: 6.2,
       threshold: 0.05,
       is_anomaly: true,
@@ -788,11 +801,11 @@ export function answer(method: string, path: string, search: URLSearchParams, bo
     if (path === "/api/v1/topology") return json(topology());
     if (path === "/api/v1/incident-metrics") return json(metrics());
     if (path === "/api/v1/runbooks" || path === "/api/v1/runbooks/search") return json(runbooks());
-    if (path === "/api/v1/ml/models") return json({ items: [model(2, "active"), model(1, "retired")] });
+    if (path === "/api/v1/ml/models") return json({ items: [model(3, "shadow"), model(2, "retired")] });
     if (path === "/api/v1/ml/shadow")
       return json({
         since: ago(24 * 60),
-        model: "isolation-forest:2",
+        model: "isolation-forest:3",
         services: SERVICE_DEFS.slice(0, 4).map((s, n) => ({
           service_id: id(100 + s.n),
           service: s.name,
