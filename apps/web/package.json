@@ -11,7 +11,8 @@
     "format:check": "prettier --check .",
     "typecheck": "next typegen && tsc --noEmit",
     "test": "vitest run",
-    "size": "node scripts/check-bundle-size.mjs"
+    "size": "node scripts/check-bundle-size.mjs",
+    "build:demo": "NEXT_PUBLIC_DEMO=1 next build"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.9.1",
