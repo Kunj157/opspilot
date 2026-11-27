@@ -4,3 +4,9 @@
 # a base digest ships the fixed zlib1g (scripts/pin-base-images.sh).
 CVE-2026-85091 exp:2026-12-09
 CVE-2026-76844 exp:2026-12-09
+
+# libzstd1 in the Debian trixie base: Trivy reports a fixed 1.5.7+dfsg-1+deb13u* build,
+# but the current python:3.12-slim-trixie and node:22-trixie-slim digests still ship
+# 1.5.7+dfsg-1 (checked 2026-11-27). Time-boxed: expires 2026-12-27. Drop this line once
+# a base digest ships the fixed libzstd1 (scripts/pin-base-images.sh).
+CVE-2026-124851 exp:2026-12-27
