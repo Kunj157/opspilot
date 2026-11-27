@@ -37,7 +37,15 @@ def factory() -> TokenFactory:
 async def client(
     migrated_database_url: str, factory: TokenFactory
 ) -> AsyncIterator[httpx.AsyncClient]:
-    async with api_client(migrated_database_url, factory) as c:
+    async with api_client(migrated_database_url, factory, remediation_enabled=True) as c:
+        yield c
+
+
+@pytest.fixture
+async def disabled_client(
+    migrated_database_url: str, factory: TokenFactory
+) -> AsyncIterator[httpx.AsyncClient]:
+    async with api_client(migrated_database_url, factory, remediation_enabled=False) as c:
         yield c
 
 
@@ -310,3 +318,45 @@ async def test_the_proposal_shows_its_decision(
     assert before.json()["decision"] is None
     assert after.json()["decision"]["comment"] == "go"
     assert after.json()["decision"]["reviewer_name"]
+
+
+async def test_the_kill_switch_refuses_approvals_at_the_api(
+    disabled_client: httpx.AsyncClient,
+    sessions: async_sessionmaker[AsyncSession],
+    factory: TokenFactory,
+) -> None:
+    commander = Caller(factory, new_org(), "incident-commander")
+    incident_id, proposal_id = await awaiting_approval(disabled_client, sessions, commander)
+
+    response = await disabled_client.post(
+        f"/api/v1/proposals/{proposal_id}/approve",
+        json={"version": 1},
+        headers=commander.headers,
+    )
+
+    assert response.status_code == 409, response.text
+    assert "REMEDIATION_ENABLED" in response.json()["detail"]
+    after = await state(sessions, incident_id, proposal_id)
+    assert after.proposal is ProposalStatus.PENDING
+    assert after.incident is IncidentStatus.AWAITING_APPROVAL
+    assert after.approvals == []
+    assert "remediation.approved" not in after.audit
+
+
+async def test_the_kill_switch_still_allows_rejecting(
+    disabled_client: httpx.AsyncClient,
+    sessions: async_sessionmaker[AsyncSession],
+    factory: TokenFactory,
+) -> None:
+    commander = Caller(factory, new_org(), "incident-commander")
+    incident_id, proposal_id = await awaiting_approval(disabled_client, sessions, commander)
+
+    response = await disabled_client.post(
+        f"/api/v1/proposals/{proposal_id}/reject",
+        json={"version": 1},
+        headers=commander.headers,
+    )
+
+    assert response.status_code == 200, response.text
+    after = await state(sessions, incident_id, proposal_id)
+    assert after.proposal is ProposalStatus.REJECTED

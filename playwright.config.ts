@@ -33,7 +33,7 @@ export default defineConfig({
       command: "uv run --directory apps/api opspilot-api",
       url: `${apiUrl}/api/v1/health`,
       // Deterministic embeddings: the browser tests never download a model.
-      env: { API_PORT: apiPort, APP_ENV: "test", JWT_ISSUER: issuer, JWT_AUDIENCE: "opspilot-api", EMBEDDING_MODEL: "hashing" },
+      env: { API_PORT: apiPort, APP_ENV: "test", JWT_ISSUER: issuer, JWT_AUDIENCE: "opspilot-api", EMBEDDING_MODEL: "hashing", REMEDIATION_ENABLED: "true" },
       reuseExistingServer: !process.env.CI,
       timeout: 60_000,
     },

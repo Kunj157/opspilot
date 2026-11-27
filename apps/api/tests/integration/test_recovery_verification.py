@@ -29,7 +29,6 @@ from opspilot_api.telemetry import Sample, Series, TelemetryUnavailable
 
 pytestmark = pytest.mark.integration
 STARTED = datetime.now(UTC) - timedelta(minutes=20)
-EXECUTED = datetime.now(UTC) - timedelta(minutes=1)
 
 
 class Metrics:
@@ -126,7 +125,10 @@ async def executed(
             incident_id=incident.id,
             idempotency_key=f"{proposal.id}:v1",
             status=ExecutionStatus.SUCCEEDED,
-            completed_at=EXECUTED,
+            # Taken per test, not at import: a module-level stamp ages while the suite
+            # runs, and once it is past the 5-minute rollout timeout the first check
+            # already reports a timeout.
+            completed_at=datetime.now(UTC) - timedelta(minutes=1),
             verification_status="pending",
         )
         session.add(execution)

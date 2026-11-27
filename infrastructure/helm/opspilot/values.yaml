@@ -16,6 +16,8 @@ config:
   JWT_AUDIENCE: opspilot-api
   AGENT_ALLOWED_NAMESPACES: demo
   AUTO_INVESTIGATE: "true"
+  # Remediation kill switch (ADR-003): approved proposals run only when "true".
+  REMEDIATION_ENABLED: "false"
   # Estimated LLM spend per 24 h before OpsPilotLLMCostBudgetBreach pages.
   LLM_DAILY_BUDGET_USD: "5"
 

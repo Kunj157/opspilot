@@ -6,6 +6,8 @@ import { redirect } from "next/navigation";
 
 import { createApiClient, type Me } from "@opspilot/api-client";
 
+import { DEMO_USER } from "@/demo/user";
+
 import { serverConfig } from "./config";
 import { accessTokenFor } from "./oidc";
 import { SESSION_COOKIE } from "./sessions";
@@ -18,6 +20,8 @@ export type CurrentUser = Pick<Me, "id" | "display_name" | "email" | "organizati
  * request, so the header, navigation, and page share one /me call.
  */
 export const getCurrentUser = cache(async (): Promise<CurrentUser> => {
+  // The static demo has no session: every page renders for the demo incident commander.
+  if (process.env.NEXT_PUBLIC_DEMO === "1") return DEMO_USER;
   const sessionId = (await cookies()).get(SESSION_COOKIE)?.value;
   const token = await accessTokenFor(sessionId);
   if (!token) redirect("/login");

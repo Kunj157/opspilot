@@ -5,6 +5,11 @@ incidents in a cloud application, investigates them with AI agents and
 machine learning, proposes safe remediation, runs it only after a human
 approves, verifies recovery, and writes the postmortem.
 
+**[Live demo](https://kunj157.github.io/opspilot/demo/)**: the real console
+replaying the recorded checkout incident in your browser. Watch the agents
+collect evidence, approve the rollback, and read the postmortem. No install,
+no cluster, no model calls (`NEXT_PUBLIC_DEMO=1`, see [`apps/web/src/demo`](apps/web/src/demo)).
+
 > **Status:** v1.0.1. The full incident loop works on the Kubernetes demo,
 > hardened for production (rate limits, secure headers, alerts, backups,
 > chaos and load tests, signed images, a release pipeline), with a
@@ -188,6 +193,11 @@ local model once with `make llm-up` (Ollama, GPU when available). Detector
 incidents are investigated automatically, and the incident page shows the
 hypotheses, cited evidence, tool calls, and the proposed remediation.
 `make test-agent LLM=ollama` runs the agent evals on the local model.
+
+Remediation is off by default (`REMEDIATION_ENABLED=false`, the kill switch in
+[ADR-003](docs/adr/003-human-approved-remediation.md)): approvals are refused
+and nothing executes. Set `REMEDIATION_ENABLED=true` in `.env` before `make dev`
+to let approved proposals run against the demo.
 
 The cluster uses its own kubeconfig (`.kube/config`), so other clusters are
 never touched. It publishes fixed localhost ports: Grafana

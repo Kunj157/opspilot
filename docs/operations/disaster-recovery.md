@@ -17,7 +17,7 @@ Before anything else: stop writers so the damage does not spread.
 
 ```bash
 kubectl -n opspilot scale deploy/opspilot-worker --replicas=0
-kubectl -n opspilot scale deploy/opspilot-api --replicas=0   # if the data is being corrupted
+kubectl -n opspilot scale rollout/opspilot-api --replicas=0   # if the data is being corrupted
 ```
 
 ## Find the backup

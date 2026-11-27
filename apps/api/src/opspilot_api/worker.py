@@ -176,6 +176,7 @@ async def run(settings: Settings) -> None:
         """Run one approved remediation; when event-driven, only ones their event missed."""
         execution_id = await claim_execution(
             sessions,
+            enabled=settings.remediation_enabled,
             approved_before=datetime.now(UTC) - EVENT_FALLBACK_DELAY
             if remediation_by_event
             else None,
@@ -237,6 +238,7 @@ async def run(settings: Settings) -> None:
                 "remediation",
                 remediation_executor(
                     authoritative=remediation_by_event,
+                    enabled=settings.remediation_enabled,
                     sessions=sessions,
                     writer=writer,
                     allowed_namespaces=settings.allowed_namespaces,

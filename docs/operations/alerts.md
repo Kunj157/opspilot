@@ -13,9 +13,11 @@ Useful everywhere:
 
 - API and worker logs: Grafana → Explore → Loki, `{namespace="opspilot"}`;
   filter by `request_id` or `incident_id`.
-- Readiness: `kubectl -n opspilot exec deploy/opspilot-api -- curl -s localhost:8000/api/v1/ready`
-  lists each dependency as `ok`/`fail`.
-- Recent releases: `kubectl -n opspilot rollout history deploy/opspilot-api`.
+- Readiness: `kubectl -n opspilot port-forward svc/opspilot-api 8000:8000`, then
+  `curl -s localhost:8000/api/v1/ready` lists each dependency as `ok`/`fail`
+  (HTTP 503 while one fails).
+- Recent releases: `kubectl argo rollouts get rollout opspilot-api -n opspilot`
+  (the API is an Argo Rollout in every deployed environment).
 
 ## SLO burn-rate alerts
 
@@ -49,8 +51,9 @@ More than 72 % of non-streaming requests take over 500 ms (1 h and 5 m).
 1. `histogram_quantile(0.95, sum by (le, route) (rate(http_request_duration_seconds_bucket{service="opspilot-api",route!~".*/stream"}[5m])))`
    finds the slow routes.
 2. CPU throttling: `rate(container_cpu_cfs_throttled_seconds_total{namespace="opspilot"}[5m])`;
-   scale out (`kubectl -n opspilot scale deploy/opspilot-api --replicas=4`)
-   if the HPA is already at its maximum.
+   if the HPA is at its maximum, raise `api.autoscaling.maxReplicas` in the
+   environment values and roll it out with Argo CD. Do not scale by hand: the
+   HPA reconciles the replica count back to its own target.
 3. Database: pool saturation (see below) or slow queries in the PostgreSQL
    logs.
 
@@ -112,7 +115,8 @@ after the pool timeout.
 ### OpsPilotWorkerQueueBacklog
 
 The oldest queued investigation or approved remediation has waited over 10
-minutes. Approved remediations should start within seconds.
+minutes for 5 minutes, so the page comes about 15 minutes after the job was
+queued. Approved remediations should start within seconds.
 
 1. Is the worker running? `kubectl -n opspilot get pods -l app.kubernetes.io/name=opspilot-worker`.
 2. Worker logs for `worker iteration failed`; a crash loop or an

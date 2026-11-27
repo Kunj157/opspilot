@@ -14,7 +14,7 @@ RUN uv sync --no-dev --no-install-project --no-editable
 COPY apps/api/src src
 RUN uv sync --no-dev --no-editable
 
-FROM python:3.12-slim-trixie@sha256:a6e34c598f2467ed0e9a8d349809fcd8b5c603269512df273a0bb1784edc11b1
+FROM python:3.12-slim-trixie@sha256:5e2bdb1b0d542d5039cffb8181c65930093949194a65c365dfb1b0fe13a4fa5b
 RUN useradd --uid 10001 --no-create-home --shell /usr/sbin/nologin opspilot
 COPY --from=build /app/.venv /app/.venv
 # Writable paths are mounted (/tmp); the root filesystem can stay read-only.

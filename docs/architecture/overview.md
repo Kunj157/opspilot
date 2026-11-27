@@ -64,7 +64,7 @@ sequenceDiagram
     G->>P: tools: metrics / logs / traces
     G->>L: prompts (redacted, structured output)
     G->>A: evidence + remediation proposal
-    A-->>UI: SSE proposal pending
+    A-->>UI: SSE incident.remediation_proposed
     IC->>A: approve (role check, proposal version)
     A->>R: enqueue execution (idempotency key)
     R->>K: rollback_deployment (allow-listed)
@@ -118,7 +118,7 @@ flowchart TB
 |---|---|---|---|
 | TB1 | Browser → API | Stolen/forged tokens, IDOR, CSRF, XSS, request floods | OIDC token validation (iss/aud/exp/sig), RBAC on every route, tenant filter on every query, CORS allow-list, secure headers, rate limits, `X-Request-ID` + `Idempotency-Key` |
 | TB2 | API ↔ OIDC provider | Token substitution, misconfigured audience | Pinned issuer and audience, JWKS caching with rotation |
-| TB3 | Worker → LLM provider | Secret / PII leakage in prompts, provider outage, cost runaway | Redaction before every call, no secrets in prompts, timeouts and retries, per-incident token and cost budgets, prompt versioning |
+| TB3 | Worker → LLM provider | Secret / PII leakage in prompts, provider outage, cost runaway | Redaction before every call, no secrets in prompts, timeouts and retries, per-investigation token and cost budgets, prompt versioning |
 | TB4 | Runbooks / telemetry → agents | Prompt injection, instructions disguised as data | Retrieved content marked untrusted, tool permissions enforced in code not prompts, schema-validated tool args, adversarial eval cases |
 | TB5 | Remediation worker → Kubernetes | Destructive or out-of-scope actions, replayed approvals | Allow-listed actions only, namespace/resource allow-list, parameter bounds, human approval bound to proposal version, idempotent execution, dedicated least-privilege service account |
 | TB6 | CI/CD → registry / cluster | Supply-chain compromise, leaked credentials | OIDC-federated CI credentials, digest-pinned base images, Trivy on every PR, cosign-signed images with SBOM attestations, Kyverno signature verification at admission, GitOps-only deploys via `env/*` tags |

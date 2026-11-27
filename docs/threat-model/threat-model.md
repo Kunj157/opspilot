@@ -68,7 +68,7 @@ Test paths are relative to the repository root; `api/unit` and `api/int` mean
 | T6.2 | Tampering | Vulnerable image | Trivy on every PR and on `main` (HIGH/CRITICAL with fixes fail) | `Image ·` jobs in CI |
 | T6.3 | Spoofing | Unsigned or foreign image deployed | cosign keyless signatures + SBOM attestations; Kyverno verifies at admission (Enforce in staging and production) | `.github/workflows/images.yml`, `infrastructure/argocd/bootstrap/kyverno` |
 | T6.4 | Tampering | Deploy before images exist / unreviewed deploy | Argo CD tracks `env/*` tags moved only after images are signed; production needs manual approval | `.github/workflows/images.yml`, `.github/workflows/release.yml` |
-| T6.5 | Info disclosure | Secrets committed | gitleaks on all branches in CI | `Security` job in CI |
+| T6.5 | Info disclosure | Secrets committed | gitleaks on pull requests and pushes to `dev` and `main`, and again on release tags | `Security` job in CI |
 | T6.6 | Elevation | Over-privileged cloud roles | IRSA per workload, state bucket restricted to named principals, CloudTrail | `docs/security/iam-review.md`, checkov in CI |
 
 ## Kubernetes runtime

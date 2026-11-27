@@ -7,7 +7,7 @@ are for a portfolio demo environment, not a commercial commitment.
 | # | SLO | Target | SLI (how it is measured) | Window | Measurable from |
 |---|---|---|---|---|---|
 | 1 | API availability | 99.5% | `1 - slo:api_errors:ratio_rate*` = non-5xx share of `http_requests_total{service="opspilot-api"}` | 30 days rolling | Phase 1 |
-| 2 | API latency | 95% of non-agent requests < 500 ms | `1 - slo:api_slow_requests:ratio_rate*` = share of `http_request_duration_seconds{service="opspilot-api",route!~".*/stream"}` within 0.5 s | 30 days rolling | Phase 1 |
+| 2 | API latency | 95% of non-streaming requests < 500 ms | `1 - slo:api_slow_requests:ratio_rate*` = share of `http_request_duration_seconds{service="opspilot-api",route!~".*/stream"}` within 0.5 s | 30 days rolling | Phase 1 |
 | 3 | API read latency under load | P95 < 300 ms | k6 load-test report (`tests/performance/`) | Per release | Phase 3 |
 | 4 | Detection | 95% of supported injected failures detected within 120 s | `incident.started_at − injection timestamp` from the failure-injection suite | Per release | Phase 6 |
 | 5 | Investigation quality | 90% of evaluation incidents produce a valid, evidence-backed investigation | Agent eval suite pass rate (`tests/agent-evals/`) | Per release | Phase 8 |

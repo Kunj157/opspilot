@@ -63,6 +63,12 @@ class Settings(BaseSettings):
 
     # Investigations may only read (and, in phase 9, remediate) these namespaces.
     agent_allowed_namespaces: str = "demo"
+    # Global kill switch for remediation (ADR-003 section 6). While it is off,
+    # approvals are refused and no approved proposal is claimed for execution.
+    remediation_enabled: bool = False
+    # ADR-003: every remediation needs an incident commander's approval. The
+    # only accepted value is true; there is no path that runs without approval.
+    require_remediation_approval: bool = True
     kubernetes_context: str | None = None
     kubeconfig: str | None = None
     # Per request; must stay well below the remediation lease (5 min).
@@ -120,6 +126,16 @@ class Settings(BaseSettings):
     @property
     def verification_by_event(self) -> bool:
         return self._by_event(self.event_driven_verification)
+
+    @field_validator("require_remediation_approval")
+    @classmethod
+    def _approval_required(cls, value: bool) -> bool:
+        if not value:
+            raise ValueError(
+                "REQUIRE_REMEDIATION_APPROVAL must be true: every remediation needs "
+                "an incident commander's approval (ADR-003)"
+            )
+        return value
 
     @field_validator("cors_allowed_origins")
     @classmethod

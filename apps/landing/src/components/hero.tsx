@@ -5,7 +5,7 @@ import dynamic from "next/dynamic";
 import { useEffect, useState } from "react";
 
 import { PHASES, phaseIndexAt } from "./incident-cycle";
-import { REPO } from "./links";
+import { DEMO, REPO } from "./links";
 
 // The 3D scene loads after the page is interactive and never blocks the headline.
 const HeroScene = dynamic(() => import("./hero-scene"), { ssr: false });
@@ -93,19 +93,19 @@ export function Hero() {
           </motion.p>
           <motion.div variants={rise} className="mt-9 flex flex-wrap items-center gap-3">
             <a
-              href={REPO}
+              href={DEMO}
               className="group inline-flex h-11 items-center gap-2 rounded-sm bg-accent px-5 font-medium text-on-accent shadow-glow-accent transition-colors hover:bg-accent-hover"
             >
-              View on GitHub
+              Try the live demo
               <span aria-hidden className="transition-transform group-hover:translate-x-0.5">
                 →
               </span>
             </a>
             <a
-              href="#loop"
+              href={REPO}
               className="inline-flex h-11 items-center rounded-sm border border-border-strong bg-surface-1/60 px-5 font-medium text-fg backdrop-blur transition-colors hover:bg-surface-2"
             >
-              See the incident loop
+              View on GitHub
             </a>
           </motion.div>
           <motion.dl variants={rise} className="mt-10 flex flex-wrap gap-x-8 gap-y-3 text-sm text-fg-muted">

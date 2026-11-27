@@ -62,14 +62,20 @@ def idempotency_key(proposal: RemediationProposal) -> str:
 async def claim(
     sessions: async_sessionmaker[AsyncSession],
     *,
+    enabled: bool,
     proposal_id: uuid.UUID | None = None,
     approved_before: datetime | None = None,
 ) -> uuid.UUID | None:
     """Start the execution of one approved proposal, or take over one whose lease expired.
 
+    This is the only way an execution starts, so it is where the kill switch
+    (REMEDIATION_ENABLED, ADR-003) applies: while `enabled` is false nothing is
+    claimed, approved proposals stay approved, and no Kubernetes call is made.
     `proposal_id` limits the claim to one proposal (the event-driven path);
     `approved_before` leaves recent approvals to their event (the fallback sweep).
     """
+    if not enabled:
+        return None
     now = datetime.now(UTC)
     async with sessions() as session:
         pick = select(RemediationProposal).where(
